@@ -1,8 +1,6 @@
 import torch
 import torch_geometric.transforms as T
-from torch_geometric.datasets import ShapeNet, GeometricShapes
-import networkx as nx
-from mpl_toolkits.mplot3d import Axes3D
+from torch_geometric.datasets import ShapeNet
 from model import Autoencoder
 import wandb
 from torch_geometric.loader import DataLoader
