@@ -7,8 +7,8 @@ from torch_geometric.loader import DataLoader
 
 knn_k = 6
 # Load the validation dataset
-val_dataset = ShapeNet(root='data/ShapeNet', categories=['Mug'], split='val', pre_transform=T.KNNGraph(k=knn_k))
-train_dataset = ShapeNet(root='data/ShapeNet', categories=['Mug'], split='train', pre_transform=T.KNNGraph(k=knn_k), transform=T.RandomJitter(0.01))
+val_dataset = ShapeNet(root='data/ShapeNet', categories=['Mug', 'Bag', 'Cap'], split='val', pre_transform=T.KNNGraph(k=knn_k))
+train_dataset = ShapeNet(root='data/ShapeNet', categories=['Mug', 'Bag', 'Cap'], split='train', pre_transform=T.KNNGraph(k=knn_k), transform=T.RandomJitter(0.01))
 # dataset = GeometricShapes(root='data/GeometricShapes')
 # dataset.transform = T.Compose([T.SamplePoints(num=num_points), T.KNNGraph(k=knn_k)])
                    
