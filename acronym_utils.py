@@ -21,19 +21,19 @@ def extract_sample_info(file_names, model_root):
         base_name = os.path.splitext(base_name)[0]
         name_part = base_name.split('_')
         model_file_path = os.path.join(model_root, name_part[1] + '.obj')
-        sample = {'class' : name_part[0], 'graps': file_name, 'model_path' : model_file_path , 'model_name': name_part[1], 'scale' : name_part[2] } 
+        sample = {'class' : name_part[0], 'grasps': file_name, 'model_path' : model_file_path , 'model_name': name_part[1], 'scale' : name_part[2] } 
         samples_paths.append(sample)
     return samples_paths
 
         
 def load_sample(sample):
-    grasp_file_name = sample['graps']
+    grasp_file_name = sample['grasps']
     data = h5py.File(grasp_file_name, "r")
     T = np.array(data["grasps/transforms"])
     success = np.array(data["grasps/qualities/flex/object_in_gripper"])
 
     # Load the model
-    model_file_name = sample['simplified_model']
+    model_file_name = sample['simplified_model_path']
     mesh_scale = sample['scale']
 
     mesh_data = pywavefront.Wavefront(model_file_name)
@@ -53,11 +53,19 @@ def get_simplified_samples(simplified_mesh_directory):
         simplify_save_path = f'{simplified_mesh_directory}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.obj'
         # Check if the simplified mesh exists
         if os.path.exists(simplify_save_path):
-            sample["simplified_model"] = simplify_save_path
-            simplified_samples.append(sample)
+            sample["simplified_model_path"] = simplify_save_path
+            grasps_file_name = sample['grasps']
+            data = h5py.File(grasps_file_name, "r")
+            grasp_poses = np.array(data["grasps/transforms"])
+            grasp_success = np.array(data["grasps/qualities/flex/object_in_gripper"])
+            # print(grasp_poses.shape, grasp_success.shape)
+            for (pose, success) in zip(grasp_poses, grasp_success):
+                grasp_sample = sample
+                grasp_sample['grasp_pose'] = pose
+                grasp_sample['success'] = success
+                simplified_samples.append(grasp_sample)
     
-    #save the simplified samples
-    np.save('simplified_acronym_samples.npy', simplified_samples)
+
 
     return simplified_samples
 

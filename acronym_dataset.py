@@ -1,7 +1,8 @@
 import torch
 from torch.utils.data import Dataset
 import numpy as np
-from acronym_utils import load_sample, convert2graph
+import pywavefront
+
 
 class AcronymDataset(Dataset):
     def __init__(self, data_path):
@@ -11,11 +12,16 @@ class AcronymDataset(Dataset):
         return len(self.data)
     
     def __getitem__(self, idx):
-        sample_path = self.data[idx]
+        sample = self.data[idx]
         # Process the sample if needed
-        T, success, vertices = load_sample(sample_path)
-        # vertices, A = convert2graph(vertices)
-        return vertices, T, success
+        model_file_name = sample['simplified_model_path']
+        # mesh_scale = sample['scale']
+
+        mesh_data = pywavefront.Wavefront(model_file_name)
+        vertices = np.array(mesh_data.vertices)
+        grasp_pose = sample['grasp_pose']
+        success = sample['success']
+        return vertices, grasp_pose, success
     
     def load_data(self, data_path):
         # Load the data from the specified path
@@ -23,8 +29,8 @@ class AcronymDataset(Dataset):
         return data
 
 if __name__ == "__main__":
-    dataset = AcronymDataset('simplified_acronym_samples.npy')
+    dataset = AcronymDataset('train_simplified_acronym_samples.npy')
     print(len(dataset))
     print(dataset[0][1].shape)
-    print(dataset[0][2].shape)
+    print(dataset[0][2])
 
