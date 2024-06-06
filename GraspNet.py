@@ -55,20 +55,20 @@ class GraspNet(nn.Module):
         
         self.encoder = Encoder(enc_out_channels)
         self.predictor = GraspPredictor(enc_out_channels, predictor_out_size)
-        self.evaluator = GraspEvaluator(enc_out_channels, predictor_out_size)
+        # self.evaluator = GraspEvaluator(enc_out_channels, predictor_out_size)
     
     def forward(self, x, pos, batch):
         scene_feat = self.encoder(x, pos, batch)
         grasp = self.predictor(scene_feat)
-        grasp_score = self.evaluator(scene_feat, grasp)
-        return grasp, grasp_score
+        # grasp_score = self.evaluator(scene_feat, grasp)
+        return grasp
 
 if __name__ == "__main__":
     model = GraspNet(enc_out_channels= 1028, predictor_out_size=16) 
 
-    data = torch.randn((50, 3))
-    pos = torch.randn((50, 3))
-    batch = torch.zeros(50, dtype=torch.long)
-    grasp, grasp_score = model(None, pos, batch)
+    data = torch.randn((10, 50, 3))
+    pos = torch.randn((10, 50, 3))
+    batch = torch.zeros(10, dtype=torch.long)
+    print(pos.shape)
+    grasp = model(None, pos, batch)
     print(grasp.shape)
-    print(grasp_score.shape)

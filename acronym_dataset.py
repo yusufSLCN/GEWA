@@ -16,12 +16,15 @@ class AcronymDataset(Dataset):
         # Process the sample if needed
         model_file_name = sample['simplified_model_path']
         # mesh_scale = sample['scale']
-
         mesh_data = pywavefront.Wavefront(model_file_name)
         vertices = np.array(mesh_data.vertices)
+        vertices = torch.tensor(vertices, dtype=torch.float32)
         grasp_pose = sample['grasp_pose']
-        success = sample['success']
-        return vertices, grasp_pose, success
+        grasp_pose = torch.tensor(grasp_pose, dtype=torch.float32)
+        grasp_pose = grasp_pose.view(-1)
+        # success = sample['success']
+        # success = torch.tensor(success)
+        return vertices, grasp_pose
     
     def load_data(self, data_path):
         # Load the data from the specified path
@@ -29,7 +32,7 @@ class AcronymDataset(Dataset):
         return data
 
 if __name__ == "__main__":
-    dataset = AcronymDataset('train_simplified_acronym_samples.npy')
+    dataset = AcronymDataset('train_success_simplified_acronym_samples.npy')
     print(len(dataset))
     print(dataset[0][1].shape)
     print(dataset[0][2])

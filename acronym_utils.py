@@ -41,7 +41,7 @@ def load_sample(sample):
     
     return T, success, vertices
 
-def get_simplified_samples(simplified_mesh_directory):
+def get_simplified_samples(simplified_mesh_directory, success_threshold=0.5):
     grasp_directory = '/Users/yusufsalcan/Documents/CS_Semester_2/Grasp_Everything_with_Anything/grasps'
     model_root = '/Users/yusufsalcan/Documents/CS_Semester_2/Grasp_Everything_with_Anything/data/ShapeNetSem-backup/models-OBJ/models'
 
@@ -49,6 +49,8 @@ def get_simplified_samples(simplified_mesh_directory):
     sample_paths = extract_sample_info(grasp_file_names, model_root=model_root)
     simplified_samples = []
 
+    pos_sample_count = 0
+    neg_sample_count = 0
     for sample in sample_paths:
         simplify_save_path = f'{simplified_mesh_directory}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.obj'
         # Check if the simplified mesh exists
@@ -59,12 +61,19 @@ def get_simplified_samples(simplified_mesh_directory):
             grasp_poses = np.array(data["grasps/transforms"])
             grasp_success = np.array(data["grasps/qualities/flex/object_in_gripper"])
             # print(grasp_poses.shape, grasp_success.shape)
+
             for (pose, success) in zip(grasp_poses, grasp_success):
-                grasp_sample = sample
-                grasp_sample['grasp_pose'] = pose
-                grasp_sample['success'] = success
-                simplified_samples.append(grasp_sample)
-    
+                if success > success_threshold:
+                    pos_sample_count += 1
+                    grasp_sample = sample
+                    grasp_sample['grasp_pose'] = pose
+                    grasp_sample['success'] = success
+                    simplified_samples.append(grasp_sample)
+                else:
+                    neg_sample_count += 1
+    print(f"Positive samples: {pos_sample_count}")
+    print(f"Negative samples: {neg_sample_count}")
+        
 
 
     return simplified_samples

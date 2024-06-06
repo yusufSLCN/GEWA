@@ -10,8 +10,8 @@ split_idx = int((len(simplified_samples)/2000) * 0.8) * 2000
 train_samples = simplified_samples[:int(split_idx)]
 valid_samples = simplified_samples[int(split_idx):]
 #save the train and test samples
-np.save('train_simplified_acronym_samples.npy', train_samples)
-np.save('valid_simplified_acronym_samples.npy', valid_samples)
+np.save('train_success_simplified_acronym_samples.npy', train_samples)
+np.save('valid_success_simplified_acronym_samples.npy', valid_samples)
 print(f"Train {len(train_samples)}")
 print(f"Test {len(valid_samples)}")
 print(len(simplified_samples))
