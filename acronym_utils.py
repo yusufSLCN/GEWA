@@ -42,8 +42,8 @@ def load_sample(sample):
     return T, success, vertices
 
 def get_simplified_samples(simplified_mesh_directory, success_threshold=0.5):
-    grasp_directory = '/Users/yusufsalcan/Documents/CS_Semester_2/Grasp_Everything_with_Anything/grasps'
-    model_root = '/Users/yusufsalcan/Documents/CS_Semester_2/Grasp_Everything_with_Anything/data/ShapeNetSem-backup/models-OBJ/models'
+    grasp_directory = '../data/acronym/data/examples/grasps'
+    model_root = '../data/ShapeNetSem-backup/models-OBJ/models'
 
     grasp_file_names = load_file_names(grasp_directory)
     sample_paths = extract_sample_info(grasp_file_names, model_root=model_root)
