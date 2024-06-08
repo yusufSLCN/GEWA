@@ -42,7 +42,7 @@ def load_sample(sample):
     return T, success, vertices
 
 def get_simplified_samples(simplified_mesh_directory, success_threshold=0.5):
-    grasp_directory = '../data/acronym/data/examples/grasps'
+    grasp_directory = '../data/acronym/grasps'
     model_root = '../data/ShapeNetSem-backup/models-OBJ/models'
 
     grasp_file_names = load_file_names(grasp_directory)
@@ -51,7 +51,10 @@ def get_simplified_samples(simplified_mesh_directory, success_threshold=0.5):
 
     pos_sample_count = 0
     neg_sample_count = 0
-    for sample in sample_paths:
+    for i, sample in enumerate(sample_paths):
+        if (i + 1) % 500 == 0:
+            print(f"Processed {i+1}/{len(sample_paths)}")
+
         simplify_save_path = f'{simplified_mesh_directory}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.obj'
         # Check if the simplified mesh exists
         if os.path.exists(simplify_save_path):

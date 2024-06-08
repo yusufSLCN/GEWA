@@ -1,7 +1,7 @@
 from acronym_utils import get_simplified_samples
 import numpy as np
 
-simplified_mesh_directory = '/home/salcany/Project/data/simplified_obj'
+simplified_mesh_directory = '../data/simplified_obj'
 simplified_samples = get_simplified_samples(simplified_mesh_directory)
 #split samples into train and test sets
 

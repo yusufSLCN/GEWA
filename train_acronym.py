@@ -4,6 +4,14 @@ import wandb
 from torch.utils.data import DataLoader
 from acronym_dataset import AcronymDataset
 from GraspNet import GraspNet
+import argparse
+
+# Parse the arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('--batch_size', type=int, default=512)
+parser.add_argument('--learning_rate', type=float, default=0.001)
+parser.add_argument('--epochs', type=int, default=50)
+args = parser.parse_args()
 
 # Load the datasets
 train_dataset = AcronymDataset('train_success_simplified_acronym_samples.npy')
@@ -14,8 +22,9 @@ wandb.init(project="GEWA")
 
 # Log hyperparameters
 config = wandb.config
-config.learning_rate = 0.001
-config.batch_size = 512
+config.learning_rate = args.learning_rate
+config.batch_size = args.batch_size
+config.epoch = args.epochs
 config.dataset = train_dataset.__class__.__name__
 
 # device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
@@ -54,7 +63,7 @@ val_data_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=
 
 print(f"Train data size: {len(train_dataset)}")
 # Define the number of epochs
-num_epochs = 50
+num_epochs = config.epoch
 
 # Training loop
 for epoch in range(num_epochs):
