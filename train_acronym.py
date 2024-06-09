@@ -11,6 +11,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', type=int, default=512)
 parser.add_argument('--learning_rate', type=float, default=0.001)
 parser.add_argument('--epochs', type=int, default=50)
+parser.add_argument('--device', type=str, default='cpu')
 args = parser.parse_args()
 
 # Load the datasets
@@ -26,9 +27,11 @@ config.learning_rate = args.learning_rate
 config.batch_size = args.batch_size
 config.epoch = args.epochs
 config.dataset = train_dataset.__class__.__name__
+config.device = args.device
 
 # device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device(args.device)
 print(device)
 
 # Define the modelel
