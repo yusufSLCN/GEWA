@@ -63,7 +63,7 @@ def get_simplified_samples(data_dir, success_threshold=0.5, num_mesh=-1):
         simplify_save_path = f'{simplified_mesh_directory}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.obj'
         # Check if the simplified mesh exists because not all samples have been simplified
         if os.path.exists(simplify_save_path):
-            if num_mesh > 0 and simplified_mesh_count >= num_mesh:
+            if num_mesh > 0 and simplified_mesh_count > num_mesh:
                 print(f"Positive samples: {pos_sample_count}")
                 print(f"Negative samples: {neg_sample_count}")
                 return simplified_samples, mesh_sampleId_dict

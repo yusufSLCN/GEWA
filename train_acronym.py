@@ -20,7 +20,7 @@ parser.add_argument('--data_dir', type=str, default='../data')
 args = parser.parse_args()
 
 # Save the split samples
-save_split_samples(args.data_dir, num_mesh=5)
+save_split_samples(args.data_dir, num_mesh=args.num_mesh)
 # Load the datasets
 train_dataset = AcronymDataset('train_success_simplified_acronym_samples.npy')
 val_dataset = AcronymDataset('valid_success_simplified_acronym_samples.npy')
