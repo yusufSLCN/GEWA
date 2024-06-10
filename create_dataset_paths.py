@@ -1,8 +1,14 @@
 from acronym_utils import get_simplified_samples
 import numpy as np
+import argparse
 
-simplified_mesh_directory = '../data/simplified_obj'
-simplified_samples = get_simplified_samples(simplified_mesh_directory)
+# Parse the arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('-d','--data_dir', type=str, default='../data')
+args = parser.parse_args()
+
+data_dir = args.data_dir
+simplified_samples = get_simplified_samples(data_dir)
 #split samples into train and test sets
 
 print(f"Number of meshes: {len(simplified_samples)/2000}" )
