@@ -50,7 +50,7 @@ print(device)
 
 # Define the modelel
 model = GraspNet(enc_out_channels= 1028, predictor_out_size=16).to(device)
-if torch.cuda.device_count() > 1:
+if torch.cuda.device_count() > 1 and args.device == 'cuda':
     model = nn.DataParallel(model)
     print(f"Using {torch.cuda.device_count()} GPUs")
 
