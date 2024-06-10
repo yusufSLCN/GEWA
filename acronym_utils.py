@@ -41,7 +41,7 @@ def load_sample(sample):
     
     return T, success, vertices
 
-def get_simplified_samples(data_dir, success_threshold=0.5):
+def get_simplified_samples(data_dir, success_threshold=0.5, num_mesh=-1):
 
     simplified_mesh_directory = os.path.join(data_dir, 'simplified_obj')
     grasp_directory =  os.path.join(data_dir, 'acronym/grasps')
@@ -49,17 +49,27 @@ def get_simplified_samples(data_dir, success_threshold=0.5):
 
     grasp_file_names = load_file_names(grasp_directory)
     sample_paths = extract_sample_info(grasp_file_names, model_root=model_root)
+    print(f"Number of samples: {len(sample_paths)}")
     simplified_samples = []
+    mesh_sampleId_dict = {}
 
     pos_sample_count = 0
     neg_sample_count = 0
+    simplified_mesh_count = 0
     for i, sample in enumerate(sample_paths):
         if (i + 1) % 500 == 0:
             print(f"Processed {i+1}/{len(sample_paths)}")
 
         simplify_save_path = f'{simplified_mesh_directory}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.obj'
-        # Check if the simplified mesh exists
+        # Check if the simplified mesh exists because not all samples have been simplified
         if os.path.exists(simplify_save_path):
+            if num_mesh > 0 and simplified_mesh_count >= num_mesh:
+                print(f"Positive samples: {pos_sample_count}")
+                print(f"Negative samples: {neg_sample_count}")
+                return simplified_samples, mesh_sampleId_dict
+            
+            # print(f"Loading {simplify_save_path}")
+            simplified_mesh_count += 1
             sample["simplified_model_path"] = simplify_save_path
             grasps_file_name = sample['grasps']
             data = h5py.File(grasps_file_name, "r")
@@ -69,11 +79,16 @@ def get_simplified_samples(data_dir, success_threshold=0.5):
 
             for (pose, success) in zip(grasp_poses, grasp_success):
                 if success > success_threshold:
-                    pos_sample_count += 1
                     grasp_sample = sample
                     grasp_sample['grasp_pose'] = pose
                     grasp_sample['success'] = success
                     simplified_samples.append(grasp_sample)
+                    if simplify_save_path in mesh_sampleId_dict:
+                        mesh_sampleId_dict[simplify_save_path].append(pos_sample_count)
+                    else:
+                        mesh_sampleId_dict[simplify_save_path] = [pos_sample_count]
+                     
+                    pos_sample_count += 1
                 else:
                     neg_sample_count += 1
     print(f"Positive samples: {pos_sample_count}")
@@ -81,7 +96,7 @@ def get_simplified_samples(data_dir, success_threshold=0.5):
         
 
 
-    return simplified_samples
+    return simplified_samples, mesh_sampleId_dict
 
 
 def convert2graph(sample, N=None):

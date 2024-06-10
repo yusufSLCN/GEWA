@@ -10,6 +10,7 @@ if __name__ == "__main__":
 
     # plot_point_cloud(dataset[0])
     print(dataset[2][0].shape)
+    print(dataset[2][1].shape)
     #calculate min, max, mean and std of the vertex counts and the center locations
     vertex_counts = []
     center_locations = []
