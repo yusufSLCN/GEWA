@@ -22,8 +22,8 @@ def save_split_samples(data_dir, num_mesh, train_ratio=0.8):
             valid_samples.append(simplified_samples[sampleId])
 
     #save the train and test samples
-    np.save('train_success_simplified_acronym_samples.npy', train_samples)
-    np.save('valid_success_simplified_acronym_samples.npy', valid_samples)
+    np.save('sample_dirs/train_success_simplified_acronym_samples.npy', train_samples)
+    np.save('sample_dirs/valid_success_simplified_acronym_samples.npy', valid_samples)
     print(f"Train mesh {len(train_mesh_names)}")
     print(f"Test mesh {len(valid_mesh_names)}")
     print(f"Train pairs {len(train_samples)}")

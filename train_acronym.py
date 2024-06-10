@@ -22,8 +22,8 @@ args = parser.parse_args()
 # Save the split samples
 save_split_samples(args.data_dir, num_mesh=args.num_mesh)
 # Load the datasets
-train_dataset = AcronymDataset('train_success_simplified_acronym_samples.npy')
-val_dataset = AcronymDataset('valid_success_simplified_acronym_samples.npy')
+train_dataset = AcronymDataset('sample_dirs/train_success_simplified_acronym_samples.npy')
+val_dataset = AcronymDataset('sample_dirs/valid_success_simplified_acronym_samples.npy')
                    
 # Initialize wandb
 wandb.init(project="GEWA")
