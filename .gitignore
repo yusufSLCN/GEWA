@@ -1,4 +1,5 @@
 data/
 __pycache__/
 wandb/
-*.npy
+train_success_simplified_acronym_samples.npy
+valid_success_simplified_acronym_samples.npy
