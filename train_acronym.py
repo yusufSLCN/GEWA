@@ -3,10 +3,11 @@ import torch.nn as nn
 import torch_geometric.transforms as T
 import wandb
 from torch.utils.data import DataLoader
+import argparse
+from tqdm import tqdm
 from acronym_dataset import AcronymDataset
 from GraspNet import GraspNet
 from create_dataset_paths import save_split_samples
-import argparse
 
 # Parse the arguments
 parser = argparse.ArgumentParser()
@@ -89,7 +90,8 @@ num_epochs = config.epoch
 for epoch in range(num_epochs):
     model.train()
     total_loss = 0
-    for i, samples in enumerate(train_data_loader):
+    
+    for i, samples in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch+1}/{num_epochs}"):
         optimizer.zero_grad()
         print(f"{i}/{len(train_data_loader)}")
         # Forward pass
@@ -107,14 +109,14 @@ for epoch in range(num_epochs):
         optimizer.step()
         total_loss += loss.item()
     average_loss = total_loss / len(train_data_loader)
-    print(f"Epoch {epoch + 1}, Train Loss: {average_loss}", end=", ")
     wandb.log({"Train Loss": average_loss}, step=epoch)
+    print(f"Epoch {epoch + 1}, Train Loss: {average_loss}", end=", ")
 
     # Validation loop
     model.eval()
     with torch.no_grad():
         total_val_loss = 0
-        for batch in val_data_loader:
+        for batch in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             vertices, grasp_gt, batch_idx = samples
             vertices = vertices.to(device)
             grasp_gt = grasp_gt.to(device)
@@ -124,7 +126,7 @@ for epoch in range(num_epochs):
             loss = criterion(grasp_pred, grasp_gt)
             total_val_loss += loss.item()
         average_val_loss = total_val_loss / len(val_data_loader)
-        wandb.log({"Val Loss": average_val_loss}, step=epoch)
+    wandb.log({"Val Loss": average_val_loss}, step=epoch)
     print(f"Val Loss: {average_val_loss}")
 
 # Finish wandb run
