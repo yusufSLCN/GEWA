@@ -93,9 +93,7 @@ for epoch in range(num_epochs):
     
     for i, samples in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch+1}/{num_epochs}"):
         optimizer.zero_grad()
-        print(f"{i}/{len(train_data_loader)}")
         # Forward pass
-        # batch_idx = torch.tensor([], dtype=torch.int64)
         vertices, grasp_gt, batch_idx = samples
         vertices = vertices.to(device)
         grasp_gt = grasp_gt.to(device)
