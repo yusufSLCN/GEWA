@@ -49,7 +49,6 @@ def get_simplified_samples(data_dir, success_threshold=0.5, num_mesh=-1):
 
     grasp_file_names = load_file_names(grasp_directory)
     sample_paths = extract_sample_info(grasp_file_names, model_root=model_root)
-    print(f"Number of samples: {len(sample_paths)}")
     simplified_samples = []
     mesh_sampleId_dict = {}
 
@@ -63,20 +62,19 @@ def get_simplified_samples(data_dir, success_threshold=0.5, num_mesh=-1):
         simplify_save_path = f'{simplified_mesh_directory}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.obj'
         # Check if the simplified mesh exists because not all samples have been simplified
         if os.path.exists(simplify_save_path):
-            if num_mesh > 0 and simplified_mesh_count > num_mesh:
+            if num_mesh > 0 and simplified_mesh_count >= num_mesh:
                 print(f"Positive samples: {pos_sample_count}")
                 print(f"Negative samples: {neg_sample_count}")
                 return simplified_samples, mesh_sampleId_dict
             
             # print(f"Loading {simplify_save_path}")
-            simplified_mesh_count += 1
             sample["simplified_model_path"] = simplify_save_path
             grasps_file_name = sample['grasps']
             data = h5py.File(grasps_file_name, "r")
             grasp_poses = np.array(data["grasps/transforms"])
             grasp_success = np.array(data["grasps/qualities/flex/object_in_gripper"])
             # print(grasp_poses.shape, grasp_success.shape)
-
+            any_success = False
             for (pose, success) in zip(grasp_poses, grasp_success):
                 if success > success_threshold:
                     grasp_sample = sample
@@ -89,11 +87,19 @@ def get_simplified_samples(data_dir, success_threshold=0.5, num_mesh=-1):
                         mesh_sampleId_dict[simplify_save_path] = [pos_sample_count]
                      
                     pos_sample_count += 1
+                    any_success = True
                 else:
                     neg_sample_count += 1
+            
+            if not any_success:
+                print(f"No successful grasps for {simplify_save_path} in {grasp_poses.shape[0]} grasps")
+            else:
+                simplified_mesh_count += 1
+
+
+    print(f"Number of meshes in the dataset: {len(sample_paths)}")
     print(f"Positive samples: {pos_sample_count}")
     print(f"Negative samples: {neg_sample_count}")
-        
 
 
     return simplified_samples, mesh_sampleId_dict

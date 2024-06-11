@@ -8,7 +8,7 @@ def save_split_samples(data_dir, num_mesh, train_ratio=0.8):
     simplified_samples, mesh_sampleId_dict = get_simplified_samples(data_dir, num_mesh=num_mesh)
     #split samples into train and test sets
     mesh_names = list(mesh_sampleId_dict.keys())
-    print(f"Number of meshes: {len(mesh_names)}")
+    print(f"Number of meshes in the simlified subset: {len(mesh_names)}")
     train_mesh_names = mesh_names[:int(len(mesh_names) * train_ratio)]
     valid_mesh_names = mesh_names[int(len(mesh_names) * train_ratio):]
     train_samples = []
