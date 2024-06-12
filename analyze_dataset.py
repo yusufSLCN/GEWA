@@ -6,7 +6,7 @@ import numpy as np
 
 if __name__ == "__main__":
     # dataset = ShapeNet(root='data/ShapeNet', categories=['Mug'], split='val', pre_transform=T.KNNGraph(k=6))
-    dataset = AcronymDataset('train_success_simplified_acronym_samples.npy')
+    dataset = AcronymDataset('sample_dirs/train_success_simplified_acronym_samples.npy')
 
     # plot_point_cloud(dataset[0])
     print(dataset[2][0].shape)
@@ -18,8 +18,6 @@ if __name__ == "__main__":
         if (i + 1) % 100 == 0:
             print(f"Processing {i + 1}/{len(dataset)}")
 
-        if i == 4000:
-            break
         sample = dataset[i]
         vertices = sample[0]
         vertex_counts.append(vertices.shape[0])

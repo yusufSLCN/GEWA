@@ -66,7 +66,7 @@ def collate_fn(batch):
     batch_idx = []
     vertices = []
     grasp_gt = []
-    for i, (points, gt) in enumerate(batch):
+    for i, (points, gt, info) in enumerate(batch):
         vertex_count = points.shape[0]
         batch_idx.extend([i] * vertex_count)
         vertices.append(points)

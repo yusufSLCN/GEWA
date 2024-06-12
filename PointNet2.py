@@ -44,7 +44,10 @@ class Encoder(torch.nn.Module):
     def forward(self, x, pos, batch):
         sa1_out = self.sa1_module(x, pos, batch)
         sa2_out = self.sa2_module(*sa1_out)
+        print(f"{sa2_out[0].shape=}")
         sa3_out = self.sa3_module(*sa2_out)
+        print(f"{sa3_out[0].shape=}")
+
         x, pos, batch = sa3_out
 
         return x
@@ -52,7 +55,6 @@ class Encoder(torch.nn.Module):
 class PointNet2Classifier(torch.nn.Module):
     def __init__(self):
         super().__init__()
-
         # Input channels account for both `pos` and node features.
         self.encoder = Encoder(out_channels = 1024)
         self.mlp = MLP([1024, 512, 256, 10], dropout=0.5, norm=None)

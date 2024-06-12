@@ -12,19 +12,21 @@ class AcronymDataset(Dataset):
         return len(self.data)
     
     def __getitem__(self, idx):
-        sample = self.data[idx]
+        sample_info = self.data[idx]
         # Process the sample if needed
-        model_file_name = sample['simplified_model_path']
-        # mesh_scale = sample['scale']
+        model_file_name = sample_info['simplified_model_path']
         mesh_data = pywavefront.Wavefront(model_file_name)
         vertices = np.array(mesh_data.vertices)
         vertices = torch.tensor(vertices, dtype=torch.float32)
-        grasp_pose = sample['grasp_pose']
+        grasp_pose = sample_info['grasp_pose']
         grasp_pose = torch.tensor(grasp_pose, dtype=torch.float32)
         grasp_pose = grasp_pose.view(-1)
         # success = sample['success']
+        mesh_scale = float(sample_info['scale'])
+        vertices = vertices * mesh_scale
+
         # success = torch.tensor(success)
-        return vertices, grasp_pose
+        return vertices, grasp_pose, sample_info
     
     def load_data(self, data_path):
         # Load the data from the specified path

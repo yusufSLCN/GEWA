@@ -1,24 +1,36 @@
-from acronym_utils import get_simplified_samples
+from acronym_utils import get_simplified_samples, get_simplified_meshes_w_closest_grasp
 import numpy as np
 import argparse
 
 
+def save_split_meshes(data_dir, num_mesh, train_ratio=0.8):
+    simplified_meshes = get_simplified_meshes_w_closest_grasp(data_dir, num_mesh=num_mesh)
+    #split samples into train and test sets
+    train_meshes = simplified_meshes[:int(len(simplified_meshes) * train_ratio)]
+    valid_meshes = simplified_meshes[int(len(simplified_meshes) * train_ratio):]
+    #save the train and test meshes
+    np.save('sample_dirs/train_success_simplified_acronym_meshes.npy', train_meshes)
+    np.save('sample_dirs/valid_success_simplified_acronym_meshes.npy', valid_meshes)
+    print(f"Train mesh {len(train_meshes)}")
+    print(f"Test mesh {len(valid_meshes)}")
+
 
 def save_split_samples(data_dir, num_mesh, train_ratio=0.8):
-    simplified_samples, mesh_sampleId_dict = get_simplified_samples(data_dir, num_mesh=num_mesh)
+    simplified_samples, mesh_sample_id_dict = get_simplified_samples(data_dir, num_mesh=num_mesh, override=True)
     #split samples into train and test sets
-    mesh_names = list(mesh_sampleId_dict.keys())
+    mesh_names = list(mesh_sample_id_dict.keys())
     print(f"Number of meshes in the simlified subset: {len(mesh_names)}")
-    train_mesh_names = mesh_names[:int(len(mesh_names) * train_ratio)]
-    valid_mesh_names = mesh_names[int(len(mesh_names) * train_ratio):]
+    subset_idx = int(len(mesh_names) * train_ratio) + 1
+    train_mesh_names = mesh_names[:subset_idx]
+    valid_mesh_names = mesh_names[subset_idx:]
     train_samples = []
     valid_samples = []
     for mesh_name in train_mesh_names:
-        for sampleId in mesh_sampleId_dict[mesh_name]:
+        for sampleId in mesh_sample_id_dict[mesh_name]:
             train_samples.append(simplified_samples[sampleId])
 
     for mesh_name in valid_mesh_names:
-        for sampleId in mesh_sampleId_dict[mesh_name]:
+        for sampleId in mesh_sample_id_dict[mesh_name]:
             valid_samples.append(simplified_samples[sampleId])
 
     #save the train and test samples
