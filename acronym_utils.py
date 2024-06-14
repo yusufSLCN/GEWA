@@ -4,6 +4,7 @@ import numpy as np
 import pywavefront
 from sklearn.neighbors import kneighbors_graph
 import time
+import tqdm
 import trimesh
 
 def load_file_names(directory):
@@ -44,7 +45,6 @@ def load_sample(sample):
 
 # this function returns the simplified samples and the dictionary that maps the mesh file path to the sample ids
 def get_simplified_samples(data_dir, success_threshold=0.5, num_mesh=-1, override=False):
-
     simplified_mesh_directory = os.path.join(data_dir, 'simplified_obj')
     grasp_directory =  os.path.join(data_dir, 'acronym/grasps')
     model_root = '../data/ShapeNetSem-backup/models-OBJ/models'
@@ -53,11 +53,10 @@ def get_simplified_samples(data_dir, success_threshold=0.5, num_mesh=-1, overrid
         print(f"Creating directory {point_grasp_dict_folder}")
         os.makedirs(point_grasp_dict_folder)
 
-
     grasp_file_names = load_file_names(grasp_directory)
     sample_paths = extract_sample_info(grasp_file_names, model_root=model_root)
     simplified_samples = []
-    # Dictionary to store the closese grasps to each point in the mesh
+    # Dictionary to store the closest grasps to each point in the mesh
     mesh_sample_id_dict = {}
 
     pos_sample_count = 0
@@ -129,43 +128,38 @@ def get_simplified_meshes_w_closest_grasp(data_dir, success_threshold=0.5, num_m
         print(f"Creating directory {point_grasp_dict_folder}")
         os.makedirs(point_grasp_dict_folder)
 
-
     grasp_file_names = load_file_names(grasp_directory)
     sample_paths = extract_sample_info(grasp_file_names, model_root=model_root)
     simplified_samples = []
     # Dictionary to store the closese grasps to each point in the mesh
-    mesh_sample_id_dict = {}
-
-    pos_sample_count = 0
     simplified_mesh_count = 0
-    for i, sample in enumerate(sample_paths):
-        if (i + 1) % 500 == 0:
-            print(f"Processed {i+1}/{len(sample_paths)}")
-
+    print("Extracting simplified meshes with closest grasps")
+    for i, sample in tqdm.tqdm(enumerate(sample_paths), total=len(sample_paths)):
         simplify_save_path = f'{simplified_mesh_directory}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.obj'
         point_grasp_save_path = f'{point_grasp_dict_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
 
         # Check if the simplified mesh exists because not all samples have been simplified
         if os.path.exists(simplify_save_path):
             if num_mesh > 0 and simplified_mesh_count >= num_mesh:
-                return simplified_samples, mesh_sample_id_dict
+                return simplified_samples
             
             grasps_file_name = sample['grasps']
             data = h5py.File(grasps_file_name, "r")
             grasp_poses = np.array(data["grasps/transforms"])
             grasp_success = np.array(data["grasps/qualities/flex/object_in_gripper"])
             num_success = np.sum(grasp_success > success_threshold)
-            if num_success > 0:
+            if num_success > n:
                 simplified_mesh_count += 1
-                pos_sample_count += num_success
-                mesh_data = pywavefront.Wavefront(simplify_save_path)
-                vertices = np.array(mesh_data.vertices)
-                point_grasp_dict = create_point_grasp_dict(vertices, grasp_poses, grasp_success, n=n)
-
                 sample["simplified_model_path"] = simplify_save_path
                 sample["point_grasp_save_path"] = point_grasp_save_path
-                np.save(point_grasp_save_path, point_grasp_dict)
                 simplified_samples.append(sample)
+                # Check if the point grasp dict exists and create it if it doesn't
+                if not os.path.exists(point_grasp_save_path):
+                    mesh_data = pywavefront.Wavefront(simplify_save_path)
+                    vertices = np.array(mesh_data.vertices) * float(sample["scale"])
+                    point_grasp_dict = create_point_grasp_dict(vertices, grasp_poses, grasp_success, n=n)
+                    np.save(point_grasp_save_path, point_grasp_dict)
+    return simplified_samples
             
 def find_n_closest_grasps(querry_point, grasp_poses, grasp_success, n=5):
     success_idxs = np.where(grasp_success > 0.5)
@@ -191,8 +185,8 @@ def find_n_closest_grasps(querry_point, grasp_poses, grasp_success, n=5):
 def create_point_grasp_dict(vertices, grasp_poses, grasp_success, n=5):
     point_grasp_dict = {}
     for i in range(vertices.shape[0]):
-        point = vertices[i].astype(np.float64)
-        point_key = tuple(np.round(point, 4))
+        point = vertices[i].astype(np.float32)
+        point_key = tuple(np.round(point, 3))
         closest_grasps = find_n_closest_grasps(point, grasp_poses, grasp_success, n=n)
         point_grasp_dict[point_key] = closest_grasps
     return point_grasp_dict

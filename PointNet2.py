@@ -44,9 +44,9 @@ class Encoder(torch.nn.Module):
     def forward(self, x, pos, batch):
         sa1_out = self.sa1_module(x, pos, batch)
         sa2_out = self.sa2_module(*sa1_out)
-        print(f"{sa2_out[0].shape=}")
+        # print(f"{sa2_out[0].shape=}")
         sa3_out = self.sa3_module(*sa2_out)
-        print(f"{sa3_out[0].shape=}")
+        # print(f"{sa3_out[0].shape=}")
 
         x, pos, batch = sa3_out
 

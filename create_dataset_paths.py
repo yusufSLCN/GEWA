@@ -6,8 +6,9 @@ import argparse
 def save_split_meshes(data_dir, num_mesh, train_ratio=0.8):
     simplified_meshes = get_simplified_meshes_w_closest_grasp(data_dir, num_mesh=num_mesh)
     #split samples into train and test sets
-    train_meshes = simplified_meshes[:int(len(simplified_meshes) * train_ratio)]
-    valid_meshes = simplified_meshes[int(len(simplified_meshes) * train_ratio):]
+    subset_idx = int(len(simplified_meshes) * train_ratio) + 1
+    train_meshes = simplified_meshes[:subset_idx]
+    valid_meshes = simplified_meshes[subset_idx:]
     #save the train and test meshes
     np.save('sample_dirs/train_success_simplified_acronym_meshes.npy', train_meshes)
     np.save('sample_dirs/valid_success_simplified_acronym_meshes.npy', valid_meshes)
@@ -52,4 +53,5 @@ if __name__ == "__main__":
     data_dir = args.data_dir
     num_mesh = args.num_mesh
     train_ratio = args.train_ratio
-    save_split_samples(data_dir, num_mesh, train_ratio)
+    # save_split_samples(data_dir, num_mesh, train_ratio)
+    save_split_meshes(data_dir, num_mesh, train_ratio)
