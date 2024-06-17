@@ -156,7 +156,7 @@ def get_simplified_meshes_w_closest_grasp(data_dir, success_threshold=0.5, num_m
                 # Check if the point grasp dict exists and create it if it doesn't
                 if not os.path.exists(point_grasp_save_path):
                     mesh_data = pywavefront.Wavefront(simplify_save_path)
-                    vertices = np.array(mesh_data.vertices, dtype=np.float128) * float(sample["scale"])
+                    vertices = np.array(mesh_data.vertices, dtype=np.float32) * float(sample["scale"])
                     point_grasp_dict = create_point_grasp_dict(vertices, grasp_poses, grasp_success, n=n)
                     np.save(point_grasp_save_path, point_grasp_dict)
     return simplified_samples
@@ -185,7 +185,7 @@ def find_n_closest_grasps(querry_point, grasp_poses, grasp_success, n=5):
 def create_point_grasp_dict(vertices, grasp_poses, grasp_success, n=5):
     point_grasp_dict = {}
     for i in range(vertices.shape[0]):
-        point = vertices[i].astype(np.float128)
+        point = vertices[i].astype(np.float32)
         point_key = tuple(np.round(point, 3))
         closest_grasps = find_n_closest_grasps(point, grasp_poses, grasp_success, n=n)
         point_grasp_dict[point_key] = closest_grasps

@@ -107,7 +107,7 @@ def prepare_samples(device, samples):
     vertices = vertices.to(device)
     grasp_gt = grasp_gt.to(device)
     batch_idx = batch_idx.to(device)
-    querry_point = querry_point.to(device)
+    querry_point = querry_point.to(device).float()
     return vertices, grasp_gt ,batch_idx, querry_point
 
 print(f"Train data size: {len(train_dataset)}")

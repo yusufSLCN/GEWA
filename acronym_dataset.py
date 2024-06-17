@@ -30,22 +30,23 @@ class AcronymDataset(Dataset):
         # Load the point grasp data
         point_grasp_save_path = sample_info['point_grasp_save_path']
         point_grasp_dict = np.load(point_grasp_save_path, allow_pickle=True).item()
-        #pick random point from the vertices
-        query_point_idx = np.random.randint(len(vertices))
-        #TEST __________________________________
-        # query_point_idx = 0
-        #TEST __________________________________
 
+        # pick random point from the vertices
+        query_point_idx = np.random.randint(len(vertices))
         query_point = vertices[query_point_idx].numpy().astype(np.float32)
-        #get the grasps of the point
-        querry_point_key = tuple(np.round(query_point, 3))
-        grasp_poses = point_grasp_dict[querry_point_key]
+        
+        # get the grasps of the point
+        query_point_key = tuple(np.round(query_point, 3))
+        while query_point_key not in point_grasp_dict:
+            print(f"Query point {query_point_key} not in the point grasp dict. Picking a new point.")
+            query_point_idx = np.random.randint(len(vertices))
+            query_point = vertices[query_point_idx].numpy().astype(np.float32)
+            query_point_key = tuple(np.round(query_point, 3))
+        
+        grasp_poses = point_grasp_dict[query_point_key]
+        
         # select a random grasp
         grasp_idx = np.random.randint(len(grasp_poses))
-        # #TEST __________________________________
-        # grasp_idx = 0
-        # #TEST __________________________________
-
         grasp_pose = grasp_poses[grasp_idx][0]
         grasp_pose = torch.tensor(grasp_pose, dtype=torch.float32)
 
@@ -59,7 +60,6 @@ class AcronymDataset(Dataset):
             vertices = transform_matrix @ vertices.T
             vertices = vertices.T
             vertices = vertices[:, :3]
-            #mutilpy the grasp pose with the transformation matrix
 
             grasp_pose = transform_matrix @ grasp_pose 
 
@@ -67,7 +67,7 @@ class AcronymDataset(Dataset):
             query_point = transform_matrix @ query_point
             query_point = query_point[:3]
         
-        sample_info['query_point'] = torch.tensor(query_point)
+        sample_info['query_point'] = torch.tensor(query_point).clone().detach()
 
         grasp_pose = grasp_pose.view(-1)
         # grasp_pose = sample_info['grasp_pose']
