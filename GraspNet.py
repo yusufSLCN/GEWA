@@ -84,7 +84,7 @@ class GraspPredictor(nn.Module):
         return h
 
 class GraspNet(nn.Module):
-    def __init__(self, scene_feat_dim, point_feature_dim = 256, predictor_out_size=16):
+    def __init__(self, scene_feat_dim, point_feature_dim = 128, predictor_out_size=16):
         super(GraspNet, self).__init__()
         
         self.encoder = Encoder(scene_feat_dim, point_feature_dim)

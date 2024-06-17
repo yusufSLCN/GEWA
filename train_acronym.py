@@ -22,6 +22,7 @@ parser.add_argument('-nw', '--num_workers', type=int, default=0)
 parser.add_argument('-nm', '--num_mesh', type=int, default=10)
 parser.add_argument('-dd', '--data_dir', type=str, default='../data')
 parser.add_argument('-na', '--no_augment', dest='augment', action='store_false')
+parser.add_argument('-sfd', '--scene_feat_dims', type=int, default=1028)
 args = parser.parse_args()
 
 # Save the split samples
@@ -51,7 +52,7 @@ config.num_mesh = args.num_mesh
 config.data_dir = args.data_dir
 config.num_workers = args.num_workers
 config.dataset = train_dataset.__class__.__name__
-config.scene_feat_dims = 1028
+config.scene_feat_dims = args.scene_feat_dims
 if args.augment:
     config.transform = transfom_params
 
