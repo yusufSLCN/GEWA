@@ -8,6 +8,9 @@ from tqdm import tqdm
 from acronym_dataset import AcronymDataset
 from GraspNet import GraspNet
 from create_dataset_paths import save_split_meshes
+from acronym_utils import analyze_dataset_stats
+import os
+import numpy as np
 
 # Parse the arguments
 parser = argparse.ArgumentParser()
@@ -23,7 +26,10 @@ args = parser.parse_args()
 # Save the split samples
 save_split_meshes(args.data_dir, num_mesh=args.num_mesh)
 # Load the datasets
-train_dataset = AcronymDataset('sample_dirs/train_success_simplified_acronym_meshes.npy')
+rotation_range = (-np.pi/3, np.pi/3)  # full circle range in radians
+translation_range = (-0.3, 0.3)  # translation values range
+transfom_params = {"rotation_range": rotation_range, "translation_range": translation_range}
+train_dataset = AcronymDataset('sample_dirs/train_success_simplified_acronym_meshes.npy', transform=transfom_params)
 val_dataset = AcronymDataset('sample_dirs/valid_success_simplified_acronym_meshes.npy')
                    
 # Initialize wandb
@@ -38,7 +44,17 @@ config.num_mesh = args.num_mesh
 config.data_dir = args.data_dir
 config.num_workers = args.num_workers
 config.dataset = train_dataset.__class__.__name__
+config.scene_feat_dims = 1028
+config.transform = transfom_params
 
+# Analyze the dataset class stats
+num_epochs = args.epochs
+train_class_stats = analyze_dataset_stats(train_dataset)
+valid_class_stats = analyze_dataset_stats(val_dataset)
+config.train_class_stats = train_class_stats
+config.valid_class_stats = valid_class_stats
+print("Number of classes in the train dataset: ", len(train_class_stats))
+print("Number of classes in the valid dataset: ", len(valid_class_stats))
 
 # device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
 if args.device == 'cuda' and torch.cuda.is_available():
@@ -49,8 +65,8 @@ else:
 config.device = args.device
 print(device)
 
-# Define the modelel
-model = GraspNet(enc_out_channels= 1028, predictor_out_size=16).to(device)
+# Initialize the model
+model = GraspNet(scene_feat_dim= config.scene_feat_dims, predictor_out_size=16).to(device)
 # if torch.cuda.device_count() > 1 and args.device == 'cuda':
 #     model = nn.DataParallel(model)
 #     print(f"Using {torch.cuda.device_count()} GPUs")
@@ -95,15 +111,14 @@ def prepare_samples(device, samples):
     return vertices, grasp_gt ,batch_idx, querry_point
 
 print(f"Train data size: {len(train_dataset)}")
-# Define the number of epochs
-num_epochs = config.epoch
+
 
 # Training loop
-for epoch in range(num_epochs):
+for epoch in range(1, num_epochs + 1):
     model.train()
     total_loss = 0
     
-    for i, samples in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch+1}/{num_epochs}"):
+    for i, samples in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         # Forward pass
         vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
@@ -117,7 +132,7 @@ for epoch in range(num_epochs):
         total_loss += loss.item()
     average_loss = total_loss / len(train_data_loader)
     wandb.log({"Train Loss": average_loss}, step=epoch)
-    print(f"Epoch {epoch + 1}, Train Loss: {average_loss}", end=", ")
+    print(f"Train Loss: {average_loss}")
 
     # Validation loop
     model.eval()
@@ -130,6 +145,20 @@ for epoch in range(num_epochs):
             loss = criterion(grasp_pred, grasp_gt)
             total_val_loss += loss.item()
         average_val_loss = total_val_loss / len(val_data_loader)
+
+        if epoch % 10 == 0:
+            model_name = f"GraspNet_nm_{args.num_mesh}__bs_{args.batch_size}"
+            model_folder = f"models/{model_name}"
+            if not os.path.exists(model_folder):
+                os.makedirs(model_folder)
+
+            model_file = f"{model_name}_epoch_{epoch}.pth"
+            model_path = os.path.join(model_folder, model_file)
+            torch.save(model.state_dict(), model_path)
+            artifact = wandb.Artifact(model_file, type='model')
+            artifact.add_file(model_path)
+            wandb.log_artifact(artifact)
+
     wandb.log({"Val Loss": average_val_loss}, step=epoch)
     print(f"Val Loss: {average_val_loss}")
 
