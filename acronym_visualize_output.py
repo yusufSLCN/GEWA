@@ -59,6 +59,22 @@ def visualize_grasp(vertices, grasp, query_point):
     scene.add_geometry(sphare)
     scene.show()
 
+def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point):
+    scene = create_scene_with_reference(vertices)
+    gt_gripper = create_gripper_marker(color=[0, 255, 0, 255])
+    gt_gripper = gt_gripper.apply_transform(gt)
+    scene.add_geometry(gt_gripper)
+
+    sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.005)
+    sphare.visual.face_colors = [0, 255, 0, 255]
+    sphare.apply_translation(query_point)
+    scene.add_geometry(sphare)
+
+    pred_gripper = create_gripper_marker(color=[255, 0, 0, 255])
+    pred_gripper = pred_gripper.apply_transform(pred)
+    scene.add_geometry(pred_gripper)
+    scene.show()
+
 
 if __name__ == "__main__":
     scene = create_scene_with_reference()

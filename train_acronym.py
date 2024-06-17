@@ -21,7 +21,7 @@ parser.add_argument('-d', '--device', type=str, default='cuda')
 parser.add_argument('-nw', '--num_workers', type=int, default=0)
 parser.add_argument('-nm', '--num_mesh', type=int, default=10)
 parser.add_argument('-dd', '--data_dir', type=str, default='../data')
-parser.add_argument('-a', '--augment', type=bool, default=True)
+parser.add_argument('-na', '--no_augment', dest='augment', action='store_false')
 args = parser.parse_args()
 
 # Save the split samples
@@ -33,6 +33,9 @@ if args.augment:
     transfom_params = {"rotation_range": rotation_range, "translation_range": translation_range}
 else:
     transfom_params = None
+
+print("Transform params: ", transfom_params)
+
 train_dataset = AcronymDataset('sample_dirs/train_success_simplified_acronym_meshes.npy', transform=transfom_params)
 val_dataset = AcronymDataset('sample_dirs/valid_success_simplified_acronym_meshes.npy')
                    
@@ -49,7 +52,8 @@ config.data_dir = args.data_dir
 config.num_workers = args.num_workers
 config.dataset = train_dataset.__class__.__name__
 config.scene_feat_dims = 1028
-config.transform = transfom_params
+if args.augment:
+    config.transform = transfom_params
 
 # Analyze the dataset class stats
 num_epochs = args.epochs
