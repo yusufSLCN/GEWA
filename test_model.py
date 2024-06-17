@@ -21,13 +21,13 @@ if __name__ == "__main__":
 
     # Access and download model. Returns path to downloaded artifact
     # downloaded_model_path = run.use_model(name="GraspNet_nm_4000__bs_64_epoch_40.pth:v0")
-    downloaded_model_path = run.use_model(name="GraspNet_nm_100__bs_64:v4")
+    downloaded_model_path = run.use_model(name="GraspNet_nm_1000__bs_64_epoch_50.pth:v4")
     print(downloaded_model_path)
 
     model_path = downloaded_model_path
 
     # load the GraspNet model and run inference then display the gripper pose
-    model = GraspNet(scene_feat_dim= 1028, predictor_out_size=16)
+    model = GraspNet(scene_feat_dim= 1028, predictor_out_size=9)
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
     dataset = AcronymDataset('sample_dirs/valid_success_simplified_acronym_meshes.npy')
     samlpe_idx = args.sample_idx

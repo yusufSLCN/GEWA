@@ -45,12 +45,11 @@ class AcronymDataset(Dataset):
         
         grasp_poses = point_grasp_dict[query_point_key]
         
-        # select a random grasp
-        grasp_idx = np.random.randint(len(grasp_poses))
-        grasp_pose = grasp_poses[grasp_idx][0]
+        # not select a random grasp
+        # grasp_idx = np.random.randint(len(grasp_poses))
+        # grasp_pose = grasp_poses[grasp_idx][0]
+        grasp_pose = grasp_poses[0][0]
         grasp_pose = torch.tensor(grasp_pose, dtype=torch.float32)
-
-
 
         if self.transform != None:
             transform_matrix = create_random_rotation_translation_matrix(self.transform['rotation_range'], self.transform['translation_range'])

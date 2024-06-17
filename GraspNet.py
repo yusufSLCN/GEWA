@@ -109,7 +109,7 @@ class GraspNet(nn.Module):
         r1 = r1 / torch.norm(r1, dim=1, keepdim=True)
         r2 = r2 - torch.sum(r1 * r2, dim=1, keepdim=True) * r1
         r2 = r2 / torch.norm(r2, dim=1, keepdim=True)
-        r3 = torch.cross(r1, r2)
+        r3 = torch.cross(r1, r2, dim=1)
         #create the rotation matrix
         r = torch.stack([r1, r2, r3], dim=2)
         #create 4x4 transformation matrix for each 

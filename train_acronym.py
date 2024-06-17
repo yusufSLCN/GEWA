@@ -15,7 +15,7 @@ import numpy as np
 # Parse the arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('-bs','--batch_size', type=int, default=64)
-parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
+parser.add_argument('-lr', '--learning_rate', type=float, default=0.0001)
 parser.add_argument('-e', '--epochs', type=int, default=50)
 parser.add_argument('-d', '--device', type=str, default='cuda')
 parser.add_argument('-nw', '--num_workers', type=int, default=0)
