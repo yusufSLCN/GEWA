@@ -76,7 +76,7 @@ config.device = args.device
 print(device)
 
 # Initialize the model
-model = GraspNet(scene_feat_dim= config.scene_feat_dims, predictor_out_size=9).to(device)
+model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
 # if torch.cuda.device_count() > 1 and args.device == 'cuda':
 #     model = nn.DataParallel(model)
 #     print(f"Using {torch.cuda.device_count()} GPUs")
@@ -142,7 +142,6 @@ for epoch in range(1, num_epochs + 1):
         total_loss += loss.item()
     average_loss = total_loss / len(train_data_loader)
     wandb.log({"Train Loss": average_loss}, step=epoch)
-    print(f"Train Loss: {average_loss}")
 
     # Validation loop
     model.eval()
@@ -170,7 +169,7 @@ for epoch in range(1, num_epochs + 1):
             wandb.log_artifact(artifact)
 
     wandb.log({"Val Loss": average_val_loss}, step=epoch)
-    print(f"Val Loss: {average_val_loss}")
+    print(f"Train Loss: {average_loss} - Val Loss: {average_val_loss}")
 
 # Finish wandb run
 wandb.finish()

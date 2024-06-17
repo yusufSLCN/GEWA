@@ -32,7 +32,8 @@ class AcronymDataset(Dataset):
         point_grasp_dict = np.load(point_grasp_save_path, allow_pickle=True).item()
 
         # pick random point from the vertices
-        query_point_idx = np.random.randint(len(vertices))
+        # query_point_idx = np.random.randint(len(vertices))
+        query_point_idx = 0
         query_point = vertices[query_point_idx].numpy().astype(np.float32)
         
         # get the grasps of the point

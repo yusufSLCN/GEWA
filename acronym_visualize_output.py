@@ -64,6 +64,7 @@ def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point):
     gt_gripper = create_gripper_marker(color=[0, 255, 0, 255])
     gt_gripper = gt_gripper.apply_transform(gt)
     scene.add_geometry(gt_gripper)
+    print(f"gt pose {gt}")
 
     sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.005)
     sphare.visual.face_colors = [0, 255, 0, 255]
@@ -73,6 +74,7 @@ def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point):
     pred_gripper = create_gripper_marker(color=[255, 0, 0, 255])
     pred_gripper = pred_gripper.apply_transform(pred)
     scene.add_geometry(pred_gripper)
+    print(f"pred pose {pred}")
     scene.show()
 
 
@@ -118,9 +120,9 @@ if __name__ == "__main__":
     grasp = sample[1].reshape(4, 4)
     # visualize_random_best_grasps( vertices, point_grasp_dict)
     # visualize_grasps_of_point(vertices, grasp_querry_point, point_grasp_dict)
-    print(grasp)
+    # print(grasp)
     #check the orthogonality of the grasp
-    print(f"Check col 1 and 2 {np.dot(grasp[:3, 0], grasp[:3, 1])}")
-    print(np.dot(grasp[:3, 0], grasp[:3, 2]))
+    # print(f"Check col 1 and 2 {np.dot(grasp[:3, 0], grasp[:3, 1])}")
+    # print(np.dot(grasp[:3, 0], grasp[:3, 2]))
 
     visualize_grasp(vertices, grasp, grasp_querry_point)

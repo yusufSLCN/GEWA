@@ -95,11 +95,10 @@ class GraspNet(nn.Module):
         scene_feat, edge_feat, point_batch = self.encoder(x, pos, batch)
         #stack the point features with the scene features
         grasp = self.predictor(scene_feat, querry_point, point_batch)
-        #use the first 3 dim as traslation and the rest as rotation
+
         trans_m = self.calculateTransformationMatrix(grasp)
-        # grasp_score = self.evaluator(scene_feat, grasp)
-        flattened_grasp = trans_m.view(-1, 16)
-        return flattened_grasp
+        grasp = trans_m.view(-1, 16)
+        return grasp
 
     def calculateTransformationMatrix(self, grasp):
         translation = grasp[:, :3]

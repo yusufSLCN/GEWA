@@ -21,7 +21,7 @@ if __name__ == "__main__":
 
     # Access and download model. Returns path to downloaded artifact
     # downloaded_model_path = run.use_model(name="GraspNet_nm_4000__bs_64_epoch_40.pth:v0")
-    downloaded_model_path = run.use_model(name="GraspNet_nm_1000__bs_64_epoch_50.pth:v4")
+    downloaded_model_path = run.use_model(name="GraspNet_nm_100__bs_64_epoch_80.pth:v0")
     print(downloaded_model_path)
 
     model_path = downloaded_model_path
