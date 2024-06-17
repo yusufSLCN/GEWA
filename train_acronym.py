@@ -21,14 +21,18 @@ parser.add_argument('-d', '--device', type=str, default='cuda')
 parser.add_argument('-nw', '--num_workers', type=int, default=0)
 parser.add_argument('-nm', '--num_mesh', type=int, default=10)
 parser.add_argument('-dd', '--data_dir', type=str, default='../data')
+parser.add_argument('-a', '--augment', type=bool, default=True)
 args = parser.parse_args()
 
 # Save the split samples
 save_split_meshes(args.data_dir, num_mesh=args.num_mesh)
 # Load the datasets
-rotation_range = (-np.pi/3, np.pi/3)  # full circle range in radians
-translation_range = (-0.3, 0.3)  # translation values range
-transfom_params = {"rotation_range": rotation_range, "translation_range": translation_range}
+if args.augment:
+    rotation_range = (-np.pi/3, np.pi/3)  # full circle range in radians
+    translation_range = (-0.3, 0.3)  # translation values range
+    transfom_params = {"rotation_range": rotation_range, "translation_range": translation_range}
+else:
+    transfom_params = None
 train_dataset = AcronymDataset('sample_dirs/train_success_simplified_acronym_meshes.npy', transform=transfom_params)
 val_dataset = AcronymDataset('sample_dirs/valid_success_simplified_acronym_meshes.npy')
                    

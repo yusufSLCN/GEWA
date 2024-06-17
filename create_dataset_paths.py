@@ -6,7 +6,7 @@ import argparse
 def save_split_meshes(data_dir, num_mesh, train_ratio=0.8):
     simplified_meshes = get_simplified_meshes_w_closest_grasp(data_dir, num_mesh=num_mesh)
     #split samples into train and test sets
-    subset_idx = int(len(simplified_meshes) * train_ratio) + 1
+    subset_idx = int(len(simplified_meshes) * train_ratio)
     train_meshes = simplified_meshes[:subset_idx]
     valid_meshes = simplified_meshes[subset_idx:]
     #save the train and test meshes
