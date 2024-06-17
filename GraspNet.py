@@ -113,7 +113,7 @@ class GraspNet(nn.Module):
         #create the rotation matrix
         r = torch.stack([r1, r2, r3], dim=2)
         #create 4x4 transformation matrix for each 
-        trans_m = torch.eye(4).repeat(len(grasp), 1, 1)
+        trans_m = torch.eye(4).repeat(len(grasp), 1, 1).to(grasp.device)
         trans_m[:,:3, :3] = r
         trans_m[:, :3, 3] = translation
         return trans_m
