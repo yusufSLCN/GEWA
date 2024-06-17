@@ -23,6 +23,7 @@ parser.add_argument('-nm', '--num_mesh', type=int, default=10)
 parser.add_argument('-dd', '--data_dir', type=str, default='../data')
 parser.add_argument('-na', '--no_augment', dest='augment', action='store_false')
 parser.add_argument('-sfd', '--scene_feat_dims', type=int, default=1028)
+parser.add_argument('-n', '--notes', type=str, default='')
 args = parser.parse_args()
 
 # Save the split samples
@@ -41,7 +42,7 @@ train_dataset = AcronymDataset('sample_dirs/train_success_simplified_acronym_mes
 val_dataset = AcronymDataset('sample_dirs/valid_success_simplified_acronym_meshes.npy')
                    
 # Initialize wandb
-wandb.init(project="GEWA")
+wandb.init(project="GEWA", notes=args.notes)
 
 # Log hyperparameters
 config = wandb.config

@@ -84,7 +84,7 @@ class GraspPredictor(nn.Module):
         return h
 
 class GraspNet(nn.Module):
-    def __init__(self, scene_feat_dim, point_feature_dim = 128, predictor_out_size=16):
+    def __init__(self, scene_feat_dim, point_feature_dim = 128, predictor_out_size=9):
         super(GraspNet, self).__init__()
         
         self.encoder = Encoder(scene_feat_dim, point_feature_dim)
@@ -95,11 +95,33 @@ class GraspNet(nn.Module):
         scene_feat, edge_feat, point_batch = self.encoder(x, pos, batch)
         #stack the point features with the scene features
         grasp = self.predictor(scene_feat, querry_point, point_batch)
+        print(f"{grasp.shape=}")
+        #use the first 3 dim as traslation and the rest as rotation
+        trans_m = self.calculateTransformationMatrix(grasp)
         # grasp_score = self.evaluator(scene_feat, grasp)
-        return grasp
+        flattened_grasp = trans_m.view(-1, 16)
+        return flattened_grasp
+
+    def calculateTransformationMatrix(self, grasp):
+        translation = grasp[:, :3]
+        r1 = grasp[:, 3:6]
+        r2 = grasp[:, 6:]
+        #orthogonalize the rotation vectors
+        r1 = r1 / torch.norm(r1, dim=1, keepdim=True)
+        r2 = r2 - torch.sum(r1 * r2, dim=1, keepdim=True) * r1
+        r2 = r2 / torch.norm(r2, dim=1, keepdim=True)
+        r3 = torch.cross(r1, r2)
+        #create the rotation matrix
+        r = torch.stack([r1, r2, r3], dim=2)
+        print(f"{r.shape=}")
+        #create 4x4 transformation matrix for each 
+        trans_m = torch.eye(4).repeat(len(grasp), 1, 1)
+        trans_m[:,:3, :3] = r
+        trans_m[:, :3, 3] = translation
+        return trans_m
 
 if __name__ == "__main__":
-    model = GraspNet(scene_feat_dim= 1028, point_feature_dim=256, predictor_out_size=16) 
+    model = GraspNet(scene_feat_dim= 1028, point_feature_dim=256, predictor_out_size=9) 
 
     data = torch.randn((50, 3))
     pos = torch.randn((50, 3))
@@ -108,5 +130,11 @@ if __name__ == "__main__":
     for i in range(10):
         batch[i*5:(i+1)*5] = i
     query_point = torch.randn((10, 3))
-    grasp = model(None, pos, batch, query_point)
-    print(grasp.shape)
+    grasps = model(None, pos, batch, query_point)
+    print(grasps.shape)
+    # # check the orthogonality of the grasp rotation
+    # grasp = grasps[0]
+    # print(grasp)
+    # orthogonality_check = torch.matmul(grasp.transpose(0, 1), grasp)
+    # print(orthogonality_check)
+    

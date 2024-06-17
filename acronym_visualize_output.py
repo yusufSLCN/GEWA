@@ -108,7 +108,7 @@ if __name__ == "__main__":
     #         scene.show()
             # break
 
-    sample_idx = 10
+    sample_idx = 0
     sample = train_dataset[sample_idx]
     vertices = sample[0].numpy().astype(np.float32)
     sample_info = sample[2]
@@ -118,4 +118,9 @@ if __name__ == "__main__":
     grasp = sample[1].reshape(4, 4)
     # visualize_random_best_grasps( vertices, point_grasp_dict)
     # visualize_grasps_of_point(vertices, grasp_querry_point, point_grasp_dict)
+    print(grasp)
+    #check the orthogonality of the grasp
+    print(f"Check col 1 and 2 {np.dot(grasp[:3, 0], grasp[:3, 1])}")
+    print(np.dot(grasp[:3, 0], grasp[:3, 2]))
+
     visualize_grasp(vertices, grasp, grasp_querry_point)
