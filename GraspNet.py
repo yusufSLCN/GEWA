@@ -95,7 +95,6 @@ class GraspNet(nn.Module):
         scene_feat, edge_feat, point_batch = self.encoder(x, pos, batch)
         #stack the point features with the scene features
         grasp = self.predictor(scene_feat, querry_point, point_batch)
-        print(f"{grasp.shape=}")
         #use the first 3 dim as traslation and the rest as rotation
         trans_m = self.calculateTransformationMatrix(grasp)
         # grasp_score = self.evaluator(scene_feat, grasp)
@@ -113,7 +112,6 @@ class GraspNet(nn.Module):
         r3 = torch.cross(r1, r2)
         #create the rotation matrix
         r = torch.stack([r1, r2, r3], dim=2)
-        print(f"{r.shape=}")
         #create 4x4 transformation matrix for each 
         trans_m = torch.eye(4).repeat(len(grasp), 1, 1)
         trans_m[:,:3, :3] = r

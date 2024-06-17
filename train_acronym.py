@@ -76,7 +76,7 @@ config.device = args.device
 print(device)
 
 # Initialize the model
-model = GraspNet(scene_feat_dim= config.scene_feat_dims, predictor_out_size=16).to(device)
+model = GraspNet(scene_feat_dim= config.scene_feat_dims, predictor_out_size=9).to(device)
 # if torch.cuda.device_count() > 1 and args.device == 'cuda':
 #     model = nn.DataParallel(model)
 #     print(f"Using {torch.cuda.device_count()} GPUs")
