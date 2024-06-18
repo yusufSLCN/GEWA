@@ -141,8 +141,8 @@ for epoch in range(1, num_epochs + 1):
         total_loss += loss.item()
     average_loss = total_loss / len(train_data_loader)
     wandb.log({"Train Loss": average_loss}, step=epoch)
-    pred = grasp_pred[0].detach().numpy()
-    gt = grasp_gt[0].detach().numpy()
+    pred = grasp_pred[0].cpu().detach().numpy()
+    gt = grasp_gt[0].cpu().detach().numpy()
     #log the gt and pred gripper pose array with wandb
     wandb.log({"GT Grasp Pose": gt, "Pred Grasp Pose": pred}, step=epoch)
 
