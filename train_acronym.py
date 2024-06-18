@@ -6,7 +6,6 @@ from torch.utils.data import DataLoader
 import argparse
 from tqdm import tqdm
 from acronym_dataset import AcronymDataset
-from GraspNet import GraspNet
 from EdgeGraspNet import EdgeGraspNet
 from create_dataset_paths import save_split_meshes
 from acronym_utils import analyze_dataset_stats
@@ -23,7 +22,7 @@ parser.add_argument('-nw', '--num_workers', type=int, default=0)
 parser.add_argument('-nm', '--num_mesh', type=int, default=10)
 parser.add_argument('-dd', '--data_dir', type=str, default='../data')
 parser.add_argument('-na', '--no_augment', dest='augment', action='store_false')
-parser.add_argument('-sfd', '--scene_feat_dims', type=int, default=1028)
+parser.add_argument('-sfd', '--scene_feat_dims', type=int, default=1024)
 parser.add_argument('-n', '--notes', type=str, default='')
 args = parser.parse_args()
 
@@ -79,7 +78,7 @@ print(device)
 # Initialize the model
 # model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
 model = EdgeGraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
-config.model = model.__class__.__name__
+config.model_name = model.__class__.__name__
 
 # Define the optimizer
 # optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -160,7 +159,7 @@ for epoch in range(1, num_epochs + 1):
         average_val_loss = total_val_loss / len(val_data_loader)
 
         if epoch % 10 == 0:
-            model_name = f"GraspNet_nm_{args.num_mesh}__bs_{args.batch_size}"
+            model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}"
             model_folder = f"models/{model_name}"
             if not os.path.exists(model_folder):
                 os.makedirs(model_folder)

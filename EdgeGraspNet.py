@@ -1,7 +1,6 @@
 import torch
-# from torch_geometric.nn import PointNetConv
 import torch.nn as nn
-from torch_geometric.nn import MLP, PointNetConv, fps, global_max_pool, radius
+from torch_geometric.nn import MLP
 from GraspNet import SAModule, GlobalSAModule
 
 class EdgeGraspPredictor(nn.Module):
