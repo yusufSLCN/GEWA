@@ -7,6 +7,7 @@ import argparse
 from tqdm import tqdm
 from acronym_dataset import AcronymDataset
 from GraspNet import GraspNet
+from EdgeGraspNet import EdgeGraspNet
 from create_dataset_paths import save_split_meshes
 from acronym_utils import analyze_dataset_stats
 import os
@@ -76,10 +77,9 @@ config.device = args.device
 print(device)
 
 # Initialize the model
-model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
-# if torch.cuda.device_count() > 1 and args.device == 'cuda':
-#     model = nn.DataParallel(model)
-#     print(f"Using {torch.cuda.device_count()} GPUs")
+# model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
+model = EdgeGraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
+config.model = model.__class__.__name__
 
 # Define the optimizer
 # optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -92,20 +92,20 @@ def collate_fn(batch):
     batch_idx = []
     vertices = []
     grasp_gt = []
-    querry_point = []
+    querry_point_idx = []
     for i, (points, gt, info) in enumerate(batch):
         vertex_count = points.shape[0]
         batch_idx.extend([i] * vertex_count)
         vertices.append(points)
         grasp_gt.append(gt)
-        querry_point.append(info['query_point'])
+        querry_point_idx.append(info['query_point_idx'])
             
     batch_idx = torch.tensor(batch_idx, dtype=torch.int64)
     vertices = torch.cat(vertices, dim=0)
     grasp_gt = torch.stack(grasp_gt, dim=0)
-    querry_point = torch.stack(querry_point, dim=0)
+    querry_point_idx = torch.tensor(querry_point_idx, dtype=torch.int64)
 
-    return vertices, grasp_gt, batch_idx, querry_point
+    return vertices, grasp_gt, batch_idx, querry_point_idx
 
 # Create data loader
 train_data_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True, collate_fn=collate_fn, num_workers=args.num_workers)
@@ -113,12 +113,12 @@ val_data_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=
 
 
 def prepare_samples(device, samples):
-    vertices, grasp_gt, batch_idx, querry_point = samples
+    vertices, grasp_gt, batch_idx, querry_point_idx = samples
     vertices = vertices.to(device)
     grasp_gt = grasp_gt.to(device)
     batch_idx = batch_idx.to(device)
-    querry_point = querry_point.to(device).float()
-    return vertices, grasp_gt ,batch_idx, querry_point
+    querry_point_idx = querry_point_idx.to(device)
+    return vertices, grasp_gt ,batch_idx, querry_point_idx
 
 print(f"Train data size: {len(train_dataset)}")
 
@@ -131,8 +131,8 @@ for epoch in range(1, num_epochs + 1):
     for i, samples in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         # Forward pass
-        vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
-        grasp_pred = model(None, vertices, batch_idx, querry_point)
+        vertices, grasp_gt, batch_idx, querry_point_idx = prepare_samples(device, samples)
+        grasp_pred = model(None, vertices, batch_idx, querry_point_idx)
         # Compute the loss
         loss = criterion(grasp_pred, grasp_gt)
         # # Backward pass
@@ -142,6 +142,10 @@ for epoch in range(1, num_epochs + 1):
         total_loss += loss.item()
     average_loss = total_loss / len(train_data_loader)
     wandb.log({"Train Loss": average_loss}, step=epoch)
+    pred = grasp_pred[0].detach().numpy()
+    gt = grasp_gt[0].detach().numpy()
+    #log the gt and pred gripper pose array with wandb
+    wandb.log({"GT Grasp Pose": gt, "Pred Grasp Pose": pred}, step=epoch)
 
     # Validation loop
     model.eval()

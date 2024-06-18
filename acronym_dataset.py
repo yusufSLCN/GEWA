@@ -63,11 +63,10 @@ class AcronymDataset(Dataset):
 
             grasp_pose = transform_matrix @ grasp_pose 
 
-            query_point = np.append(query_point, 1)
-            query_point = transform_matrix @ query_point
-            query_point = query_point[:3]
+            query_point = vertices[query_point_idx]
         
-        sample_info['query_point'] = torch.tensor(query_point).clone().detach()
+        sample_info['query_point'] = query_point
+        sample_info['query_point_idx'] = query_point_idx
 
         grasp_pose = grasp_pose.view(-1)
         # grasp_pose = sample_info['grasp_pose']
