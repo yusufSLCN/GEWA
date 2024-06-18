@@ -91,20 +91,21 @@ def collate_fn(batch):
     batch_idx = []
     vertices = []
     grasp_gt = []
-    querry_point_idx = []
+    batch_querry_point_idx = []
+    vertex_count = 0
     for i, (points, gt, info) in enumerate(batch):
+        batch_querry_point_idx.append(info['query_point_idx'] + vertex_count)
         vertex_count = points.shape[0]
         batch_idx.extend([i] * vertex_count)
         vertices.append(points)
         grasp_gt.append(gt)
-        querry_point_idx.append(info['query_point_idx'])
             
     batch_idx = torch.tensor(batch_idx, dtype=torch.int64)
     vertices = torch.cat(vertices, dim=0)
     grasp_gt = torch.stack(grasp_gt, dim=0)
-    querry_point_idx = torch.tensor(querry_point_idx, dtype=torch.int64)
+    batch_querry_point_idx = torch.tensor(batch_querry_point_idx, dtype=torch.int64)
 
-    return vertices, grasp_gt, batch_idx, querry_point_idx
+    return vertices, grasp_gt, batch_idx, batch_querry_point_idx
 
 # Create data loader
 train_data_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True, collate_fn=collate_fn, num_workers=args.num_workers)
