@@ -14,11 +14,10 @@ class EdgeGraspPredictor(nn.Module):
             nn.ReLU(),
             nn.Linear(scene_feat_dim // 4, out_size),
         )
-    def forward(self, edge_features, query_point_idx):
+    def forward(self, edge_features):
         # expanded_querry_point_feat = querry_point_feat[point_batch]
         # h = torch.cat([edge_features, expanded_querry_point_feat], dim=1)
-        edge_feat = edge_features[query_point_idx]
-        h = self.predictor(edge_feat)
+        h = self.predictor(edge_features)
         return h
 
 class Encoder(torch.nn.Module):
@@ -29,15 +28,17 @@ class Encoder(torch.nn.Module):
         self.sa2_module = SAModule(ratios[1], 0.4, MLP([128 + 3, 128, 128, point_feat_dim]))
         self.sa3_module = GlobalSAModule(MLP([point_feat_dim + 3, point_feat_dim, 512, out_channels]))
 
-    def forward(self, x, pos, batch):
+    def forward(self, x, pos, batch, query_point_idx):
         sa1_out = self.sa1_module(x, pos, batch)
         sa2_out = self.sa2_module(*sa1_out)
         point_feat, _, point_batch = sa2_out
         sa3_out = self.sa3_module(*sa2_out)
-        # dublicate the scene features to match the number of points in the batch
-        expanded_scene_feat = sa3_out[0][point_batch]
+        # expanded_scene_feat = sa3_out[0][point_batch]
+        scene_feat = sa3_out[0]
+        point_feat = point_feat[query_point_idx]
+
         # create edge features by concatenating the scene features with the point features 
-        edge_feat = torch.cat([point_feat, expanded_scene_feat], dim=1)
+        edge_feat = torch.cat([point_feat, scene_feat], dim=1)
         x, pos, batch = sa3_out
 
         return x, edge_feat, point_batch
@@ -48,8 +49,8 @@ class EdgeGraspNet(nn.Module):
         self.encoder = Encoder(out_channels = scene_feat_dim, point_feat_dim=point_feat_dim)
         self.predictor = EdgeGraspPredictor(scene_feat_dim, point_feat_dim=point_feat_dim, out_size=predictor_out_size)
     def forward(self, x, pos, batch, query_point_idx):
-        x, edge_feat, point_batch = self.encoder(x, pos, batch)
-        output = self.predictor(edge_feat, query_point_idx)
+        x, edge_feat, point_batch = self.encoder(x, pos, batch, query_point_idx)
+        output = self.predictor(edge_feat)
         trans_m = self.calculateTransformationMatrix(output)
         grasp = trans_m.view(-1, 16)
         return grasp
@@ -73,14 +74,17 @@ class EdgeGraspNet(nn.Module):
     
 
 if __name__ == "__main__":
-    model = EdgeGraspNet(scene_feat_dim= 2048, point_feat_dim=256, predictor_out_size=9) 
+    model = EdgeGraspNet(scene_feat_dim= 1024, point_feat_dim=256, predictor_out_size=9) 
 
-    data = torch.randn((50, 3))
-    pos = torch.randn((50, 3))
-    batch = torch.arange(50, dtype=torch.long)
-    print(pos.shape)
-    for i in range(10):
-        batch[i*5:(i+1)*5] = i
-    query_point_idx = torch.zeros(10, dtype=torch.long)
+    num_meshes = 2
+    mesh_vertex_count = 50
+    total_vertex_count = num_meshes * mesh_vertex_count
+    data = torch.randn((total_vertex_count, 3))
+    pos = torch.randn((total_vertex_count, 3))
+    batch = torch.arange(total_vertex_count, dtype=torch.long)
+    query_point_idx = torch.zeros(num_meshes, dtype=torch.long)
+    for i in range(num_meshes):
+        batch[i*mesh_vertex_count:(i+1)*mesh_vertex_count] = i
+        query_point_idx[i] = i * mesh_vertex_count
+
     grasps = model(None, pos, batch, query_point_idx)
-    print(grasps.shape)
