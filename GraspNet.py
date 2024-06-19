@@ -10,7 +10,7 @@ class SAModule(torch.nn.Module):
         super().__init__()
         self.ratio = ratio
         self.r = r
-        self.conv = PointNetConv(nn, add_self_loops=False)
+        self.conv = PointNetConv(nn, add_self_loops=True)
 
     def forward(self, x, pos, batch):
         idx = fps(pos, batch, ratio=self.ratio)
