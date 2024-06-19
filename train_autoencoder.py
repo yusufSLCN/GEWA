@@ -1,9 +1,10 @@
 import torch
 import torch_geometric.transforms as T
 from torch_geometric.datasets import ShapeNet
-from model import Autoencoder
+from Autoencoder import Autoencoder
 import wandb
 from torch_geometric.loader import DataLoader
+from tqdm import tqdm
 
 knn_k = 6
 # Load the validation dataset
@@ -18,13 +19,13 @@ wandb.init(project="GEWA")
 # Log hyperparameters
 config = wandb.config
 config.learning_rate = 0.001
-config.batch_size = 128
+config.batch_size = 64
 config.knn_k = knn_k
 config.dataset = train_dataset.__class__.__name__
 config.catagories = train_dataset.categories
 
 # Define the modelel
-model = Autoencoder(3, 32)
+model = Autoencoder()
 
 # Define the optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
@@ -44,32 +45,31 @@ num_epochs = 50
 for epoch in range(num_epochs):
     model.train()
     total_loss = 0
-    for batch in train_data_loader:
+    for i, samples in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         # Forward pass
-        reconstructed = model(batch.pos, batch.pos, batch.edge_index)
+        reconstructed = model(samples.pos, samples.pos, samples.batch)
         # Compute the loss
-        loss = criterion(reconstructed, batch.pos)
+        loss = criterion(reconstructed, samples.pos)
         # Backward pass
         loss.backward()
         # Update the weights
         optimizer.step()
         total_loss += loss.item()
     average_loss = total_loss / len(train_data_loader)
-    print(f"Epoch {epoch + 1}, Train Loss: {average_loss}", end=", ")
     wandb.log({"Train Loss": average_loss}, step=epoch)
 
     # Validation loop
     model.eval()
     with torch.no_grad():
         total_val_loss = 0
-        for batch in val_data_loader:
-            reconstructed = model(batch.pos, batch.pos, batch.edge_index)
-            loss = criterion(reconstructed, batch.pos)
+        for i, samples in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
+            reconstructed = model(samples.pos, samples.pos, samples.batch)
+            loss = criterion(reconstructed, samples.pos)
             total_val_loss += loss.item()
         average_val_loss = total_val_loss / len(val_data_loader)
         wandb.log({"Val Loss": average_val_loss}, step=epoch)
-    print(f"Val Loss: {average_val_loss}")
+    print(f"Epoch {epoch + 1}, Train Loss: {average_loss} - Val Loss: {average_val_loss}")
 
 # Finish wandb run
 wandb.finish()
