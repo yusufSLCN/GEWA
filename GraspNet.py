@@ -36,7 +36,7 @@ class GlobalSAModule(torch.nn.Module):
         return x, pos, batch
 
 class Encoder(torch.nn.Module):
-    def __init__(self, out_channels=1024, point_feat_dim=256, ratios=[0.5, 0.25]):
+    def __init__(self, out_channels=1024, point_feat_dim=256, ratios=[1.0, 0.5]):
         super().__init__()
 
         self.sa1_module = SAModule(ratios[0], 0.2, MLP([3, 64, 64, 128]))
