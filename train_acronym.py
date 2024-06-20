@@ -164,7 +164,7 @@ for epoch in range(1, num_epochs + 1):
             total_val_loss += loss.item()
         average_val_loss = total_val_loss / len(val_data_loader)
 
-        if epoch % 10 == 0:
+        if epoch % 10 == 0 and average_val_loss < 0.1:
             model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}"
             model_folder = f"models/{model_name}"
             if not os.path.exists(model_folder):
