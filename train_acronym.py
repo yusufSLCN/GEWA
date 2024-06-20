@@ -24,6 +24,7 @@ parser.add_argument('-dd', '--data_dir', type=str, default='../data')
 parser.add_argument('-na', '--no_augment', dest='augment', action='store_false')
 parser.add_argument('-sfd', '--scene_feat_dims', type=int, default=1024)
 parser.add_argument('-n', '--notes', type=str, default='')
+parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 args = parser.parse_args()
 
 # Save the split samples
@@ -68,7 +69,7 @@ print("Number of classes in the valid dataset: ", len(valid_class_stats))
 
 # device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
 if args.device == 'cuda' and torch.cuda.is_available():
-    device = torch.device('cuda')
+    device = torch.device("cuda:0")
 else:
     device = torch.device('cpu')
 
@@ -79,6 +80,10 @@ print(device)
 # model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
 model = EdgeGraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
 config.model_name = model.__class__.__name__
+
+# If we have multiple GPUs, parallelize the model
+if torch.cuda.device_count() > 1 and args.multi_gpu:
+    model = nn.DataParallel(model)
 
 # Define the optimizer
 # optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
