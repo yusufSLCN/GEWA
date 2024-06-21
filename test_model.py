@@ -22,13 +22,13 @@ if __name__ == "__main__":
 
     # Access and download model. Returns path to downloaded artifact
     # downloaded_model_path = run.use_model(name="GraspNet_nm_4000__bs_64_epoch_40.pth:v0")
-    downloaded_model_path = run.use_model(name="GraspNet_nm_1000__bs_64_epoch_200.pth:v2")
+    downloaded_model_path = run.use_model(name="EdgeGraspNet_nm_3000__bs_12_epoch_440.pth:v0")
     print(downloaded_model_path)
 
     model_path = downloaded_model_path
 
     # load the GraspNet model and run inference then display the gripper pose
-    model = EdgeGraspNet(scene_feat_dim=1028)
+    model = EdgeGraspNet(scene_feat_dim=1024)
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
     dataset = AcronymDataset('sample_dirs/valid_success_simplified_acronym_meshes.npy')
     samlpe_idx = args.sample_idx
@@ -37,13 +37,14 @@ if __name__ == "__main__":
     batch = torch.zeros(pos.shape[0], dtype=torch.long)
     query_point_idx = data[2]['query_point_idx']
     query_point_idx = torch.tensor(query_point_idx, dtype=torch.int64).unsqueeze(0)
-    print(query_point_idx)
-    print(pos.shape)
+    print(data[2]["class"])
+    # print(query_point_idx)
+    # print(pos.shape)
     model.eval()
     output = model(None, pos, batch, query_point_idx)
 
     pred_grasp = output.detach().numpy().reshape(4, 4)
-    print(pred_grasp)
+    # print(pred_grasp)
     # visualize_grasp(data[0].numpy(), grasp, data[2]['query_point'].numpy())
     gt_grasp = data[1].reshape(4, 4)
-    visualize_gt_and_pred_gasp(data[0].numpy(), gt_grasp.numpy(), pred_grasp, data[2]['query_point'].numpy())
+    visualize_gt_and_pred_gasp(data[0].numpy(), gt_grasp.numpy(), pred_grasp, data[2]['query_point'])

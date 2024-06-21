@@ -27,8 +27,7 @@ parser.add_argument('-n', '--notes', type=str, default='')
 parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 args = parser.parse_args()
 
-# Save the split samples
-save_split_meshes(args.data_dir, num_mesh=args.num_mesh)
+
 # Load the datasets
 if args.augment:
     rotation_range = (-np.pi/3, np.pi/3)  # full circle range in radians
@@ -39,8 +38,10 @@ else:
 
 print("Transform params: ", transfom_params)
 
-train_dataset = AcronymDataset('sample_dirs/train_success_simplified_acronym_meshes.npy', transform=transfom_params)
-val_dataset = AcronymDataset('sample_dirs/valid_success_simplified_acronym_meshes.npy')
+# Save the split samples
+train_dirs, val_dirs = save_split_meshes(args.data_dir, num_mesh=args.num_mesh)
+train_dataset = AcronymDataset(train_dirs, transform=transfom_params)
+val_dataset = AcronymDataset(val_dirs)
                    
 # Initialize wandb
 wandb.init(project="GEWA", notes=args.notes)

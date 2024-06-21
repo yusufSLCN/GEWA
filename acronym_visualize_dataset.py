@@ -66,7 +66,7 @@ def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point):
     scene.add_geometry(gt_gripper)
     print(f"gt pose {gt}")
 
-    sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.005)
+    sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
     sphare.visual.face_colors = [0, 255, 0, 255]
     sphare.apply_translation(query_point)
     scene.add_geometry(sphare)

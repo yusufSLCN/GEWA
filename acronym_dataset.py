@@ -4,11 +4,12 @@ import numpy as np
 import pywavefront
 import torch_geometric as tg
 from transforms import create_random_rotation_translation_matrix
+from create_dataset_paths import save_split_meshes
 
 
 class AcronymDataset(Dataset):
-    def __init__(self, data_path, transform=None):
-        self.data = self.load_data(data_path)
+    def __init__(self, data, transform=None):
+        self.data = data
         self.transform = transform
         
     def __len__(self):
@@ -76,20 +77,20 @@ class AcronymDataset(Dataset):
         # success = torch.tensor(success)
         return vertices, grasp_pose, sample_info
     
-    def load_data(self, data_path):
-        # Load the data from the specified path
-        data = np.load(data_path, allow_pickle=True)
-        return data
+    # def load_data(self, data_path):
+    #     # Load the data from the specified path
+    #     data = np.load(data_path, allow_pickle=True)
+    #     return data
 
 if __name__ == "__main__":
     rotation_range = (-np.pi, np.pi)  # full circle range in radians
     translation_range = (-0.5, 0.5)  # translation values range
     transfom_params = {"rotation_range": (-np.pi, np.pi), "translation_range": (-0.5, 0.5)}
-    dataset_transformed = AcronymDataset('sample_dirs/train_success_simplified_acronym_meshes.npy', transform=transfom_params)
-    dataset = AcronymDataset('sample_dirs/train_success_simplified_acronym_meshes.npy')
+    train_data, valid_data = save_split_meshes('../data', 100)
+    dataset_transformed = AcronymDataset(train_data, transform=transfom_params)
+    dataset = AcronymDataset(valid_data)
     print(len(dataset))
     print(dataset[0][2])
-
     print(dataset[0][1])
     print(dataset_transformed[0][2])
     print(dataset_transformed[0][1])

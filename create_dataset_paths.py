@@ -1,19 +1,36 @@
 from acronym_utils import get_simplified_samples, get_simplified_meshes_w_closest_grasp
 import numpy as np
 import argparse
+import os
 
 
 def save_split_meshes(data_dir, num_mesh, train_ratio=0.8):
-    simplified_meshes = get_simplified_meshes_w_closest_grasp(data_dir, num_mesh=num_mesh)
+    paths_dir = os.path.join('sample_dirs', 'success_simplified_meshes.npy')
+    if os.path.exists(paths_dir):
+        simplified_meshes = np.load(paths_dir, allow_pickle=True)
+    else:
+        simplified_meshes = get_simplified_meshes_w_closest_grasp(data_dir, num_mesh=-1)
+        np.save(paths_dir, simplified_meshes)
+
     #split samples into train and test sets
-    subset_idx = int(len(simplified_meshes) * train_ratio)
-    train_meshes = simplified_meshes[:subset_idx]
-    valid_meshes = simplified_meshes[subset_idx:]
-    #save the train and test meshes
-    np.save('sample_dirs/train_success_simplified_acronym_meshes.npy', train_meshes)
-    np.save('sample_dirs/valid_success_simplified_acronym_meshes.npy', valid_meshes)
+    if len(simplified_meshes) <= num_mesh:
+        num_mesh = len(simplified_meshes)
+        print(f"Number of meshes in the simlified subset: {num_mesh}")
+
+    split_idx = int(len(simplified_meshes) * train_ratio)
+    all_train_meshes = simplified_meshes[:split_idx]
+    all_valid_meshes = simplified_meshes[split_idx:]
+
+    subset_idx = int(num_mesh * train_ratio)
+    train_meshes = all_train_meshes[:subset_idx]
+    valid_meshes = all_valid_meshes[:num_mesh - subset_idx]
+
+    # #save the train and test meshes
+    # np.save('sample_dirs/train_success_simplified_acronym_meshes.npy', train_meshes)
+    # np.save('sample_dirs/valid_success_simplified_acronym_meshes.npy', valid_meshes)
     print(f"Train mesh {len(train_meshes)}")
     print(f"Test mesh {len(valid_meshes)}")
+    return train_meshes, valid_meshes
 
 
 def save_split_samples(data_dir, num_mesh, train_ratio=0.8):
