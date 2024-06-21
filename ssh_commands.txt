@@ -1,0 +1,31 @@
+
+//Connect to server
+ssh salcany@login.informatik.uni-freiburg.de
+ssh pearl5
+Bash
+Conda activate GEWA
+Tmux
+tmux attach
+Close tmux ctrl+D 
+See sessions tmux ls
+tmux attach -t 1
+tmux kill-session -t 0
+see process: top
+
+/export/workspaces/ws1/salcany-salcany_pearl5
+/export/workspaces/ws1/salcany-GEWA
+/export/workspaces/ws1/salcany-GEWA/data
+~/Downloads/Done
+bash Miniconda3-latest-Linux-x86_64.sh -b -u -p /export/workspaces/ws1/salcany-GEWA/miniconda3
+export PATH="/export/workspaces/ws1/salcany-GEWA/miniconda3/bin:$PATH"
+conda activate grasp
+
+ssh aisgpu2.informatik.privat
+
+python create_dataset_paths.py -d="/export/workspaces/ws1/salcany-GEWA/data"
+python train_acronym.py --batch_size=64 --num_workers=4 --num_mesh=1000 --data_dir="/export/workspaces/ws1/salcany-GEWA/data"
+python train_acronym.py -e 500 -bs 32 -lr 0.0001 -nw 4 -nm=3000 --data_dir="/export/workspaces/ws1/salcany-GEWA/data" -na -mg -n "edgegraspnet"
+
+
+//For copying directory
+scp -r pool_folder/ salcany@login.informatik.uni-freiburg.de:/project/cv-ws2223/salcany/
