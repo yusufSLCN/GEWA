@@ -49,8 +49,10 @@ class GewaNet(nn.Module):
         self.encoder = Encoder(out_channels = scene_feat_dim, point_feat_dim=point_feat_dim)
         self.predictor = EdgeGraspPredictor(scene_feat_dim, point_feat_dim=point_feat_dim, out_size=predictor_out_size)
     def forward(self, data):
-        vertices, grasp_gt, batch_idx, batch_querry_point_idx = self.collate_fn(data)
-        x, edge_feat, point_batch = self.encoder(None, vertices, batch_idx, batch_querry_point_idx)
+        pos = data.pos
+        batch_idx = data.batch
+        query_point_idx = data.sample_info["query_point_idx"]
+        x, edge_feat, point_batch = self.encoder(None, pos, batch_idx, query_point_idx)
         output = self.predictor(edge_feat)
         trans_m = self.calculateTransformationMatrix(output)
         grasp = trans_m.view(-1, 16)

@@ -8,7 +8,7 @@ import torch
 if __name__ == "__main__":
     train_dataset, val_dataset = save_split_meshes('../data', 100)
     train_dataset = AcronymDataset(train_dataset)
-    train_loader = DataListLoader(train_dataset, batch_size=2, shuffle=True)
+    train_loader = DataListLoader(train_dataset, batch_size=16, shuffle=True)
     model = GewaNet(scene_feat_dim= 1024, point_feat_dim=256, predictor_out_size=9)
 
     if torch.cuda.device_count() > 1:
