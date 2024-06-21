@@ -5,6 +5,8 @@ import os
 
 
 def save_split_meshes(data_dir, num_mesh, train_ratio=0.8):
+    if not os.path.exists('sample_dirs'):
+        os.makedirs('sample_dirs')
     paths_dir = os.path.join('sample_dirs', 'success_simplified_meshes.npy')
     if os.path.exists(paths_dir):
         simplified_meshes = np.load(paths_dir, allow_pickle=True)
