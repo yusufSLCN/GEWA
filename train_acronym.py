@@ -1,13 +1,14 @@
 import torch
 import torch.nn as nn
 import torch_geometric.transforms as T
-from torch_geometric.nn import DataParallel
 import wandb
-from torch.utils.data import DataLoader
+from torch_geometric.loader import DataListLoader
+from torch_geometric.nn import DataParallel
 import argparse
 from tqdm import tqdm
 from acronym_dataset import AcronymDataset
-from EdgeGraspNet import EdgeGraspNet
+# from EdgeGraspNet import EdgeGraspNet
+from GewaNet import GewaNet
 from create_dataset_paths import save_split_meshes
 from acronym_utils import analyze_dataset_stats
 import os
@@ -80,11 +81,13 @@ print(device)
 
 # Initialize the model
 # model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
-model = EdgeGraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
+model = GewaNet(scene_feat_dim= config.scene_feat_dims).to(device)
 config.model_name = model.__class__.__name__
 
 # If we have multiple GPUs, parallelize the model
 if torch.cuda.device_count() > 1 and args.multi_gpu:
+    print("Let's use", torch.cuda.device_count(), "GPUs!")
+    model.multi_gpu = True
     model = DataParallel(model)
 
 # Define the optimizer
@@ -94,29 +97,9 @@ optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 # Define the loss function
 criterion = torch.nn.MSELoss()
 
-def collate_fn(batch):
-    batch_idx = []
-    vertices = []
-    grasp_gt = []
-    batch_querry_point_idx = []
-    vertex_count = 0
-    for i, (points, gt, info) in enumerate(batch):
-        batch_querry_point_idx.append(info['query_point_idx'] + vertex_count)
-        vertex_count = points.shape[0]
-        batch_idx.extend([i] * vertex_count)
-        vertices.append(points)
-        grasp_gt.append(gt)
-            
-    batch_idx = torch.tensor(batch_idx, dtype=torch.int64)
-    vertices = torch.cat(vertices, dim=0)
-    grasp_gt = torch.stack(grasp_gt, dim=0)
-    batch_querry_point_idx = torch.tensor(batch_querry_point_idx, dtype=torch.int64)
-
-    return vertices, grasp_gt, batch_idx, batch_querry_point_idx
-
 # Create data loader
-train_data_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True, collate_fn=collate_fn, num_workers=args.num_workers)
-val_data_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=args.num_workers)
+train_data_loader = DataListLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=args.num_workers)
+val_data_loader = DataListLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=args.num_workers)
 
 
 def prepare_samples(device, samples):
@@ -135,11 +118,15 @@ for epoch in range(1, num_epochs + 1):
     model.train()
     total_loss = 0
     
-    for i, samples in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
+    for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         # Forward pass
-        vertices, grasp_gt, batch_idx, querry_point_idx = prepare_samples(device, samples)
-        grasp_pred = model(None, vertices, batch_idx, querry_point_idx)
+        # vertices, grasp_gt, batch_idx, querry_point_idx = prepare_samples(device, samples)
+        grasp_pred = model(data)
+        if model.multi_gpu:
+            grasp_gt = data.y
+        else:
+            grasp_gt = torch.stack([sample.y for sample in data], dim=0)
         # Compute the loss
         loss = criterion(grasp_pred, grasp_gt)
         # # Backward pass
@@ -158,9 +145,13 @@ for epoch in range(1, num_epochs + 1):
     model.eval()
     with torch.no_grad():
         total_val_loss = 0
-        for batch in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
-            vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
-            grasp_pred = model(None, vertices, batch_idx, querry_point)
+        for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
+            # vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
+            grasp_pred = model(val_data)
+            if model.multi_gpu:
+                grasp_gt = data.y
+            else:
+                grasp_gt = torch.stack([sample.y for sample in data], dim=0)
             # Compute the loss
             loss = criterion(grasp_pred, grasp_gt)
             total_val_loss += loss.item()

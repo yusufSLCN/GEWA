@@ -248,7 +248,7 @@ def analyze_dataset_stats(dataset):
     #analyze the dataset
     for i in range(len(dataset)):
         sample = dataset[i]
-        sample_info = sample[2]
+        sample_info = sample.sample_info
         sample_class = sample_info["class"]
         if sample_class in train_class_stats:
             train_class_stats[sample_class] += 1
