@@ -2,10 +2,9 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 import pywavefront
-import torch_geometric as tg
 from transforms import create_random_rotation_translation_matrix
 from create_dataset_paths import save_split_meshes
-
+from torch_geometric.data import Data
 
 class AcronymDataset(Dataset):
     def __init__(self, data, transform=None):
@@ -75,7 +74,8 @@ class AcronymDataset(Dataset):
         # grasp_pose = grasp_pose.view(-1)
 
         # success = torch.tensor(success)
-        return vertices, grasp_pose, sample_info
+        data = Data(x=vertices, y=grasp_pose, pos=vertices, sample_info=sample_info)
+        return data
     
     # def load_data(self, data_path):
     #     # Load the data from the specified path

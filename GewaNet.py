@@ -62,7 +62,10 @@ class GewaNet(nn.Module):
         grasp_gt = []
         batch_querry_point_idx = []
         vertex_count = 0
-        for i, (points, gt, info) in enumerate(batch):
+        for i, sample in enumerate(batch):
+            points = sample.pos
+            gt = sample.y
+            info = sample.sample_info
             batch_querry_point_idx.append(info['query_point_idx'] + vertex_count)
             vertex_count = points.shape[0]
             batch_idx.extend([i] * vertex_count)
