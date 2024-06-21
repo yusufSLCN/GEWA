@@ -12,6 +12,8 @@ if __name__ == "__main__":
     model = GewaNet(scene_feat_dim= 1024, point_feat_dim=256, predictor_out_size=9)
 
     if torch.cuda.device_count() > 1:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        model.multi_gpu = True
         model = DataParallel(model)
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')

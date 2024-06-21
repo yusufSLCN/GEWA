@@ -44,20 +44,30 @@ class Encoder(torch.nn.Module):
         return x, edge_feat, point_batch
     
 class GewaNet(nn.Module):
-    def __init__(self, scene_feat_dim=1024, point_feat_dim=256, predictor_out_size = 9):
+    def __init__(self, scene_feat_dim=1024, point_feat_dim=256, predictor_out_size = 9, multi_gpu=False):
         super(GewaNet, self).__init__()
         self.encoder = Encoder(out_channels = scene_feat_dim, point_feat_dim=point_feat_dim)
         self.predictor = EdgeGraspPredictor(scene_feat_dim, point_feat_dim=point_feat_dim, out_size=predictor_out_size)
+        self.multi_gpu = multi_gpu
     def forward(self, data):
-        pos = data.pos
-        batch_idx = data.batch
-        query_point_idx = data.sample_info["query_point_idx"]
+        if self.multi_gpu:
+            pos, grasps, batch_idx, query_point_idx = self.multi_gpu_collate_fn(data)
+        else:
+            pos, grasps, batch_idx, query_point_idx = self.collate_fn(data)
+            
         x, edge_feat, point_batch = self.encoder(None, pos, batch_idx, query_point_idx)
         output = self.predictor(edge_feat)
         trans_m = self.calculateTransformationMatrix(output)
         grasp = trans_m.view(-1, 16)
         return grasp
     
+    def multi_gpu_collate_fn(self, data):
+        pos = data.pos
+        grasps = data.y
+        batch_idx = data.batch
+        query_point_idx = data.sample_info["query_point_idx"]
+        return pos, grasps, batch_idx, query_point_idx
+
     def collate_fn(self, batch):
         batch_idx = []
         vertices = []
