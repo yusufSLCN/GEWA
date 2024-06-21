@@ -123,10 +123,8 @@ for epoch in range(1, num_epochs + 1):
         # Forward pass
         # vertices, grasp_gt, batch_idx, querry_point_idx = prepare_samples(device, samples)
         grasp_pred = model(data)
-        if model.multi_gpu:
-            grasp_gt = data.y
-        else:
-            grasp_gt = torch.stack([sample.y for sample in data], dim=0)
+
+        grasp_gt = torch.stack([sample.y for sample in data], dim=0).to(device)
         # Compute the loss
         loss = criterion(grasp_pred, grasp_gt)
         # # Backward pass
@@ -148,10 +146,8 @@ for epoch in range(1, num_epochs + 1):
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             # vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
             grasp_pred = model(val_data)
-            if model.multi_gpu:
-                grasp_gt = data.y
-            else:
-                grasp_gt = torch.stack([sample.y for sample in data], dim=0)
+
+            grasp_gt = torch.stack([sample.y for sample in val_data], dim=0).to(device)
             # Compute the loss
             loss = criterion(grasp_pred, grasp_gt)
             total_val_loss += loss.item()
