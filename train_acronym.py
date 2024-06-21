@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch_geometric.transforms as T
+from torch_geometric.nn import DataParallel
 import wandb
 from torch.utils.data import DataLoader
 import argparse
@@ -84,7 +85,7 @@ config.model_name = model.__class__.__name__
 
 # If we have multiple GPUs, parallelize the model
 if torch.cuda.device_count() > 1 and args.multi_gpu:
-    model = nn.DataParallel(model)
+    model = DataParallel(model)
 
 # Define the optimizer
 # optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
