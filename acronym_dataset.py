@@ -25,8 +25,8 @@ class RandomRotationTransform:
         rotated_grasp = np.dot(rotation_matrix, grasp)
 
         # Update the data object with the rotated vertices and grasp
-        data.pos = torch.from_numpy(rotated_vertices)
-        data.y = torch.from_numpy(rotated_grasp).flatten()
+        data.pos = torch.from_numpy(rotated_vertices).float()
+        data.y = torch.from_numpy(rotated_grasp).flatten().float()
 
         return data
     
