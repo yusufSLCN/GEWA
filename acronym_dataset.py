@@ -52,18 +52,18 @@ class AcronymDataset(Dataset):
         grasp_pose = grasp_poses[0][0]
         grasp_pose = torch.tensor(grasp_pose, dtype=torch.float32)
 
-        if self.transform != None:
-            transform_matrix = create_random_rotation_translation_matrix(self.transform['rotation_range'], self.transform['translation_range'])
-            transform_matrix = torch.tensor(transform_matrix, dtype=torch.float32)
-            #add 1 to the vertices to make them homogeneous
-            vertices = torch.cat((vertices, torch.ones((vertices.shape[0], 1))), 1)
-            vertices = transform_matrix @ vertices.T
-            vertices = vertices.T
-            vertices = vertices[:, :3]
+        # if self.transform != None:
+        #     transform_matrix = create_random_rotation_translation_matrix(self.transform['rotation_range'], self.transform['translation_range'])
+        #     transform_matrix = torch.tensor(transform_matrix, dtype=torch.float32)
+        #     #add 1 to the vertices to make them homogeneous
+        #     vertices = torch.cat((vertices, torch.ones((vertices.shape[0], 1))), 1)
+        #     vertices = transform_matrix @ vertices.T
+        #     vertices = vertices.T
+        #     vertices = vertices[:, :3]
 
-            grasp_pose = transform_matrix @ grasp_pose 
+        #     grasp_pose = transform_matrix @ grasp_pose 
 
-            query_point = vertices[query_point_idx]
+        #     query_point = vertices[query_point_idx]
         
         sample_info['query_point'] = query_point
         sample_info['query_point_idx'] = query_point_idx
@@ -75,6 +75,11 @@ class AcronymDataset(Dataset):
 
         # success = torch.tensor(success)
         data = Data(x=vertices, y=grasp_pose, pos=vertices, sample_info=sample_info)
+        if self.transform != None:
+            data = self.transform(data)
+            # sample_info["query_point"] = data.pos[data.sample_info['query_point_idx']]
+            # data.sample_info = sample_info
+
         return data
     
     # def load_data(self, data_path):
@@ -83,11 +88,9 @@ class AcronymDataset(Dataset):
     #     return data
 
 if __name__ == "__main__":
-    rotation_range = (-np.pi, np.pi)  # full circle range in radians
-    translation_range = (-0.5, 0.5)  # translation values range
-    transfom_params = {"rotation_range": (-np.pi, np.pi), "translation_range": (-0.5, 0.5)}
+
     train_data, valid_data = save_split_meshes('../data', 100)
-    dataset_transformed = AcronymDataset(train_data, transform=transfom_params)
+    dataset_transformed = AcronymDataset(train_data)
     dataset = AcronymDataset(valid_data)
     print(len(dataset))
     print(dataset[0][2])

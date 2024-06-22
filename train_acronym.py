@@ -4,6 +4,7 @@ import torch_geometric.transforms as T
 import wandb
 from torch_geometric.loader import DataListLoader
 from torch_geometric.nn import DataParallel
+from torch_geometric.transforms import RandomJitter
 import argparse
 from tqdm import tqdm
 from acronym_dataset import AcronymDataset
@@ -24,7 +25,7 @@ parser.add_argument('-nw', '--num_workers', type=int, default=0)
 parser.add_argument('-nm', '--num_mesh', type=int, default=10)
 parser.add_argument('-dd', '--data_dir', type=str, default='../data')
 parser.add_argument('-na', '--no_augment', dest='augment', action='store_false')
-parser.add_argument('-sfd', '--scene_feat_dims', type=int, default=1024)
+parser.add_argument('-sfd', '--scene_feat_dims', type=int, default=512)
 parser.add_argument('-n', '--notes', type=str, default='')
 parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 args = parser.parse_args()
@@ -32,9 +33,9 @@ args = parser.parse_args()
 
 # Load the datasets
 if args.augment:
-    rotation_range = (-np.pi/3, np.pi/3)  # full circle range in radians
-    translation_range = (-0.3, 0.3)  # translation values range
-    transfom_params = {"rotation_range": rotation_range, "translation_range": translation_range}
+    translation_range = 0.001  # translation values range
+    transfom = RandomJitter(translation_range)
+    transfom_params = {"translation_range": translation_range}
 else:
     transfom_params = None
 
@@ -42,7 +43,7 @@ print("Transform params: ", transfom_params)
 
 # Save the split samples
 train_dirs, val_dirs = save_split_meshes(args.data_dir, num_mesh=args.num_mesh)
-train_dataset = AcronymDataset(train_dirs, transform=transfom_params)
+train_dataset = AcronymDataset(train_dirs, transform=transfom)
 val_dataset = AcronymDataset(val_dirs)
                    
 # Initialize wandb
@@ -63,12 +64,12 @@ if args.augment:
 
 # Analyze the dataset class stats
 num_epochs = args.epochs
-train_class_stats = analyze_dataset_stats(train_dataset)
-valid_class_stats = analyze_dataset_stats(val_dataset)
-config.train_class_stats = train_class_stats
-config.valid_class_stats = valid_class_stats
-print("Number of classes in the train dataset: ", len(train_class_stats))
-print("Number of classes in the valid dataset: ", len(valid_class_stats))
+# train_class_stats = analyze_dataset_stats(train_dataset)
+# valid_class_stats = analyze_dataset_stats(val_dataset)
+# config.train_class_stats = train_class_stats
+# config.valid_class_stats = valid_class_stats
+# print("Number of classes in the train dataset: ", len(train_class_stats))
+# print("Number of classes in the valid dataset: ", len(valid_class_stats))
 
 # device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
 if args.device == 'cuda' and torch.cuda.is_available():
