@@ -4,10 +4,10 @@ import torch_geometric.transforms as T
 import wandb
 from torch_geometric.loader import DataListLoader
 from torch_geometric.nn import DataParallel
-from torch_geometric.transforms import RandomJitter
+from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
-from acronym_dataset import AcronymDataset
+from acronym_dataset import AcronymDataset, RandomRotationTransform
 # from EdgeGraspNet import EdgeGraspNet
 from GewaNet import GewaNet
 from create_dataset_paths import save_split_meshes
@@ -34,8 +34,9 @@ args = parser.parse_args()
 # Load the datasets
 if args.augment:
     translation_range = 0.001  # translation values range
-    transfom = RandomJitter(translation_range)
-    transfom_params = {"translation_range": translation_range}
+    rotation_range = [-180, 180]
+    transfom = Compose([RandomJitter(translation_range), RandomRotationTransform(rotation_range)])
+    transfom_params = {"translation_range": translation_range, "rotation_range": rotation_range}
 else:
     transfom_params = None
 

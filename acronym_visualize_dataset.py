@@ -1,6 +1,6 @@
 import trimesh
 from acronym_utils import create_gripper_marker
-from acronym_dataset import AcronymDataset
+from acronym_dataset import AcronymDataset, RandomRotationTransform
 from torch_geometric.transforms import RandomJitter, Compose
 import numpy as np
 from tqdm import tqdm
@@ -49,13 +49,14 @@ def visualize_grasps_of_point(vertices, point, point_grasp_dict):
         scene.add_geometry(point_gripper)
     scene.show()
 
-def visualize_grasp(vertices, grasp, query_point):
+def visualize_grasp(vertices, grasp, query_point_idx):
     scene = create_scene_with_reference(vertices)
     new_gripper = create_gripper_marker()
     point_gripper = new_gripper.apply_transform(grasp)
     scene.add_geometry(point_gripper)
     sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
     sphare.visual.face_colors = [0, 255, 0, 255]
+    query_point = vertices[query_point_idx]
     sphare.apply_translation(query_point)
     scene.add_geometry(sphare)
     scene.show()
@@ -82,12 +83,16 @@ def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point):
 if __name__ == "__main__":
     scene = create_scene_with_reference()
     # train_dataset = AcronymDataset('sample_dirs/train_success_simplified_acronym_samples.npy')
-    rotation_range = (-60, 60)  # full circle range in radians
+    rotation_range = (-180, 180)  # full circle range in radians
     translation_range = (-0.3, 0.3)  # translation values range
     transfom_params = {"rotation_range": rotation_range, "translation_range": translation_range}
     train_paths, val_paths = save_split_meshes('../data', 100)
     train_dataset = AcronymDataset(train_paths )
-    transfom = Compose([RandomJitter(0.001)])
+    import torch
+
+
+    # Usage:
+    transfom = Compose([RandomJitter(0.001), RandomRotationTransform(rotation_range)])
     train_dataset = AcronymDataset(train_paths, transform=transfom)
 
     sample_idx = 0
@@ -100,12 +105,13 @@ if __name__ == "__main__":
     vertices = sample.pos.numpy().astype(np.float32)
     grasp = sample.y.numpy().astype(np.float32).reshape(4, 4)
     grasp_querry_point = sample.sample_info['query_point']
+    query_point_idx = sample.sample_info['query_point_idx']
     point_grasp_dict = np.load(sample.sample_info['point_grasp_save_path'], allow_pickle=True).item()
-    visualize_random_best_grasps(vertices, point_grasp_dict)
+    # visualize_random_best_grasps(vertices, point_grasp_dict)
     # visualize_grasps_of_point(vertices, grasp_querry_point, point_grasp_dict)
     # print(grasp)
     #check the orthogonality of the grasp
     # print(f"Check col 1 and 2 {np.dot(grasp[:3, 0], grasp[:3, 1])}")
     # print(np.dot(grasp[:3, 0], grasp[:3, 2]))
 
-    # visualize_grasp(vertices, grasp, grasp_querry_point)
+    visualize_grasp(vertices, grasp, query_point_idx)

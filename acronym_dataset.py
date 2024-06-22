@@ -5,7 +5,31 @@ import pywavefront
 from transforms import create_random_rotation_translation_matrix
 from create_dataset_paths import save_split_meshes
 from torch_geometric.data import Data
+import trimesh
 
+
+class RandomRotationTransform:
+    def __init__(self, rotation_range):
+        self.rotation_range = rotation_range
+
+    def __call__(self, data):
+        vertices = data.pos.numpy().astype(np.float32)
+        grasp = data.y.numpy().astype(np.float32).reshape(4, 4)
+
+        # Apply random rotation to vertices
+        rotation_angle = np.random.uniform(*self.rotation_range)
+        rotation_matrix = trimesh.transformations.rotation_matrix(rotation_angle, [0, 0, 1])
+        rotated_vertices = np.dot(rotation_matrix[:3, :3], vertices.T).T
+
+        # Apply random rotation to ground truth grasp
+        rotated_grasp = np.dot(rotation_matrix, grasp)
+
+        # Update the data object with the rotated vertices and grasp
+        data.pos = torch.from_numpy(rotated_vertices)
+        data.y = torch.from_numpy(rotated_grasp).flatten()
+
+        return data
+    
 class AcronymDataset(Dataset):
     def __init__(self, data, transform=None):
         self.data = data
