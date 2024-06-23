@@ -80,7 +80,6 @@ def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point):
     print(f"pred pose {pred}")
     scene.show()
 
-
 if __name__ == "__main__":
     scene = create_scene_with_reference()
     # train_dataset = AcronymDataset('sample_dirs/train_success_simplified_acronym_samples.npy')

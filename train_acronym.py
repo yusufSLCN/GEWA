@@ -88,17 +88,17 @@ print(device)
 
 # Initialize the model
 # model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
-model = GewaNet(scene_feat_dim= config.scene_feat_dims).to(device)
+model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
 config.model_name = model.__class__.__name__
 
 # If we have multiple GPUs, parallelize the model
 if torch.cuda.device_count() > 1 and args.multi_gpu:
     print("Let's use", torch.cuda.device_count(), "GPUs!")
+    config.used_gpu_count = torch.cuda.device_count()
     model.multi_gpu = True
     model = DataParallel(model)
 
 # Define the optimizer
-# optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 
 # Define the loss function
@@ -157,6 +157,12 @@ for epoch in range(1, num_epochs + 1):
             grasp_gt = torch.stack([sample.y for sample in val_data], dim=0).to(device)
             # Compute the loss
             loss = criterion(grasp_pred, grasp_gt)
+
+            errors = torch.sum(grasp_gt - grasp_pred, dim=1)
+            large_erros_idx = torch.abs(errors) > 100
+            for j in large_erros_idx.nonzero():
+                print(val_data[j].sample_info["simplified_model_path"])
+
             total_val_loss += loss.item()
         average_val_loss = total_val_loss / len(val_data_loader)
 

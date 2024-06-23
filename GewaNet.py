@@ -44,22 +44,25 @@ class Encoder(torch.nn.Module):
         return x, edge_feat, point_batch
     
 class GewaNet(nn.Module):
-    def __init__(self, scene_feat_dim=1024, point_feat_dim=256, predictor_out_size = 9, multi_gpu=False):
+    def __init__(self, scene_feat_dim=1024, point_feat_dim=256, predictor_out_size = 16, multi_gpu=False, device="cuda"):
         super(GewaNet, self).__init__()
         self.encoder = Encoder(out_channels = scene_feat_dim, point_feat_dim=point_feat_dim)
         self.predictor = EdgeGraspPredictor(scene_feat_dim, point_feat_dim=point_feat_dim, out_size=predictor_out_size)
         self.multi_gpu = multi_gpu
+        self.device = device
     def forward(self, data):
         if self.multi_gpu:
             pos, grasps, batch_idx, query_point_idx = self.multi_gpu_collate_fn(data)
         else:
             pos, grasps, batch_idx, query_point_idx = self.collate_fn(data)
+            pos = pos.to(self.device)
+            batch_idx = batch_idx.to(self.device)
             
         x, edge_feat, point_batch = self.encoder(None, pos, batch_idx, query_point_idx)
         output = self.predictor(edge_feat)
-        trans_m = self.calculateTransformationMatrix(output)
-        grasp = trans_m.view(-1, 16)
-        return grasp
+        # trans_m = self.calculateTransformationMatrix(output)
+        # grasp = trans_m.view(-1, 16)
+        return output
     
     def multi_gpu_collate_fn(self, data):
         pos = data.pos
@@ -67,9 +70,10 @@ class GewaNet(nn.Module):
         batch_idx = data.batch
         query_point_idx = []
         vertex_count = 0
+
         for i in range(len(data)):
-            query_point_idx.append(data.sample_info[i]['query_point_idx'] + vertex_count)
-            vertex_count = data[i].pos.shape[0]
+            query_point_idx.append(data[i].sample_info['query_point_idx'] + vertex_count)
+            vertex_count += data[i].pos.shape[0]
         query_point_idx = torch.tensor(query_point_idx, dtype=torch.int64)
         return pos, grasps, batch_idx, query_point_idx
 
@@ -84,8 +88,8 @@ class GewaNet(nn.Module):
             gt = sample.y
             info = sample.sample_info
             batch_querry_point_idx.append(info['query_point_idx'] + vertex_count)
-            vertex_count = points.shape[0]
-            batch_idx.extend([i] * vertex_count)
+            vertex_count += points.shape[0]
+            batch_idx.extend([i] *  points.shape[0])
             vertices.append(points)
             grasp_gt.append(gt)
                 
@@ -106,7 +110,7 @@ class GewaNet(nn.Module):
         r2 = r2 / torch.norm(r2, dim=1, keepdim=True)
         r3 = torch.cross(r1, r2, dim=1)
         #create the rotation matrix
-        r = torch.stack([r1, r2, r3], dim=2)
+        r = torch.stack([r1, r3, r2], dim=2)
         #create 4x4 transformation matrix for each 
         trans_m = torch.eye(4).repeat(len(grasp), 1, 1).to(grasp.device)
         trans_m[:,:3, :3] = r

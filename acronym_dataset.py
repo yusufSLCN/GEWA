@@ -72,14 +72,14 @@ class AcronymDataset(Dataset):
         
         grasp_poses = point_grasp_dict[query_point_key]
         
-        mean_pos = vertices.mean(0)
-        vertices = vertices - mean_pos
+        # mean_pos = vertices.mean(0)
+        # vertices = vertices - mean_pos
         # not select a random grasp
         # grasp_idx = np.random.randint(len(grasp_poses))
         # grasp_pose = grasp_poses[grasp_idx][0]
         grasp_pose = grasp_poses[0][0]
         grasp_pose = torch.tensor(grasp_pose, dtype=torch.float32)
-        grasp_pose[0:3, 3] = grasp_pose[0:3, 3] - mean_pos
+        # grasp_pose[0:3, 3] = grasp_pose[0:3, 3] - mean_pos
 
         # if self.transform != None:
         #     transform_matrix = create_random_rotation_translation_matrix(self.transform['rotation_range'], self.transform['translation_range'])
