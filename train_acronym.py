@@ -31,12 +31,16 @@ parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 args = parser.parse_args()
 
 
-# Load the datasets
+# Load the datasets with transforms
 if args.augment:
     translation_range = 0.001  # translation values range
-    rotation_range = [-180, 180]
-    transform = Compose([RandomJitter(translation_range), RandomRotationTransform(rotation_range)])
-    transfom_params = {"translation_range": translation_range, "rotation_range": rotation_range}
+    # rotation_range = [-180, 180]
+    rotation_range = None
+    transform_list = [RandomJitter(translation_range)]
+    if rotation_range is not None:
+        transform_list.append(RandomRotationTransform(rotation_range))
+    transform = Compose(transform_list)
+    transfom_params = f"Translation Range: {translation_range}, Rotation Range: {rotation_range}"
 else:
     transform = None
     transfom_params = None
