@@ -10,8 +10,11 @@ def save_split_meshes(data_dir, num_mesh, train_ratio=0.8):
     paths_dir = os.path.join('sample_dirs', 'success_simplified_meshes.npy')
     if os.path.exists(paths_dir):
         simplified_meshes = np.load(paths_dir, allow_pickle=True)
+
     else:
         simplified_meshes = get_simplified_meshes_w_closest_grasp(data_dir, num_mesh=-1)
+        np.random.seed(0)
+        np.random.shuffle(simplified_meshes)
         np.save(paths_dir, simplified_meshes)
 
     #split samples into train and test sets

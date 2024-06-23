@@ -78,7 +78,7 @@ if args.device == 'cuda' and torch.cuda.is_available():
 else:
     device = torch.device('cpu')
 
-config.device = args.device
+config.device = device
 print(device)
 
 # Initialize the model
