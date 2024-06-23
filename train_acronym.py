@@ -35,16 +35,17 @@ args = parser.parse_args()
 if args.augment:
     translation_range = 0.001  # translation values range
     rotation_range = [-180, 180]
-    transfom = Compose([RandomJitter(translation_range), RandomRotationTransform(rotation_range)])
+    transform = Compose([RandomJitter(translation_range), RandomRotationTransform(rotation_range)])
     transfom_params = {"translation_range": translation_range, "rotation_range": rotation_range}
 else:
+    transform = None
     transfom_params = None
 
 print("Transform params: ", transfom_params)
 
 # Save the split samples
 train_dirs, val_dirs = save_split_meshes(args.data_dir, num_mesh=args.num_mesh)
-train_dataset = AcronymDataset(train_dirs, transform=transfom)
+train_dataset = AcronymDataset(train_dirs, transform=transform)
 val_dataset = AcronymDataset(val_dirs)
                    
 # Initialize wandb

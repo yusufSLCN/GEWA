@@ -15,7 +15,7 @@ class RandomRotationTransform:
     def __call__(self, data):
         vertices = data.pos.numpy().astype(np.float32)
         grasp = data.y.numpy().astype(np.float32).reshape(4, 4)
-
+        
         # Apply random rotation to vertices
         rotation_angle = np.random.uniform(*self.rotation_range)
         rotation_matrix = trimesh.transformations.rotation_matrix(rotation_angle, [0, 0, 1])
@@ -51,6 +51,8 @@ class AcronymDataset(Dataset):
         mesh_scale = float(sample_info['scale'])
         vertices = vertices * mesh_scale
 
+
+
         # Load the point grasp data
         point_grasp_save_path = sample_info['point_grasp_save_path']
         point_grasp_dict = np.load(point_grasp_save_path, allow_pickle=True).item()
@@ -70,11 +72,14 @@ class AcronymDataset(Dataset):
         
         grasp_poses = point_grasp_dict[query_point_key]
         
+        mean_pos = vertices.mean(0)
+        vertices = vertices - mean_pos
         # not select a random grasp
         # grasp_idx = np.random.randint(len(grasp_poses))
         # grasp_pose = grasp_poses[grasp_idx][0]
         grasp_pose = grasp_poses[0][0]
         grasp_pose = torch.tensor(grasp_pose, dtype=torch.float32)
+        grasp_pose[0:3, 3] = grasp_pose[0:3, 3] - mean_pos
 
         # if self.transform != None:
         #     transform_matrix = create_random_rotation_translation_matrix(self.transform['rotation_range'], self.transform['translation_range'])
