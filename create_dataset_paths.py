@@ -18,7 +18,7 @@ def save_split_meshes(data_dir, num_mesh, train_ratio=0.8):
         np.save(paths_dir, simplified_meshes)
 
     #split samples into train and test sets
-    if len(simplified_meshes) <= num_mesh or num_mesh < len(simplified_meshes):
+    if len(simplified_meshes) <= num_mesh or num_mesh < 0:
         num_mesh = len(simplified_meshes)
         print(f"Number of meshes in the simlified subset: {num_mesh}")
 
