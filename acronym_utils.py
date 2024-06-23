@@ -16,13 +16,16 @@ def load_file_names(directory):
 
 
 
-def extract_sample_info(file_names, model_root):
+def extract_sample_info(file_names, model_root, discard_samples=[]):
     samples_paths = []
     for file_name in file_names:
         base_name = os.path.basename(file_name)
         base_name = os.path.splitext(base_name)[0]
         name_part = base_name.split('_')
         model_file_path = os.path.join(model_root, name_part[1] + '.obj')
+        if model_file_path in discard_samples:
+            print(f"Discarding {model_file_path}")
+            continue
         sample = {'class' : name_part[0], 'grasps': file_name, 'model_path' : model_file_path , 'model_name': name_part[1], 'scale' : name_part[2] } 
         samples_paths.append(sample)
     return samples_paths
@@ -129,7 +132,14 @@ def get_simplified_meshes_w_closest_grasp(data_dir, success_threshold=0.5, num_m
         os.makedirs(point_grasp_dict_folder)
 
     grasp_file_names = load_file_names(grasp_directory)
-    sample_paths = extract_sample_info(grasp_file_names, model_root=model_root)
+    # read discarded_samples.txt
+    discarded_samples = []
+    if os.path.exists('discarded_objects.txt'):
+        with open('discarded_objects.txt', 'r') as f:
+            discarded_samples = f.readlines()
+            discarded_samples = [sample.strip() for sample in discarded_samples]
+
+    sample_paths = extract_sample_info(grasp_file_names, model_root=model_root, discard_samples=discarded_samples)
     simplified_samples = []
     # Dictionary to store the closese grasps to each point in the mesh
     simplified_mesh_count = 0

@@ -80,13 +80,33 @@ def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point):
     print(f"pred pose {pred}")
     scene.show()
 
+def visualize_sample(model_path, samples):
+    dataset = AcronymDataset(samples)
+
+    sample_found = False
+    for i in range(len(dataset)):
+        sample = dataset[i]
+        # print(sample.sample_info['simplified_model_path'])
+        if sample.sample_info['simplified_model_path'] == model_path:
+            vertices = sample.pos.numpy().astype(np.float32)
+            grasp = sample.y.numpy().astype(np.float32).reshape(4, 4)
+            grasp_querry_point = sample.sample_info['query_point']
+            query_point_idx = sample.sample_info['query_point_idx']
+            point_grasp_dict = np.load(sample.sample_info['point_grasp_save_path'], allow_pickle=True).item()
+            print("model path: ", sample.sample_info['model_path'])
+            visualize_grasp(vertices, grasp, query_point_idx)
+            sample_found = True
+            break
+    if not sample_found:
+        print("Sample not found")
+
 if __name__ == "__main__":
     scene = create_scene_with_reference()
     # train_dataset = AcronymDataset('sample_dirs/train_success_simplified_acronym_samples.npy')
     rotation_range = (-180, 180)  # full circle range in radians
     translation_range = (-0.3, 0.3)  # translation values range
     transfom_params = {"rotation_range": rotation_range, "translation_range": translation_range}
-    train_paths, val_paths = save_split_meshes('../data', 100)
+    train_paths, val_paths = save_split_meshes('../data', -1)
     train_dataset = AcronymDataset(val_paths)
 
 
@@ -113,4 +133,6 @@ if __name__ == "__main__":
     # print(f"Check col 1 and 2 {np.dot(grasp[:3, 0], grasp[:3, 1])}")
     # print(np.dot(grasp[:3, 0], grasp[:3, 2]))
 
-    visualize_grasp(vertices, grasp, query_point_idx)
+    # visualize_grasp(vertices, grasp, query_point_idx)
+    visualize_sample("../data/simplified_obj/Couch_c644689138389daa749ddac355b8e63d_1.511864863738365e-06.obj", val_paths)
+    # visualize_sample("../data/simplified_obj/Basket_7a0a4269578ee741adba2821eac2f4fa_0.02576393343451431.obj", val_paths)

@@ -1,0 +1,1 @@
+../data/ShapeNetSem-backup/models-OBJ/models/c644689138389daa749ddac355b8e63d.obj
