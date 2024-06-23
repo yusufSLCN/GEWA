@@ -65,7 +65,12 @@ class GewaNet(nn.Module):
         pos = data.pos
         grasps = data.y
         batch_idx = data.batch
-        query_point_idx = data.sample_info["query_point_idx"]
+        query_point_idx = []
+        vertex_count = 0
+        for i in range(len(data)):
+            query_point_idx.append(data.sample_info[i]['query_point_idx'] + vertex_count)
+            vertex_count = data[i].pos.shape[0]
+        query_point_idx = torch.tensor(query_point_idx, dtype=torch.int64)
         return pos, grasps, batch_idx, query_point_idx
 
     def collate_fn(self, batch):

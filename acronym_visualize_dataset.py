@@ -94,7 +94,8 @@ if __name__ == "__main__":
     transfom = Compose([RandomJitter(0.001), RandomRotationTransform(rotation_range)])
     train_dataset = AcronymDataset(train_paths)
 
-    sample_idx = 1
+    sample_idx = 21
+    
     sample = train_dataset[sample_idx]
     # vertices = sample[0].numpy().astype(np.float32)
     # sample_info = sample[2]
