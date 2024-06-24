@@ -150,6 +150,7 @@ for epoch in range(1, num_epochs + 1):
     model.eval()
     with torch.no_grad():
         total_val_loss = 0
+        high_error_models = []
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             # vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
             grasp_pred = model(val_data)
@@ -159,9 +160,12 @@ for epoch in range(1, num_epochs + 1):
             loss = criterion(grasp_pred, grasp_gt)
 
             errors = torch.sum(grasp_gt - grasp_pred, dim=1)
-            large_erros_idx = torch.abs(errors) > 100
+            large_erros_idx = torch.abs(errors) > 10
             for j in large_erros_idx.nonzero():
-                print(val_data[j].sample_info["simplified_model_path"])
+                model_path = val_data[j].sample_info["model_path"]
+                high_error_models.append(model_path)
+                print(model_path)
+                config.high_error_models = high_error_models
 
             total_val_loss += loss.item()
         average_val_loss = total_val_loss / len(val_data_loader)
