@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
-from torch_geometric.nn import MLP
+from torch_geometric.nn import MLP, knn, PointNetConv
 from GraspNet import SAModule, GlobalSAModule
+from torch_geometric.data import Data
+
 
 class EdgeGraspPredictor(nn.Module):
     def __init__(self, scene_feat_dim, point_feat_dim=256, out_size=9):
@@ -39,14 +41,36 @@ class Encoder(torch.nn.Module):
 
         # create edge features by concatenating the scene features with the point features 
         edge_feat = torch.cat([point_feat, scene_feat], dim=1)
-        x, pos, batch = sa3_out
+        # x, pos, batch = sa3_out
 
-        return x, edge_feat, point_batch
+        return edge_feat
     
+
+class KnnEncoder(torch.nn.Module):
+    def __init__(self, out_channels, point_feat_dim=256, k=16):
+        super().__init__()
+        self.k = k
+        self.conv1 = PointNetConv(MLP([3 + 3, 64, 64, 128]))
+        self.conv2 = PointNetConv(MLP([128 + 3, 128, 128, point_feat_dim]))
+        self.sa3_module = GlobalSAModule(MLP([point_feat_dim + 3, point_feat_dim, 512, out_channels]))
+
+    
+    def forward(self, x, pos, batch, query_point_idx):
+        edge_index = knn(pos, pos, k=self.k, batch_x=batch, batch_y=batch)
+        x = self.conv1(pos, pos, edge_index)
+        x = self.conv2(x, pos, edge_index)
+        scene_feat, _, batch = self.sa3_module(x, pos, batch)
+
+        point_feat = x[query_point_idx]
+        edge_feat = torch.cat([point_feat, scene_feat], dim=1)
+        return edge_feat
+    
+
 class GewaNet(nn.Module):
     def __init__(self, scene_feat_dim=1024, point_feat_dim=256, predictor_out_size = 16, multi_gpu=False, device="cuda"):
         super(GewaNet, self).__init__()
-        self.encoder = Encoder(out_channels = scene_feat_dim, point_feat_dim=point_feat_dim)
+        # self.encoder = Encoder(out_channels = scene_feat_dim, point_feat_dim=point_feat_dim)
+        self.encoder = KnnEncoder(out_channels = scene_feat_dim, point_feat_dim=point_feat_dim)
         self.predictor = EdgeGraspPredictor(scene_feat_dim, point_feat_dim=point_feat_dim, out_size=predictor_out_size)
         self.multi_gpu = multi_gpu
         self.device = device
@@ -58,7 +82,7 @@ class GewaNet(nn.Module):
             pos = pos.to(self.device)
             batch_idx = batch_idx.to(self.device)
             
-        x, edge_feat, point_batch = self.encoder(None, pos, batch_idx, query_point_idx)
+        edge_feat = self.encoder(None, pos, batch_idx, query_point_idx)
         output = self.predictor(edge_feat)
         # trans_m = self.calculateTransformationMatrix(output)
         # grasp = trans_m.view(-1, 16)
@@ -72,7 +96,7 @@ class GewaNet(nn.Module):
         vertex_count = 0
 
         for i in range(len(data)):
-            query_point_idx.append(data[i].sample_info['query_point_idx'] + vertex_count)
+            query_point_idx.append(data[i].query_point_idx + vertex_count)
             vertex_count += data[i].pos.shape[0]
         query_point_idx = torch.tensor(query_point_idx, dtype=torch.int64)
         return pos, grasps, batch_idx, query_point_idx
@@ -86,8 +110,8 @@ class GewaNet(nn.Module):
         for i, sample in enumerate(batch):
             points = sample.pos
             gt = sample.y
-            info = sample.sample_info
-            batch_querry_point_idx.append(info['query_point_idx'] + vertex_count)
+            query_point_idx = sample.query_point_idx[i]
+            batch_querry_point_idx.append(query_point_idx + vertex_count)
             vertex_count += points.shape[0]
             batch_idx.extend([i] *  points.shape[0])
             vertices.append(points)
@@ -96,6 +120,7 @@ class GewaNet(nn.Module):
         batch_idx = torch.tensor(batch_idx, dtype=torch.int64)
         vertices = torch.cat(vertices, dim=0)
         grasp_gt = torch.stack(grasp_gt, dim=0)
+
         batch_querry_point_idx = torch.tensor(batch_querry_point_idx, dtype=torch.int64)
 
         return vertices, grasp_gt, batch_idx, batch_querry_point_idx
@@ -119,12 +144,12 @@ class GewaNet(nn.Module):
     
 
 if __name__ == "__main__":
-    model = GewaNet(scene_feat_dim= 1024, point_feat_dim=256, predictor_out_size=9) 
+    model = GewaNet(scene_feat_dim= 1024, point_feat_dim=256, predictor_out_size=9, device="cpu") 
 
     num_meshes = 2
     mesh_vertex_count = 50
     total_vertex_count = num_meshes * mesh_vertex_count
-    data = torch.randn((total_vertex_count, 3))
+    y = torch.randn((total_vertex_count, 9))
     pos = torch.randn((total_vertex_count, 3))
     batch = torch.arange(total_vertex_count, dtype=torch.long)
     query_point_idx = torch.zeros(num_meshes, dtype=torch.long)
@@ -132,4 +157,7 @@ if __name__ == "__main__":
         batch[i*mesh_vertex_count:(i+1)*mesh_vertex_count] = i
         query_point_idx[i] = i * mesh_vertex_count
 
-    grasps = model(None, pos, batch, query_point_idx)
+    data = Data(x=pos, y=y, pos=pos, batch=batch, query_point_idx=query_point_idx)
+    data = [data, data]
+    grasps = model(data)
+    print(grasps.shape)

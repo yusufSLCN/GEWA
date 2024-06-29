@@ -2,13 +2,37 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 import pywavefront
-import torch_geometric as tg
 from transforms import create_random_rotation_translation_matrix
+from create_dataset_paths import save_split_meshes
+from torch_geometric.data import Data
+import trimesh
 
 
+class RandomRotationTransform:
+    def __init__(self, rotation_range):
+        self.rotation_range = rotation_range
+
+    def __call__(self, data):
+        vertices = data.pos.numpy().astype(np.float32)
+        grasp = data.y.numpy().astype(np.float32).reshape(4, 4)
+        
+        # Apply random rotation to vertices
+        rotation_angle = np.random.uniform(*self.rotation_range)
+        rotation_matrix = trimesh.transformations.rotation_matrix(rotation_angle, [0, 0, 1])
+        rotated_vertices = np.dot(rotation_matrix[:3, :3], vertices.T).T
+
+        # Apply random rotation to ground truth grasp
+        rotated_grasp = np.dot(rotation_matrix, grasp)
+
+        # Update the data object with the rotated vertices and grasp
+        data.pos = torch.from_numpy(rotated_vertices).float()
+        data.y = torch.from_numpy(rotated_grasp).flatten().float()
+
+        return data
+    
 class EdgegraspDataset(Dataset):
-    def __init__(self, data_path, num_grasps=16, transform=None):
-        self.data = self.load_data(data_path)
+    def __init__(self, data, num_grasps=16, transform=None):
+        self.data = data
         self.transform = transform
         self.num_grasps = num_grasps
         
@@ -32,6 +56,8 @@ class EdgegraspDataset(Dataset):
         point_grasp_save_path = sample_info['point_grasp_save_path']
         point_grasp_dict = np.load(point_grasp_save_path, allow_pickle=True).item()
 
+
+
         # pick random point from the vertices
         # query_point_idx = np.random.randint(len(vertices))
         grasp_indices = np.random.choice(len(vertices), size=self.num_grasps, replace=False)
@@ -47,48 +73,35 @@ class EdgegraspDataset(Dataset):
                 query_point_key = tuple(np.round(query_point, 3))
                 grasp_points[i] = query_point
                 grasp_indices[i] = query_point_idx
-            
             grasp_pose = point_grasp_dict[query_point_key][0][0]
             grasp_pose = torch.tensor(grasp_pose, dtype=torch.float32)
             grasp_poses.append(grasp_pose) 
             
         grasp_poses = torch.stack(grasp_poses, dim=0)
-
-        if self.transform != None:
-            transform_matrix = create_random_rotation_translation_matrix(self.transform['rotation_range'], self.transform['translation_range'])
-            transform_matrix = torch.tensor(transform_matrix, dtype=torch.float32)
-            #add 1 to the vertices to make them homogeneous
-            vertices = torch.cat((vertices, torch.ones((vertices.shape[0], 1))), 1)
-            vertices = transform_matrix @ vertices.T
-            vertices = vertices.T
-            vertices = vertices[:, :3]
-
-            grasp_poses = (transform_matrix @ grasp_poses.T).T
-
-            grasp_points = vertices[grasp_indices]
         
-        sample_info['grasp_points'] = grasp_points
-        sample_info['grasp_indices'] = grasp_indices
+        
+        grasp_pose = grasp_poses[0][0]
+        grasp_pose = torch.tensor(grasp_pose, dtype=torch.float32)
+        # grasp_pose[0:3, 3] = grasp_pose[0:3, 3] - mean_pos
+        
+        sample_info['query_point'] = query_point
+        sample_info['query_point_idx'] = query_point_idx
 
         grasp_poses = grasp_poses.reshape((self.num_grasps, -1))
-        # grasp_pose = sample_info['grasp_pose']
-        # grasp_pose = torch.tensor(grasp_pose, dtype=torch.float32)
-        # grasp_pose = grasp_pose.view(-1)
 
         # success = torch.tensor(success)
-        return vertices, grasp_poses, sample_info
-    
-    def load_data(self, data_path):
-        # Load the data from the specified path
-        data = np.load(data_path, allow_pickle=True)
-        return data
+        data = Data(x=vertices, y=grasp_pose, pos=vertices, sample_info=sample_info)
+        if self.transform != None:
+            data = self.transform(data)
+            # sample_info["query_point"] = data.pos[data.sample_info['query_point_idx']]
+            # data.sample_info = sample_info
 
+        return data
+    
 if __name__ == "__main__":
-    rotation_range = (-np.pi, np.pi)  # full circle range in radians
-    translation_range = (-0.5, 0.5)  # translation values range
-    transfom_params = {"rotation_range": (-np.pi, np.pi), "translation_range": (-0.5, 0.5)}
-    dataset_transformed = EdgegraspDataset('sample_dirs/train_success_simplified_acronym_meshes.npy', transform=transfom_params)
-    dataset = EdgegraspDataset('sample_dirs/train_success_simplified_acronym_meshes.npy')
+    train_data, valid_data = save_split_meshes('../data', 100)
+    dataset_transformed = EdgegraspDataset(train_data)
+    dataset = EdgegraspDataset(valid_data)
     # print(len(dataset))
     print(dataset[0][0].shape)
     print(dataset[0][1].shape)
