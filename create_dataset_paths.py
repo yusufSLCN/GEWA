@@ -13,6 +13,8 @@ def save_split_meshes(data_dir, num_mesh, train_ratio=0.8):
 
     else:
         simplified_meshes = get_simplified_meshes_w_closest_grasp(data_dir, num_mesh=-1)
+        #sort by name 
+        simplified_meshes = sorted(simplified_meshes, key=lambda x: x.split('/')[-1])
         np.random.seed(0)
         np.random.shuffle(simplified_meshes)
         np.save(paths_dir, simplified_meshes)
