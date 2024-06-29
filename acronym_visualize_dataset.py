@@ -107,7 +107,7 @@ if __name__ == "__main__":
     translation_range = (-0.3, 0.3)  # translation values range
     transfom_params = {"rotation_range": rotation_range, "translation_range": translation_range}
     train_paths, val_paths = save_split_meshes('../data', -1)
-    train_dataset = AcronymDataset(val_paths)
+    val_dataset = AcronymDataset(val_paths)
 
 
     transfom = Compose([RandomJitter(0.001), RandomRotationTransform(rotation_range)])
@@ -134,5 +134,5 @@ if __name__ == "__main__":
     # print(np.dot(grasp[:3, 0], grasp[:3, 2]))
 
     # visualize_grasp(vertices, grasp, query_point_idx)
-    visualize_sample("../data/simplified_obj/Couch_c644689138389daa749ddac355b8e63d_1.511864863738365e-06.obj", val_paths)
-    # visualize_sample("../data/simplified_obj/Basket_7a0a4269578ee741adba2821eac2f4fa_0.02576393343451431.obj", val_paths)
+    # visualize_sample("../data/simplified_obj/Couch_c644689138389daa749ddac355b8e63d_1.511864863738365e-06.obj", val_paths)
+    visualize_sample(val_dataset[0].sample_info["simplified_model_path"], val_paths)

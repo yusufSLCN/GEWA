@@ -163,9 +163,9 @@ for epoch in range(1, num_epochs + 1):
             large_erros_idx = torch.abs(errors) > 10
             for j in large_erros_idx.nonzero():
                 model_path = val_data[j].sample_info["model_path"]
-                high_error_models.append(model_path)
-                print(model_path)
-                config.high_error_models = high_error_models
+                simplified_model_path = val_data[j].sample_info["simplified_model_path"]
+                high_error_models.append((model_path, errors[j], simplified_model_path))
+                wandb.summary["high_error_models"] = high_error_models
 
             total_val_loss += loss.item()
         average_val_loss = total_val_loss / len(val_data_loader)

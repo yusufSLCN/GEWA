@@ -164,8 +164,7 @@ for epoch in range(1, num_epochs + 1):
             for j in large_erros_idx.nonzero():
                 model_path = val_data[j].sample_info["model_path"]
                 high_error_models.append(model_path)
-                print(model_path)
-                config.high_error_models = high_error_models
+                wandb.summary["high_error_models"] = high_error_models
 
             total_val_loss += loss.item()
         average_val_loss = total_val_loss / len(val_data_loader)

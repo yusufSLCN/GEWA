@@ -79,7 +79,7 @@ class AcronymDataset(Dataset):
         grasp_pose = grasp_pose.view(-1)
 
         # success = torch.tensor(success)
-        data = Data(x=vertices, y=grasp_pose, pos=vertices, query_point_idx=query_point_idx)
+        data = Data(x=vertices, y=grasp_pose, pos=vertices, query_point_idx=query_point_idx, sample_info=sample_info)
         if self.transform != None:
             data = self.transform(data)
             # sample_info["query_point"] = data.pos[data.sample_info['query_point_idx']]
