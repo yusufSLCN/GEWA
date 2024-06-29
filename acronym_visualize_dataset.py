@@ -136,5 +136,5 @@ if __name__ == "__main__":
     # visualize_grasp(vertices, grasp, query_point_idx)
     print(val_dataset[0].sample_info["simplified_model_path"])
     # visualize_sample("../data/simplified_obj/TissueBox_ac6df890acbf354894bed81c37648d8f_0.015413931634988332.obj", train_paths)
-    visualize_sample("../data/simplified_obj/Stapler_83fd0b145f76fb012f81cb887dc35578_0.049364475456998534.obj", train_paths)
+    visualize_sample("../data/simplified_obj/Bottle_e593aa021f3fa324530647fc03dd20dc_0.007729925649657224.obj", val_paths)
     # visualize_sample(val_dataset[0].sample_info["simplified_model_path"], val_paths)
