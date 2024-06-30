@@ -60,7 +60,7 @@ class AcronymDataset(Dataset):
 
         # pick random point from the vertices
         # query_point_idx = np.random.randint(len(vertices))
-        query_point_idx = 300
+        query_point_idx = 0
         query_point = vertices[query_point_idx].numpy().astype(np.float32)
 
         #normalize the vertices
