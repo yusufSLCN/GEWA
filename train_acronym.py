@@ -28,6 +28,7 @@ parser.add_argument('-na', '--no_augment', dest='augment', action='store_false')
 parser.add_argument('-sfd', '--scene_feat_dims', type=int, default=512)
 parser.add_argument('-n', '--notes', type=str, default='')
 parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
+parser.add_argument('-cp', '--crop_radius', type=float, default=0.1)
 args = parser.parse_args()
 
 
@@ -49,8 +50,8 @@ print("Transform params: ", transfom_params)
 
 # Save the split samples
 train_dirs, val_dirs = save_split_meshes(args.data_dir, num_mesh=args.num_mesh)
-train_dataset = AcronymDataset(train_dirs, transform=transform)
-val_dataset = AcronymDataset(val_dirs)
+train_dataset = AcronymDataset(train_dirs, crop_radius=args.crop_radius, transform=transform)
+val_dataset = AcronymDataset(val_dirs, crop_radius=args.crop_radius, transform=None)
                    
 # Initialize wandb
 wandb.init(project="GEWA", notes=args.notes)
@@ -67,6 +68,9 @@ config.dataset = train_dataset.__class__.__name__
 config.scene_feat_dims = args.scene_feat_dims
 if args.augment:
     config.transform = transfom_params
+
+config.normalize = train_dataset.normalize_vertices
+config.crop_radius = args.crop_radius
 
 # Analyze the dataset class stats
 num_epochs = args.epochs

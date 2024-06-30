@@ -31,10 +31,12 @@ class RandomRotationTransform:
         return data
     
 class AcronymDataset(Dataset):
-    def __init__(self, data, transform=None):
+    def __init__(self, data, crop_radius=None, transform=None, normalize_vertices=True):
         self.data = data
         self.transform = transform
-        
+        self.crop_radius = crop_radius
+        self.normalize_vertices = normalize_vertices
+
     def __len__(self):
         return len(self.data)
     
@@ -55,23 +57,39 @@ class AcronymDataset(Dataset):
         point_grasp_save_path = sample_info['point_grasp_save_path']
         point_grasp_dict = np.load(point_grasp_save_path, allow_pickle=True).item()
 
+
         # pick random point from the vertices
         # query_point_idx = np.random.randint(len(vertices))
-        query_point_idx = 0
+        query_point_idx = 300
         query_point = vertices[query_point_idx].numpy().astype(np.float32)
+
+        #normalize the vertices
+        if self.normalize_vertices:
+            mean = torch.mean(vertices, axis=0)
+            vertices = vertices - mean
+
+        if self.crop_radius is not None:
+            # crop the vertices around the query point
+            q_point = vertices[query_point_idx]
+            crop_mask = np.linalg.norm(vertices - q_point, axis=1) < self.crop_radius
+            vertices = vertices[crop_mask]
+            query_point_idx = np.sum(crop_mask[:query_point_idx])
         
         # get the grasps of the point
+        # some keys are not in the point grasp dict because of floating point errors
         query_point_key = tuple(np.round(query_point, 3))
-        while query_point_key not in point_grasp_dict:
-            print(f"Query point {query_point_key} not in the point grasp dict. Picking a new point.")
-            query_point_idx = np.random.randint(len(vertices))
-            query_point = vertices[query_point_idx].numpy().astype(np.float32)
-            query_point_key = tuple(np.round(query_point, 3))
+        # while query_point_key not in point_grasp_dict:
+        #     print(f"Query point {query_point_key} not in the point grasp dict. Picking a new point.")
+        #     query_point_idx = np.random.randint(len(vertices))
+        #     query_point = vertices[query_point_idx].numpy().astype(np.float32)
+        #     query_point_key = tuple(np.round(query_point, 3))
         
         grasp_poses = point_grasp_dict[query_point_key]
         grasp_pose = grasp_poses[0][0]
         grasp_pose = torch.tensor(grasp_pose, dtype=torch.float32)
-        # grasp_pose[0:3, 3] = grasp_pose[0:3, 3] - mean_pos
+
+        if self.normalize_vertices:
+            grasp_pose[0:3, 3] = grasp_pose[0:3, 3] - mean
         
         sample_info['query_point'] = query_point
         sample_info['query_point_idx'] = query_point_idx

@@ -38,7 +38,7 @@ def visualize_random_best_grasps(vertices, point_grasp_dict):
 
 def visualize_grasps_of_point(vertices, point_idx, point_key, point_grasp_dict):
     scene = create_scene_with_reference(vertices)
-    sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.005)
+    sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.007)
     sphare.visual.face_colors = [0, 255, 0, 255]
     point = vertices[point_idx]
     sphare.apply_translation(point)
@@ -107,13 +107,13 @@ if __name__ == "__main__":
     translation_range = (-0.3, 0.3)  # translation values range
     transfom_params = {"rotation_range": rotation_range, "translation_range": translation_range}
     train_paths, val_paths = save_split_meshes('../data', -1)
-    val_dataset = AcronymDataset(val_paths)
+    # val_dataset = AcronymDataset(val_paths)
 
 
     transfom = Compose([RandomJitter(0.001), RandomRotationTransform(rotation_range)])
-    train_dataset = AcronymDataset(train_paths)
+    train_dataset = AcronymDataset(train_paths, crop_radius=0.1)
 
-    sample_idx = 21
+    sample_idx = 2
     
     sample = train_dataset[sample_idx]
     # vertices = sample[0].numpy().astype(np.float32)
@@ -121,6 +121,7 @@ if __name__ == "__main__":
     # grasp_querry_point = sample_info['query_point']
     # grasp_querry_point = grasp_querry_point.numpy().astype(np.float32)
     # point_grasp_dict = np.load(sample_info['point_grasp_save_path'], allow_pickle=True).item()
+    print(sample.sample_info['simplified_model_path'])
     vertices = sample.pos.numpy().astype(np.float32)
     grasp = sample.y.numpy().astype(np.float32).reshape(4, 4)
     grasp_querry_point = sample.sample_info['query_point']
@@ -133,8 +134,8 @@ if __name__ == "__main__":
     # print(f"Check col 1 and 2 {np.dot(grasp[:3, 0], grasp[:3, 1])}")
     # print(np.dot(grasp[:3, 0], grasp[:3, 2]))
 
-    # visualize_grasp(vertices, grasp, query_point_idx)
-    print(val_dataset[0].sample_info["simplified_model_path"])
+    visualize_grasp(vertices, grasp, query_point_idx)
+    # print(val_dataset[0].sample_info["simplified_model_path"])
     # visualize_sample("../data/simplified_obj/TissueBox_ac6df890acbf354894bed81c37648d8f_0.015413931634988332.obj", train_paths)
-    visualize_sample("../data/simplified_obj/Bottle_e593aa021f3fa324530647fc03dd20dc_0.007729925649657224.obj", val_paths)
+    # visualize_sample("../data/simplified_obj/Bottle_e593aa021f3fa324530647fc03dd20dc_0.007729925649657224.obj", val_paths)
     # visualize_sample(val_dataset[0].sample_info["simplified_model_path"], val_paths)
