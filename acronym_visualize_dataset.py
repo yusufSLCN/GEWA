@@ -18,7 +18,7 @@ def create_scene_with_reference(vertices=None):
         scene.add_geometry(obj_points)
     return scene
 
-def visualize_random_best_grasps(vertices, point_grasp_dict):
+def visualize_random_best_grasps(vertices, point_grasp_dict, aug_matrix):
     scene = create_scene_with_reference(vertices)
     point_keys = list(point_grasp_dict.keys())
     random_indexes = np.random.choice(len(point_keys), 5, replace=False)
@@ -29,14 +29,18 @@ def visualize_random_best_grasps(vertices, point_grasp_dict):
         sphare.visual.face_colors = [0, 255, 0, 255]
         point_key = point_keys[i]
         closest_grasp, success = point_grasp_dict[point_key][0]
+        point_key = aug_matrix @ np.array(point_key + (1,))
+        point_key = point_key[:3]
         sphare.apply_translation(point_key)
         new_gripper = create_gripper_marker()
+        closest_grasp = aug_matrix @ closest_grasp
+        closest_grasp[:3, 3] = closest_grasp[:3, 3]
         point_gripper = new_gripper.apply_transform(closest_grasp)
         scene.add_geometry(sphare)
         scene.add_geometry(point_gripper)
     scene.show()
 
-def visualize_grasps_of_point(vertices, point_idx, point_key, point_grasp_dict):
+def visualize_grasps_of_point(vertices, point_idx, point_key, point_grasp_dict, aug_matrix):
     scene = create_scene_with_reference(vertices)
     sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.007)
     sphare.visual.face_colors = [0, 255, 0, 255]
@@ -46,6 +50,7 @@ def visualize_grasps_of_point(vertices, point_idx, point_key, point_grasp_dict):
     point_key = tuple(np.round(point_key, 3))
     for closest_grasp, success in  point_grasp_dict[point_key]:
         new_gripper = create_gripper_marker()
+        closest_grasp = aug_matrix @ closest_grasp
         point_gripper = new_gripper.apply_transform(closest_grasp)
         scene.add_geometry(point_gripper)
     scene.show()
@@ -111,7 +116,7 @@ if __name__ == "__main__":
 
 
     transfom = Compose([RandomJitter(0.001), RandomRotationTransform(rotation_range)])
-    train_dataset = AcronymDataset(train_paths, crop_radius=0.1)
+    train_dataset = AcronymDataset(train_paths, crop_radius=None, transform=transfom)
 
     sample_idx = 2
     
@@ -127,14 +132,16 @@ if __name__ == "__main__":
     grasp_querry_point = sample.sample_info['query_point']
     query_point_idx = sample.sample_info['query_point_idx']
     point_grasp_dict = np.load(sample.sample_info['point_grasp_save_path'], allow_pickle=True).item()
-    # visualize_random_best_grasps(vertices, point_grasp_dict)
-    # visualize_grasps_of_point(vertices, query_point_idx, grasp_querry_point, point_grasp_dict)
+    mean = sample.sample_info['mean']
+    aug_matrix = sample.sample_info['aug_matrix']
+    # visualize_random_best_grasps(vertices, point_grasp_dict, aug_matrix)
+    visualize_grasps_of_point(vertices, query_point_idx, grasp_querry_point, point_grasp_dict, aug_matrix)
     # print(grasp)
     #check the orthogonality of the grasp
     # print(f"Check col 1 and 2 {np.dot(grasp[:3, 0], grasp[:3, 1])}")
     # print(np.dot(grasp[:3, 0], grasp[:3, 2]))
 
-    visualize_grasp(vertices, grasp, query_point_idx)
+    # visualize_grasp(vertices, grasp, query_point_idx)
     # print(val_dataset[0].sample_info["simplified_model_path"])
     # visualize_sample("../data/simplified_obj/TissueBox_ac6df890acbf354894bed81c37648d8f_0.015413931634988332.obj", train_paths)
     # visualize_sample("../data/simplified_obj/Bottle_e593aa021f3fa324530647fc03dd20dc_0.007729925649657224.obj", val_paths)

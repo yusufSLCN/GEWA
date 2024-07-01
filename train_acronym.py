@@ -12,6 +12,7 @@ from acronym_dataset import AcronymDataset, RandomRotationTransform
 from GewaNet import GewaNet
 from create_dataset_paths import save_split_meshes
 from acronym_utils import analyze_dataset_stats
+from metrics import check_grasp_success
 import os
 import numpy as np
 
@@ -122,7 +123,7 @@ def prepare_samples(device, samples):
     return vertices, grasp_gt ,batch_idx, querry_point_idx
 
 print(f"Train data size: {len(train_dataset)}")
-
+print(f"Val data size: {len(val_dataset)}")
 
 # Training loop
 for epoch in range(1, num_epochs + 1):
@@ -154,6 +155,7 @@ for epoch in range(1, num_epochs + 1):
     model.eval()
     with torch.no_grad():
         total_val_loss = 0
+        total_grasp_success = 0
         high_error_models = []
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             # vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
@@ -171,9 +173,18 @@ for epoch in range(1, num_epochs + 1):
                 high_error_models.append((model_path, errors[j], simplified_model_path))
                 wandb.summary["high_error_models"] = high_error_models
 
+
+            preds = grasp_pred.cpu().detach().numpy().reshape(-1, 4, 4)
+            for j in range(preds.shape[0]):
+                grasp_pred = preds[j]
+                target_file_path = val_data[j].sample_info["grasps"]
+                aug_matrix = val_data[j].sample_info["aug_matrix"]
+                total_grasp_success += check_grasp_success(grasp_pred, target_file_path,  0.03, np.deg2rad(30), aug_matrix)
+
             total_val_loss += loss.item()
         average_val_loss = total_val_loss / len(val_data_loader)
-
+        grasp_success_rate = total_grasp_success / len(val_dataset)
+        wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
         if epoch % 10 == 0 and average_val_loss < 0.1:
             model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}"
             model_folder = f"models/{model_name}"

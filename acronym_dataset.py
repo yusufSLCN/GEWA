@@ -87,12 +87,14 @@ class AcronymDataset(Dataset):
         grasp_poses = point_grasp_dict[query_point_key]
         grasp_pose = grasp_poses[0][0]
         grasp_pose = torch.tensor(grasp_pose, dtype=torch.float32)
+        grasp_pose_wo_aug = grasp_pose.clone()
 
         if self.normalize_vertices:
             grasp_pose[0:3, 3] = grasp_pose[0:3, 3] - mean
         
         sample_info['query_point'] = query_point
         sample_info['query_point_idx'] = query_point_idx
+        sample_info['mean'] = mean.numpy().astype(np.float32)
 
         grasp_pose = grasp_pose.view(-1)
 
@@ -100,9 +102,11 @@ class AcronymDataset(Dataset):
         data = Data(x=vertices, y=grasp_pose, pos=vertices, query_point_idx=query_point_idx, sample_info=sample_info)
         if self.transform != None:
             data = self.transform(data)
-            # sample_info["query_point"] = data.pos[data.sample_info['query_point_idx']]
-            # data.sample_info = sample_info
 
+
+        # calculate augmentation matrix
+        aug_matrix =  data.y.view(4, 4) @ torch.inverse(grasp_pose_wo_aug) 
+        data.sample_info["aug_matrix"] = aug_matrix
         return data
     
 if __name__ == "__main__":
