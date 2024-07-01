@@ -4,7 +4,7 @@ import h5py
 def is_grasp_success(grasp, target, trans_thresh, rotat_thresh):
     trans_diff = np.linalg.norm(grasp[:3, 3] - target[:3, 3])
     rotat_diff = np.arccos((np.trace(np.dot(grasp[:3, :3].T, target[:3, :3])) - 1) / 2)
-    print(trans_diff, rotat_diff)
+    # print(trans_diff, rotat_diff)
     if rotat_diff < rotat_thresh and trans_diff < trans_thresh:
         return True
     else:

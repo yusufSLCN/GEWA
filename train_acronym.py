@@ -165,6 +165,7 @@ for epoch in range(1, num_epochs + 1):
             # Compute the loss
             loss = criterion(grasp_pred, grasp_gt)
 
+            # Check for high error samples
             errors = torch.sum(grasp_gt - grasp_pred, dim=1)
             large_erros_idx = torch.abs(errors) > 10
             for j in large_erros_idx.nonzero():
@@ -173,7 +174,7 @@ for epoch in range(1, num_epochs + 1):
                 high_error_models.append((model_path, errors[j], simplified_model_path))
                 wandb.summary["high_error_models"] = high_error_models
 
-
+            # Calculate the grasp success rate
             preds = grasp_pred.cpu().detach().numpy().reshape(-1, 4, 4)
             for j in range(preds.shape[0]):
                 grasp_pred = preds[j]
@@ -185,6 +186,8 @@ for epoch in range(1, num_epochs + 1):
         average_val_loss = total_val_loss / len(val_data_loader)
         grasp_success_rate = total_grasp_success / len(val_dataset)
         wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
+
+        # Save the model if the validation loss is low
         if epoch % 10 == 0 and average_val_loss < 0.1:
             model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}"
             model_folder = f"models/{model_name}"
