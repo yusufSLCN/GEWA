@@ -146,7 +146,7 @@ for epoch in range(1, num_epochs + 1):
         total_loss += loss.item()
         if epoch % 50 == 0:
             # Calculate the grasp success rate
-            preds = grasp_pred.cpu().detach().numpy().reshape(-1, 4, 4)
+            preds = grasp_pred.cpu().detach().reshape(-1, 4, 4)
             for j in range(preds.shape[0]):
                 grasp = preds[j]
                 target_file_path = data[j].sample_info["grasps"]
@@ -189,7 +189,7 @@ for epoch in range(1, num_epochs + 1):
 
             if epoch % 50 == 0:
                 # Calculate the grasp success rate
-                preds = grasp_pred.cpu().detach().numpy().reshape(-1, 4, 4)
+                preds = grasp_pred.cpu().detach().reshape(-1, 4, 4)
                 for j in range(preds.shape[0]):
                     grasp_pred = preds[j]
                     target_file_path = val_data[j].sample_info["grasps"]
