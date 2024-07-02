@@ -36,8 +36,8 @@ args = parser.parse_args()
 # Load the datasets with transforms
 if args.augment:
     translation_range = 0.001  # translation values range
-    # rotation_range = [-180, 180]
-    rotation_range = None
+    rotation_range = [-180, 180]
+    # rotation_range = None
     transform_list = [RandomJitter(translation_range)]
     if rotation_range is not None:
         transform_list.append(RandomRotationTransform(rotation_range))
@@ -148,10 +148,10 @@ for epoch in range(1, num_epochs + 1):
             # Calculate the grasp success rate
             preds = grasp_pred.cpu().detach().numpy().reshape(-1, 4, 4)
             for j in range(preds.shape[0]):
-                grasp_pred = preds[j]
-                target_file_path = val_data[j].sample_info["grasps"]
-                aug_matrix = val_data[j].sample_info["aug_matrix"]
-                train_grasp_success += check_grasp_success(grasp_pred, target_file_path,  0.03, np.deg2rad(30), aug_matrix)
+                grasp = preds[j]
+                target_file_path = data[j].sample_info["grasps"]
+                aug_matrix = data[j].sample_info["aug_matrix"]
+                train_grasp_success += check_grasp_success(grasp, target_file_path,  0.03, np.deg2rad(30), aug_matrix)
 
     if epoch % 50 == 0:
         train_success_rate = train_grasp_success / len(train_dataset)
@@ -198,8 +198,8 @@ for epoch in range(1, num_epochs + 1):
 
             total_val_loss += loss.item()
 
+        average_val_loss = total_val_loss / len(val_data_loader)
         if epoch % 50 == 0:
-            average_val_loss = total_val_loss / len(val_data_loader)
             grasp_success_rate = valid_grasp_success / len(val_dataset)
             wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
 
