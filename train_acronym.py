@@ -129,7 +129,7 @@ print(f"Val data size: {len(val_dataset)}")
 for epoch in range(1, num_epochs + 1):
     model.train()
     total_loss = 0
-    
+    train_grasp_success = 0
     for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         # Forward pass
@@ -144,6 +144,18 @@ for epoch in range(1, num_epochs + 1):
         # # Update the weights
         optimizer.step()
         total_loss += loss.item()
+        if epoch % 50 == 0:
+            # Calculate the grasp success rate
+            preds = grasp_pred.cpu().detach().numpy().reshape(-1, 4, 4)
+            for j in range(preds.shape[0]):
+                grasp_pred = preds[j]
+                target_file_path = val_data[j].sample_info["grasps"]
+                aug_matrix = val_data[j].sample_info["aug_matrix"]
+                train_grasp_success += check_grasp_success(grasp_pred, target_file_path,  0.03, np.deg2rad(30), aug_matrix)
+
+    if epoch % 50 == 0:
+        train_success_rate = train_grasp_success / len(train_dataset)
+        wandb.log({"Train Grasp Success Rate": train_success_rate}, step=epoch)
     average_loss = total_loss / len(train_data_loader)
     wandb.log({"Train Loss": average_loss}, step=epoch)
     pred = grasp_pred[0].cpu().detach().numpy()
@@ -155,7 +167,7 @@ for epoch in range(1, num_epochs + 1):
     model.eval()
     with torch.no_grad():
         total_val_loss = 0
-        total_grasp_success = 0
+        valid_grasp_success = 0
         high_error_models = []
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             # vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
@@ -174,18 +186,22 @@ for epoch in range(1, num_epochs + 1):
                 high_error_models.append((model_path, errors[j], simplified_model_path))
                 wandb.summary["high_error_models"] = high_error_models
 
-            # Calculate the grasp success rate
-            preds = grasp_pred.cpu().detach().numpy().reshape(-1, 4, 4)
-            for j in range(preds.shape[0]):
-                grasp_pred = preds[j]
-                target_file_path = val_data[j].sample_info["grasps"]
-                aug_matrix = val_data[j].sample_info["aug_matrix"]
-                total_grasp_success += check_grasp_success(grasp_pred, target_file_path,  0.03, np.deg2rad(30), aug_matrix)
+
+            if epoch % 50 == 0:
+                # Calculate the grasp success rate
+                preds = grasp_pred.cpu().detach().numpy().reshape(-1, 4, 4)
+                for j in range(preds.shape[0]):
+                    grasp_pred = preds[j]
+                    target_file_path = val_data[j].sample_info["grasps"]
+                    aug_matrix = val_data[j].sample_info["aug_matrix"]
+                    valid_grasp_success += check_grasp_success(grasp_pred, target_file_path,  0.03, np.deg2rad(30), aug_matrix)
 
             total_val_loss += loss.item()
-        average_val_loss = total_val_loss / len(val_data_loader)
-        grasp_success_rate = total_grasp_success / len(val_dataset)
-        wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
+
+        if epoch % 50 == 0:
+            average_val_loss = total_val_loss / len(val_data_loader)
+            grasp_success_rate = valid_grasp_success / len(val_dataset)
+            wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
 
         # Save the model if the validation loss is low
         if epoch % 10 == 0 and average_val_loss < 0.1:
