@@ -67,6 +67,8 @@ class AcronymDataset(Dataset):
         if self.normalize_vertices:
             mean = torch.mean(vertices, axis=0)
             vertices = vertices - mean
+            sample_info['mean'] = mean.numpy().astype(np.float32)
+
 
         if self.crop_radius is not None:
             # crop the vertices around the query point
@@ -94,7 +96,6 @@ class AcronymDataset(Dataset):
         
         sample_info['query_point'] = query_point
         sample_info['query_point_idx'] = query_point_idx
-        sample_info['mean'] = mean.numpy().astype(np.float32)
 
         grasp_pose = grasp_pose.view(-1)
 
