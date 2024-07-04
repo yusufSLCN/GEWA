@@ -128,14 +128,16 @@ class GraspTranslationPredictor(nn.Module):
             nn.ReLU(),
             nn.Linear(global_feat_dim // 4, out_size),
         )
-        self.approach_point_encoder = nn.Sequential(
-            nn.Linear(3, 32),
+        self.approach_and_contact_points_encoder = nn.Sequential(
+            nn.Linear(9, 32),
             nn.ReLU(),
             nn.Linear(32, approach_feat_dim)
         )
     
-    def forward(self, global_feats, approach_point):
-        approach_feat = self.approach_point_encoder(approach_point)
+    def forward(self, global_feats, approach_point, grasp_points):
+        grasp_points = grasp_points.view(-1, 6)
+        conditioned_points = torch.cat([approach_point, grasp_points], dim=1)
+        approach_feat = self.approach_and_contact_points_encoder(conditioned_points)
         x = torch.cat([global_feats, approach_feat], dim=1)
         x = self.predictor(x)
         return x
@@ -148,6 +150,10 @@ class GraspNet(nn.Module):
         self.encoder = Encoder(global_feat_dim)
         self.grasp_point_head = GraspPointPredictor(global_feat_dim, approach_feat_dim)
         self.trans_head = GraspTranslationPredictor(global_feat_dim, approach_feat_dim)
+
+        self.mse_loss = nn.MSELoss()
+        self.gripper_length = 1.12169998e-01
+        self.gripper_length = torch.tensor(self.gripper_length).to(self.device)
     
     def forward(self, data):
         if self.multi_gpu:
@@ -173,10 +179,23 @@ class GraspNet(nn.Module):
 
         grasp_points = torch.stack(grasp_points, dim=0).squeeze()
         global_feat = global_feat[0]
-        trans_pos = self.trans_head(global_feat, approach_point)
+        trans_pos = self.trans_head(global_feat, approach_point, grasp_points)
 
-        grasp = self.createGrasp(grasp_points, trans_pos)
-        return grasp
+        grasps, gripper_length, dot_z_x = self.createGrasp(grasp_points, trans_pos)
+        return grasps, gripper_length, dot_z_x
+
+    def calculate_loss(self, target, pred, length_pred, dot_z_x):
+        # print(pred.shape)
+        # print(target.shape)
+        grasp_matrix_loss = self.mse_loss(pred, target)
+        # print(length_pred.shape)
+        # print(self.gripper_length.shape)
+        gripper_length_constraint = length_pred - self.gripper_length
+        gripper_length_constraint = torch.sum(gripper_length_constraint *  gripper_length_constraint)
+        # print(length_pred.shape)
+        # print(self.gripper_length.shape)
+        dot_z_x_constraint = torch.sum(dot_z_x * dot_z_x)
+        return grasp_matrix_loss,  gripper_length_constraint, dot_z_x_constraint
 
     def multi_gpu_collate_fn(self, data):
         pos = data.pos
@@ -234,40 +253,16 @@ class GraspNet(nn.Module):
         r = torch.stack([x_axis, y_axis, z_axis], dim=1)
         grasps[:, :3, :3] = r
         grasps[:, :3, 3] = trans_pos
-
-        return grasps
-
+        grasps = grasps.view(-1, 16)
 
 
+        gripper_length = torch.norm(trans_pos - mid_point) 
+        dot_z_x = z_axis * x_axis
+        dot_z_x = torch.sum(dot_z_x, dim=1)
 
-    # def calculateTransformationMatrix(self, grasp):
-    #     translation = grasp[:, :3]
-    #     r1 = grasp[:, 3:6]
-    #     r2 = grasp[:, 6:]
-    #     #orthogonalize the rotation vectors
-    #     r1 = r1 / torch.norm(r1, dim=1, keepdim=True)
-    #     r2 = r2 - torch.sum(r1 * r2, dim=1, keepdim=True) * r1
-    #     r2 = r2 / torch.norm(r2, dim=1, keepdim=True)
-    #     r3 = torch.cross(r1, r2, dim=1)
-    #     #create the rotation matrix
-    #     r = torch.stack([r1, r2, r3], dim=2)
-    #     #create 4x4 transformation matrix for each 
-    #     trans_m = torch.eye(4).repeat(len(grasp), 1, 1).to(grasp.device)
-    #     trans_m[:,:3, :3] = r
-    #     trans_m[:, :3, 3] = translation
-    #     return trans_m
+        return grasps, gripper_length, dot_z_x
 
 if __name__ == "__main__":
-
-    # data = torch.randn((50, 3))
-    # pos = torch.randn((50, 3))
-    # batch = torch.arange(50, dtype=torch.long)
-    # print(pos.shape)
-    # for i in range(10):
-    #     batch[i*5:(i+1)*5] = i
-    # query_point = torch.randn((10, 3))
-    # grasps = model(None, pos, batch, query_point)
-    # print(grasps.shape)
 
     from acronym_dataset import AcronymDataset
     from create_dataset_paths import save_split_meshes
@@ -283,8 +278,13 @@ if __name__ == "__main__":
     train_loader = DataListLoader(train_dataset, batch_size=16, shuffle=False, num_workers=0)
 
     for i, data in enumerate(train_loader):
-        pred = model(data)
+        pred, gripper_length, dot_z_x = model(data)
+        grasp_gt = torch.stack([sample.y for sample in data], dim=0)
+
+        loss = model.calculate_loss(grasp_gt, pred, gripper_length, dot_z_x)
         print(pred.shape)
+        print(gripper_length)
+        print(dot_z_x)
         break
     # # check the orthogonality of the grasp rotation
     # grasp = grasps[0]
