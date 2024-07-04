@@ -1,7 +1,6 @@
 import torch
-# from torch_geometric.nn import PointNetConv
 import torch.nn as nn
-from torch_geometric.nn import MLP, PointNetConv, fps, global_max_pool, radius
+from torch_geometric.nn import MLP, PointNetConv, fps, global_max_pool, radius, knn_interpolate
 
 
 
@@ -34,101 +33,259 @@ class GlobalSAModule(torch.nn.Module):
         pos = pos.new_zeros((x.size(0), 3))
         batch = torch.arange(x.size(0), device=batch.device)
         return x, pos, batch
-
-class Encoder(torch.nn.Module):
-    def __init__(self, out_channels=1024, point_feat_dim=256, ratios=[0.5, 0.25]):
-        super().__init__()
-
-        self.sa1_module = SAModule(ratios[0], 0.2, MLP([3, 64, 64, 128]))
-        self.sa2_module = SAModule(ratios[1], 0.4, MLP([128 + 3, 128, 128, point_feat_dim]))
-        self.sa3_module = GlobalSAModule(MLP([point_feat_dim + 3, point_feat_dim, 512, out_channels]))
-
+    
+class Encoder(nn.Module):
+    def __init__(self, global_feat_dim):
+        super(Encoder, self).__init__()
+        self.sa1_module = SAModule(0.2, 0.2, MLP([3 + 3, 64, 64, 128]))
+        self.sa2_module = SAModule(0.25, 0.4, MLP([128 + 3, 128, 128, 256]))
+        self.sa3_module = GlobalSAModule(MLP([256 + 3, 256, 512, global_feat_dim]))
+    
     def forward(self, x, pos, batch):
-        sa1_out = self.sa1_module(x, pos, batch)
+        sa0_out = (x, pos, batch)
+        sa1_out = self.sa1_module(*sa0_out)
         sa2_out = self.sa2_module(*sa1_out)
-        point_feat, _, point_batch = sa2_out
         sa3_out = self.sa3_module(*sa2_out)
-        # dublicate the scene features to match the number of points in the batch
-        expaned_scene_feat = sa3_out[0][point_batch]
-        # create edge features by concatenating the scene features with the point features 
-        edge_feat = torch.cat([point_feat, expaned_scene_feat], dim=1)
-        x, pos, batch = sa3_out
+        return sa0_out, sa1_out, sa2_out, sa3_out
+    
+# class Encoder(torch.nn.Module):
+#     def __init__(self, out_channels=1024, point_feat_dim=256, ratios=[0.5, 0.25]):
+#         super().__init__()
 
-        return x, edge_feat, point_batch
+#         self.sa1_module = SAModule(ratios[0], 0.2, MLP([3, 64, 64, 128]))
+#         self.sa2_module = SAModule(ratios[1], 0.4, MLP([128 + 3, 128, 128, point_feat_dim]))
+#         self.sa3_module = GlobalSAModule(MLP([point_feat_dim + 3, point_feat_dim, 512, out_channels]))
 
-class GraspPredictor(nn.Module):
-    def __init__(self, enc_out_channels, predictor_out_size, querry_point_enc_size=16):
-        super(GraspPredictor, self).__init__()
+#     def forward(self, x, pos, batch):
+#         sa1_out = self.sa1_module(x, pos, batch)
+#         sa2_out = self.sa2_module(*sa1_out)
+#         point_feat, _, point_batch = sa2_out
+#         sa3_out = self.sa3_module(*sa2_out)
+#         # dublicate the scene features to match the number of points in the batch
+#         expaned_scene_feat = sa3_out[0][point_batch]
+#         # create edge features by concatenating the scene features with the point features 
+#         edge_feat = torch.cat([point_feat, expaned_scene_feat], dim=1)
+#         x, pos, batch = sa3_out
 
-        self.predictor = nn.Sequential(
-            nn.Linear(enc_out_channels + querry_point_enc_size, enc_out_channels  // 2),
+#         return x, edge_feat, point_batch
+
+
+class FPModule(torch.nn.Module):
+    def __init__(self, k, nn):
+        super().__init__()
+        self.k = k
+        self.nn = nn
+
+    def forward(self, x, pos, batch, x_skip, pos_skip, batch_skip):
+        x = knn_interpolate(x, pos, pos_skip, batch, batch_skip, k=self.k)
+        if x_skip is not None:
+            x = torch.cat([x, x_skip], dim=1)
+        x = self.nn(x)
+        return x, pos_skip, batch_skip
+    
+class GraspPointPredictor(nn.Module):
+    def __init__(self, global_feat_dim, approach_feat_dim):
+        super(GraspPointPredictor, self).__init__()
+        
+        self.fp3_module = FPModule(1, MLP([global_feat_dim + 256, 256, 256]))
+        self.fp2_module = FPModule(3, MLP([256 + 128, 256, 128]))
+        self.fp1_module = FPModule(3, MLP([128 + 3, 128, 128, 128]))
+
+        self.approach_point_encoder = nn.Sequential(
+            nn.Linear(3, 32),
             nn.ReLU(),
-            nn.Linear(enc_out_channels // 2, enc_out_channels // 4),
-            nn.ReLU(),
-            nn.Linear(enc_out_channels // 4, predictor_out_size),
+            nn.Linear(32, approach_feat_dim)
         )
-
-        self.querry_point_encoder = nn.Sequential(
-            nn.Linear(3, 8),
+        # self.mlp = MLP([128 + approach_feat_dim, 128, 128, 1], dropout=0.5, act=None)
+        self.mlp = nn.Sequential(
+            nn.Linear(128 + approach_feat_dim, 128),
             nn.ReLU(),
-            nn.Linear(8, querry_point_enc_size),
+            nn.Dropout(0.5),
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(128, 1)
         )
     
-    def forward(self, edge_features, querry_point, point_batch):
-        querry_point_feat = self.querry_point_encoder(querry_point)
-        # expanded_querry_point_feat = querry_point_feat[point_batch]
-        # h = torch.cat([edge_features, expanded_querry_point_feat], dim=1)
-        h = torch.cat([edge_features, querry_point_feat], dim=1)
-        # print(f"{h.shape=}")
-        h = self.predictor(h)
-        return h
+    def forward(self, sa0_out, sa1_out, sa2_out, sa3_out, approach_point):
+        fp3_out = self.fp3_module(*sa3_out, *sa2_out)
+        fp2_out = self.fp2_module(*fp3_out, *sa1_out)
+        x, _, batch_idx = self.fp1_module(*fp2_out, *sa0_out)
+        approach_feat = self.approach_point_encoder(approach_point)
+        expanded_approach_feat = approach_feat[batch_idx]
+        x = torch.cat([x, expanded_approach_feat], dim=1)
+        x = self.mlp(x)
+        return x
+    
+class GraspTranslationPredictor(nn.Module):
+    def __init__(self, global_feat_dim, approach_feat_dim=64, out_size=3):
+        super(GraspTranslationPredictor, self).__init__()
+        
+        self.predictor = nn.Sequential(
+            nn.Linear(global_feat_dim + approach_feat_dim, global_feat_dim  // 2),
+            nn.ReLU(),
+            nn.Linear(global_feat_dim // 2, global_feat_dim // 4),
+            nn.ReLU(),
+            nn.Linear(global_feat_dim // 4, out_size),
+        )
+        self.approach_point_encoder = nn.Sequential(
+            nn.Linear(3, 32),
+            nn.ReLU(),
+            nn.Linear(32, approach_feat_dim)
+        )
+    
+    def forward(self, global_feats, approach_point):
+        approach_feat = self.approach_point_encoder(approach_point)
+        x = torch.cat([global_feats, approach_feat], dim=1)
+        x = self.predictor(x)
+        return x
 
 class GraspNet(nn.Module):
-    def __init__(self, scene_feat_dim, point_feature_dim = 128, predictor_out_size=9):
+    def __init__(self, global_feat_dim, approach_feat_dim = 64, multi_gpu=False, device="cuda"):
         super(GraspNet, self).__init__()
-        
-        self.encoder = Encoder(scene_feat_dim, point_feature_dim)
-        self.predictor = GraspPredictor(scene_feat_dim, predictor_out_size)
-        # self.evaluator = GraspEvaluator(enc_out_channels, predictor_out_size)
+        self.multi_gpu = multi_gpu
+        self.device = device
+        self.encoder = Encoder(global_feat_dim)
+        self.grasp_point_head = GraspPointPredictor(global_feat_dim, approach_feat_dim)
+        self.trans_head = GraspTranslationPredictor(global_feat_dim, approach_feat_dim)
     
-    def forward(self, x, pos, batch, query_point, ):
-        scene_feat, edge_feat, point_batch = self.encoder(x, pos, batch)
-        #stack the point features with the scene features
-        grasp = self.predictor(scene_feat, query_point, point_batch)
+    def forward(self, data):
+        if self.multi_gpu:
+            pos, _, batch_idx, approach_point_idx = self.multi_gpu_collate_fn(data)
+        else:
+            pos, _, batch_idx, approach_point_idx = self.collate_fn(data)
+            pos = pos.to(self.device)
+            batch_idx = batch_idx.to(self.device)
 
-        trans_m = self.calculateTransformationMatrix(grasp)
-        grasp = trans_m.view(-1, 16)
+        sa0_out, sa1_out, sa2_out, global_feat = self.encoder(pos, pos, batch_idx)
+        approach_point = pos[approach_point_idx]
+        h = self.grasp_point_head(sa0_out, sa1_out, sa2_out, global_feat, approach_point)
+
+        grasp_points = []
+        for i in range(len(data)):
+            sample_mask = batch_idx == i
+            sample_h = h[sample_mask]
+            prob_over_sample_points = torch.sigmoid(sample_h)
+            #select top 2 points with the highest probability
+            prasp_point_indeces = torch.topk(prob_over_sample_points, 2, dim=0).indices
+            sample_pos = pos[sample_mask]
+            grasp_points.append(sample_pos[prasp_point_indeces])
+
+        grasp_points = torch.stack(grasp_points, dim=0).squeeze()
+        global_feat = global_feat[0]
+        trans_pos = self.trans_head(global_feat, approach_point)
+
+        grasp = self.createGrasp(grasp_points, trans_pos)
         return grasp
 
-    def calculateTransformationMatrix(self, grasp):
-        translation = grasp[:, :3]
-        r1 = grasp[:, 3:6]
-        r2 = grasp[:, 6:]
-        #orthogonalize the rotation vectors
-        r1 = r1 / torch.norm(r1, dim=1, keepdim=True)
-        r2 = r2 - torch.sum(r1 * r2, dim=1, keepdim=True) * r1
-        r2 = r2 / torch.norm(r2, dim=1, keepdim=True)
-        r3 = torch.cross(r1, r2, dim=1)
+    def multi_gpu_collate_fn(self, data):
+        pos = data.pos
+        grasps = data.y
+        batch_idx = data.batch
+        query_point_idx = []
+        vertex_count = 0
+
+        for i in range(len(data)):
+            query_point_idx.append(data[i].query_point_idx + vertex_count)
+            vertex_count += data[i].pos.shape[0]
+        query_point_idx = torch.tensor(query_point_idx, dtype=torch.int64)
+        return pos, grasps, batch_idx, query_point_idx
+
+    def collate_fn(self, batch):
+        batch_idx = []
+        vertices = []
+        grasp_gt = []
+        batch_querry_point_idx = []
+        vertex_count = 0
+        for i, sample in enumerate(batch):
+            points = sample.pos
+            gt = sample.y
+            query_point_idx = sample.query_point_idx
+            batch_querry_point_idx.append(query_point_idx + vertex_count)
+            vertex_count += points.shape[0]
+            batch_idx.extend([i] *  points.shape[0])
+            vertices.append(points)
+            grasp_gt.append(gt)
+                
+        batch_idx = torch.tensor(batch_idx, dtype=torch.int64)
+        vertices = torch.cat(vertices, dim=0)
+        grasp_gt = torch.stack(grasp_gt, dim=0)
+
+        batch_querry_point_idx = torch.tensor(batch_querry_point_idx, dtype=torch.int64)
+
+        return vertices, grasp_gt, batch_idx, batch_querry_point_idx
+    
+    def createGrasp(self, grasp_points, trans_pos):
+        #create the translation vector
+        p1 = grasp_points[:, 0]
+        p2 = grasp_points[:, 1]
         #create the rotation matrix
-        r = torch.stack([r1, r2, r3], dim=2)
-        #create 4x4 transformation matrix for each 
-        trans_m = torch.eye(4).repeat(len(grasp), 1, 1).to(grasp.device)
-        trans_m[:,:3, :3] = r
-        trans_m[:, :3, 3] = translation
-        return trans_m
+        z_axis = p2 - p1
+        z_axis = z_axis / torch.norm(z_axis)
+
+        mid_point = (p1 + p2) / 2
+        x_axis = trans_pos - mid_point
+        x_axis = x_axis / torch.norm(x_axis)
+        y_axis = torch.cross(z_axis, x_axis)
+        y_axis = y_axis / torch.norm(y_axis)
+
+        grasp = torch.eye(4).to(grasp_points.device)
+        grasps = grasp.repeat(grasp_points.shape[0], 1, 1)
+        r = torch.stack([x_axis, y_axis, z_axis], dim=1)
+        grasps[:, :3, :3] = r
+        grasps[:, :3, 3] = trans_pos
+
+        return grasps
+
+
+
+
+    # def calculateTransformationMatrix(self, grasp):
+    #     translation = grasp[:, :3]
+    #     r1 = grasp[:, 3:6]
+    #     r2 = grasp[:, 6:]
+    #     #orthogonalize the rotation vectors
+    #     r1 = r1 / torch.norm(r1, dim=1, keepdim=True)
+    #     r2 = r2 - torch.sum(r1 * r2, dim=1, keepdim=True) * r1
+    #     r2 = r2 / torch.norm(r2, dim=1, keepdim=True)
+    #     r3 = torch.cross(r1, r2, dim=1)
+    #     #create the rotation matrix
+    #     r = torch.stack([r1, r2, r3], dim=2)
+    #     #create 4x4 transformation matrix for each 
+    #     trans_m = torch.eye(4).repeat(len(grasp), 1, 1).to(grasp.device)
+    #     trans_m[:,:3, :3] = r
+    #     trans_m[:, :3, 3] = translation
+    #     return trans_m
 
 if __name__ == "__main__":
-    model = GraspNet(scene_feat_dim= 1028, point_feature_dim=256, predictor_out_size=9) 
 
-    data = torch.randn((50, 3))
-    pos = torch.randn((50, 3))
-    batch = torch.arange(50, dtype=torch.long)
-    print(pos.shape)
-    for i in range(10):
-        batch[i*5:(i+1)*5] = i
-    query_point = torch.randn((10, 3))
-    grasps = model(None, pos, batch, query_point)
-    print(grasps.shape)
+    # data = torch.randn((50, 3))
+    # pos = torch.randn((50, 3))
+    # batch = torch.arange(50, dtype=torch.long)
+    # print(pos.shape)
+    # for i in range(10):
+    #     batch[i*5:(i+1)*5] = i
+    # query_point = torch.randn((10, 3))
+    # grasps = model(None, pos, batch, query_point)
+    # print(grasps.shape)
+
+    from acronym_dataset import AcronymDataset
+    from create_dataset_paths import save_split_meshes
+    from torch_geometric.loader import DataListLoader
+    from acronym_dataset import RandomRotationTransform
+
+    model = GraspNet(global_feat_dim=1024, device="cpu") 
+    train_paths, val_paths = save_split_meshes('../data', 100)
+    rotation_range = [-180, 180]
+
+    # transform = RandomRotationTransform(rotation_range)
+    train_dataset = AcronymDataset(train_paths, crop_radius=None, transform=None, normalize_vertices=True)
+    train_loader = DataListLoader(train_dataset, batch_size=16, shuffle=False, num_workers=0)
+
+    for i, data in enumerate(train_loader):
+        pred = model(data)
+        print(pred.shape)
+        break
     # # check the orthogonality of the grasp rotation
     # grasp = grasps[0]
     # print(grasp)

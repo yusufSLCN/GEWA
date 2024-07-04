@@ -12,7 +12,7 @@ from acronym_dataset import AcronymDataset, RandomRotationTransform
 from GewaNet import GewaNet
 from create_dataset_paths import save_split_meshes
 from acronym_utils import analyze_dataset_stats
-from metrics import check_grasp_success
+from metrics import check_grasp_success_from_dict
 import os
 import numpy as np
 
@@ -149,9 +149,7 @@ for epoch in range(1, num_epochs + 1):
             preds = grasp_pred.cpu().detach().reshape(-1, 4, 4)
             for j in range(preds.shape[0]):
                 grasp = preds[j]
-                target_file_path = data[j].sample_info["grasps"]
-                aug_matrix = data[j].sample_info["aug_matrix"]
-                train_grasp_success += check_grasp_success(grasp, target_file_path,  0.03, np.deg2rad(30), aug_matrix)
+                train_grasp_success += check_grasp_success_from_dict(grasp, data[j].sample_info,  0.03, np.deg2rad(30))
 
     if epoch % 50 == 0:
         train_success_rate = train_grasp_success / len(train_dataset)
@@ -192,9 +190,7 @@ for epoch in range(1, num_epochs + 1):
                 preds = grasp_pred.cpu().detach().reshape(-1, 4, 4)
                 for j in range(preds.shape[0]):
                     grasp_pred = preds[j]
-                    target_file_path = val_data[j].sample_info["grasps"]
-                    aug_matrix = val_data[j].sample_info["aug_matrix"]
-                    valid_grasp_success += check_grasp_success(grasp_pred, target_file_path,  0.03, np.deg2rad(30), aug_matrix)
+                    valid_grasp_success += check_grasp_success_from_dict(grasp_pred, val_data[j],  0.03, np.deg2rad(30))
 
             total_val_loss += loss.item()
 

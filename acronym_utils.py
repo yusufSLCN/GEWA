@@ -181,15 +181,15 @@ def find_n_closest_grasps(querry_point, grasp_poses, grasp_success, n=5):
     #tip of the gripper
     success_prasp_locations = np.array([0, 0, 1.12169998e-01, 1])
     
-    success_grasp_locations = np.matmul(success_grasp_poses, success_prasp_locations)[:, :3]
-    distances = np.linalg.norm(querry_point - success_grasp_locations, axis=1)
+    success_grasp_tip = np.matmul(success_grasp_poses, success_prasp_locations)[:, :3]
+    distances = np.linalg.norm(querry_point - success_grasp_tip, axis=1)
     sorted_indices = np.argsort(distances)
     closest_grasps = []
     try:
         for i in range(n):
             closest_grasps.append((success_grasp_poses[sorted_indices[i]], grasp_success[sorted_indices[i]]))
     except:
-        print(f"Warning: Not enough succesful grasps: {success_grasp_locations.shape}, {np.sum(grasp_success == 1)}, {sorted_indices.shape}")
+        print(f"Warning: Not enough succesful grasps: {success_grasp_tip.shape}, {np.sum(grasp_success == 1)}, {sorted_indices.shape}")
     return closest_grasps
 
 def create_point_grasp_dict(vertices, grasp_poses, grasp_success, n=5):

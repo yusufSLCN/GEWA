@@ -17,11 +17,29 @@ def check_grasp_success(grasp, target_file_path, trans_thresh, rotat_thresh, aug
     T = np.array(data["grasps/transforms"])
     success = np.array(data["grasps/qualities/flex/object_in_gripper"])
     success_targets = T[np.where(success > 0)]
+    
     if aug_matrix is not None:
         success_targets = np.matmul(aug_matrix, success_targets.T).T
-        print(success_targets.shape)
 
     for target in success_targets:
+        if is_grasp_success(grasp, target, trans_thresh, rotat_thresh):
+            return True
+    
+    return False
+
+def check_grasp_success_from_dict(grasp, sample_info, trans_thresh, rotat_thresh):
+
+    point_grasp_save_path = sample_info['point_grasp_save_path']
+    point_grasp_dict = np.load(point_grasp_save_path, allow_pickle=True).item()
+    point = sample_info['query_point']
+    query_point_key = tuple(np.round(point, 3))
+    targets = np.array([grasp[0] for grasp in point_grasp_dict[query_point_key]])
+    aug_matrix = sample_info['aug_matrix']
+    if aug_matrix is not None:
+        targets = np.matmul(aug_matrix, targets.T).T
+        # print(targets.shape)
+
+    for target in targets:
         if is_grasp_success(grasp, target, trans_thresh, rotat_thresh):
             return True
     
@@ -61,7 +79,7 @@ if __name__ == "__main__":
     from acronym_dataset import RandomRotationTransform
 
 
-    train_paths, val_paths = save_split_meshes('../data', 100)
+    train_paths, val_paths = save_split_meshes('../data', -1)
     rotation_range = [-180, 180]
 
     transform = RandomRotationTransform(rotation_range)
@@ -86,7 +104,8 @@ if __name__ == "__main__":
             # grasp_success = np.array(grasps["grasps/qualities/flex/object_in_gripper"])
             # grasp_poses = grasp_poses[np.where(grasp_success > 0)]
             # target =  torch.tensor(grasp_poses[0])
-            success = check_grasp_success(target, grasps_file_name, 0.03, np.deg2rad(30), aug_matrix=aug_matrix)
+            # success = check_grasp_success(target, grasps_file_name, 0.03, np.deg2rad(30), aug_matrix=aug_matrix)
+            success = check_grasp_success_from_dict(target, sample.sample_info, 0.03, np.deg2rad(30))
             total_success += success
 
     print(f"Total success rate: {total_success / len(train_dataset)}")

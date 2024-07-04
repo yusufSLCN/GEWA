@@ -51,14 +51,14 @@ class KnnEncoder(torch.nn.Module):
         super().__init__()
         self.k = k
         self.conv1 = PointNetConv(MLP([3 + 3, 64, 128, point_feat_dim]))
-        # self.conv2 = PointNetConv(MLP([128 + 3, 128, 128, point_feat_dim]))
+        self.conv2 = PointNetConv(MLP([128 + 3, 128, 128, point_feat_dim]))
         self.sa3_module = GlobalSAModule(MLP([point_feat_dim + 3, point_feat_dim, 512, out_channels]))
 
     
     def forward(self, x, pos, batch, query_point_idx):
         edge_index = knn(pos, pos, k=self.k, batch_x=batch, batch_y=batch)
         x = self.conv1(pos, pos, edge_index)
-        # x = self.conv2(x, pos, edge_index)
+        x = self.conv2(x, pos, edge_index)
         scene_feat, _, batch = self.sa3_module(x, pos, batch)
 
         point_feat = x[query_point_idx]
