@@ -57,6 +57,10 @@ class AcronymDataset(Dataset):
         point_grasp_save_path = sample_info['point_grasp_save_path']
         point_grasp_dict = np.load(point_grasp_save_path, allow_pickle=True).item()
 
+        # Load the approach points
+        approach_points_save_path = sample_info['approach_points_save_path']
+        approach_point_counts = np.load(approach_points_save_path, allow_pickle=True)
+        approach_point_counts = torch.tensor(approach_point_counts, dtype=torch.float32)
 
         # pick random point from the vertices
         # query_point_idx = np.random.randint(len(vertices))
@@ -70,7 +74,7 @@ class AcronymDataset(Dataset):
             sample_info['mean'] = mean.numpy().astype(np.float32)
 
 
-        if self.crop_radius is not None:
+        if self.crop_radius is not None and self.crop_radius > 0:
             # crop the vertices around the query point
             q_point = vertices[query_point_idx]
             crop_mask = np.linalg.norm(vertices - q_point, axis=1) < self.crop_radius
@@ -100,7 +104,8 @@ class AcronymDataset(Dataset):
         grasp_pose = grasp_pose.view(-1)
 
         # success = torch.tensor(success)
-        data = Data(x=vertices, y=grasp_pose, pos=vertices, query_point_idx=query_point_idx, sample_info=sample_info)
+        data = Data(x=vertices, y=grasp_pose, pos=vertices, query_point_idx=query_point_idx,
+                     approach=approach_point_counts, sample_info=sample_info)
         if self.transform != None:
             data = self.transform(data)
 

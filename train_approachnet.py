@@ -109,9 +109,6 @@ if torch.cuda.device_count() > 1 and args.multi_gpu:
 # Define the optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 
-# Define the loss function
-criterion = torch.nn.MSELoss()
-
 # Create data loader
 train_data_loader = DataListLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=args.num_workers)
 val_data_loader = DataListLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=args.num_workers)
@@ -132,21 +129,22 @@ print(f"Val data size: {len(val_dataset)}")
 for epoch in range(1, num_epochs + 1):
     model.train()
     total_loss = 0
+    total_grasp_loss = 0
+    total_approach_loss = 0
     train_grasp_success = 0
     for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         # Forward pass
         # vertices, grasp_gt, batch_idx, querry_point_idx = prepare_samples(device, samples)
-        grasp_pred = model(data)
+        grasp_pred, approach_dist, grasp_loss, approach_loss = model(data)
 
-        grasp_gt = torch.stack([sample.y for sample in data], dim=0).to(device)
         # Compute the loss
-        loss = criterion(grasp_pred, grasp_gt)
-        # # Backward pass
-        loss.backward()
+        loss = grasp_loss + approach_loss
         # # Update the weights
         optimizer.step()
         total_loss += loss.item()
+        total_grasp_loss += grasp_loss.item()
+        total_approach_loss += approach_loss.item()
         if epoch % 50 == 0:
             # Calculate the grasp success rate
             preds = grasp_pred.cpu().detach().reshape(-1, 4, 4)
@@ -158,9 +156,13 @@ for epoch in range(1, num_epochs + 1):
         train_success_rate = train_grasp_success / len(train_dataset)
         wandb.log({"Train Grasp Success Rate": train_success_rate}, step=epoch)
     average_loss = total_loss / len(train_data_loader)
-    wandb.log({"Train Loss": average_loss}, step=epoch)
+    average_grasp_loss = total_grasp_loss / len(train_data_loader)
+    average_approach_loss = total_approach_loss / len(train_data_loader)
+
+    # wandb.log({"Train Loss": average_loss}, step=epoch)
+    wandb.log({"Train Loss": average_loss, "Train Grasp Loss": average_grasp_loss, "Train Approach Loss": average_approach_loss}, step=epoch)
     pred = grasp_pred[0].cpu().detach().numpy()
-    gt = grasp_gt[0].cpu().detach().numpy()
+    gt = data[0].y[0].cpu().detach().numpy()
     #log the gt and pred gripper pose array with wandb
     wandb.log({"GT Grasp Pose": gt, "Pred Grasp Pose": pred}, step=epoch)
 
@@ -168,16 +170,16 @@ for epoch in range(1, num_epochs + 1):
     model.eval()
     with torch.no_grad():
         total_val_loss = 0
+        total_val_grasp_loss = 0
+        total_val_approach_loss = 0
         valid_grasp_success = 0
         high_error_models = []
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             # vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
-            grasp_pred = model(val_data)
+            grasp_pred, approach_dist, grasp_loss, approach_loss = model(val_data)
 
+            val_loss = grasp_loss + approach_loss
             grasp_gt = torch.stack([sample.y for sample in val_data], dim=0).to(device)
-            # Compute the loss
-            loss = criterion(grasp_pred, grasp_gt)
-
             # Check for high error samples
             errors = torch.sum(grasp_gt - grasp_pred, dim=1)
             large_erros_idx = torch.abs(errors) > 10
@@ -187,7 +189,6 @@ for epoch in range(1, num_epochs + 1):
                 high_error_models.append((model_path, errors[j], simplified_model_path))
                 wandb.summary["high_error_models"] = high_error_models
 
-
             if epoch % 50 == 0:
                 # Calculate the grasp success rate
                 preds = grasp_pred.cpu().detach().reshape(-1, 4, 4)
@@ -195,9 +196,13 @@ for epoch in range(1, num_epochs + 1):
                     grasp_pred = preds[j]
                     valid_grasp_success += check_grasp_success_from_dict(grasp_pred, val_data[j],  0.03, np.deg2rad(30))
 
-            total_val_loss += loss.item()
+            total_val_loss += val_loss.item()
+            total_val_grasp_loss += grasp_loss.item()
+            total_val_approach_loss += approach_loss.item()
 
         average_val_loss = total_val_loss / len(val_data_loader)
+        average_val_grasp_loss = total_val_grasp_loss / len(val_data_loader)
+        average_val_approach_loss = total_val_approach_loss / len(val_data_loader)
         if epoch % 50 == 0:
             grasp_success_rate = valid_grasp_success / len(val_dataset)
             wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
@@ -216,7 +221,7 @@ for epoch in range(1, num_epochs + 1):
             artifact.add_file(model_path)
             wandb.log_artifact(artifact)
 
-    wandb.log({"Val Loss": average_val_loss}, step=epoch)
+    wandb.log({"Val Loss": average_val_loss, "Val Grasp Loss": average_val_grasp_loss, "Val Approach Loss": average_val_approach_loss}, step=epoch)
     print(f"Train Loss: {average_loss} - Val Loss: {average_val_loss}")
 
 # Finish wandb run

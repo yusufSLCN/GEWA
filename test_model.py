@@ -1,7 +1,7 @@
 import torch
 from torch_geometric.data import Data
 # from GraspNet import GraspNet
-from EdgeGraspNet import EdgeGraspNet
+from ApproachNet import EdgeGraspNet
 from acronym_dataset import AcronymDataset
 from acronym_visualize_dataset import visualize_grasp, visualize_gt_and_pred_gasp
 import argparse
