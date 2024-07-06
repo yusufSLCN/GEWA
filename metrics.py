@@ -12,11 +12,13 @@ def is_grasp_success(grasp, target, trans_thresh, rotat_thresh):
     else:
         return False
 
-def check_grasp_success(grasp, target_file_path, trans_thresh, rotat_thresh, aug_matrix=None):
+def check_grasp_success_all_grasps(grasp, sample_info, trans_thresh, rotat_thresh):
+    target_file_path = sample_info['grasps']
     data = h5py.File(target_file_path, "r")
     T = np.array(data["grasps/transforms"])
     success = np.array(data["grasps/qualities/flex/object_in_gripper"])
     success_targets = T[np.where(success > 0)]
+    aug_matrix = sample_info['aug_matrix']
     
     if aug_matrix is not None:
         success_targets = np.matmul(aug_matrix, success_targets.T).T
@@ -28,7 +30,6 @@ def check_grasp_success(grasp, target_file_path, trans_thresh, rotat_thresh, aug
     return False
 
 def check_grasp_success_from_dict(grasp, sample_info, trans_thresh, rotat_thresh):
-
     point_grasp_save_path = sample_info['point_grasp_save_path']
     point_grasp_dict = np.load(point_grasp_save_path, allow_pickle=True).item()
     point = sample_info['query_point']

@@ -193,7 +193,7 @@ for epoch in range(1, num_epochs + 1):
                 preds = grasp_pred.cpu().detach().reshape(-1, 4, 4)
                 for j in range(preds.shape[0]):
                     grasp_pred = preds[j]
-                    valid_grasp_success += check_grasp_success_from_dict(grasp_pred, val_data[j],  0.03, np.deg2rad(30))
+                    valid_grasp_success += check_grasp_success_from_dict(grasp_pred.sample_info, val_data[j],  0.03, np.deg2rad(30))
 
             total_val_loss += loss.item()
 
