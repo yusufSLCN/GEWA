@@ -40,31 +40,31 @@ def save_split_meshes(data_dir, num_mesh, train_ratio=0.8):
     return train_meshes, valid_meshes
 
 
-def save_split_samples(data_dir, num_mesh, train_ratio=0.8):
-    simplified_samples, mesh_sample_id_dict = get_simplified_samples(data_dir, num_mesh=num_mesh, override=True)
-    #split samples into train and test sets
-    mesh_names = list(mesh_sample_id_dict.keys())
-    print(f"Number of meshes in the simlified subset: {len(mesh_names)}")
-    subset_idx = int(len(mesh_names) * train_ratio)
-    train_mesh_names = mesh_names[:subset_idx]
-    valid_mesh_names = mesh_names[subset_idx:]
-    train_samples = []
-    valid_samples = []
-    for mesh_name in train_mesh_names:
-        for sampleId in mesh_sample_id_dict[mesh_name]:
-            train_samples.append(simplified_samples[sampleId])
+# def save_split_samples(data_dir, num_mesh, train_ratio=0.8):
+#     simplified_samples, mesh_sample_id_dict = get_simplified_samples(data_dir, num_mesh=num_mesh, override=True)
+#     #split samples into train and test sets
+#     mesh_names = list(mesh_sample_id_dict.keys())
+#     print(f"Number of meshes in the simlified subset: {len(mesh_names)}")
+#     subset_idx = int(len(mesh_names) * train_ratio)
+#     train_mesh_names = mesh_names[:subset_idx]
+#     valid_mesh_names = mesh_names[subset_idx:]
+#     train_samples = []
+#     valid_samples = []
+#     for mesh_name in train_mesh_names:
+#         for sampleId in mesh_sample_id_dict[mesh_name]:
+#             train_samples.append(simplified_samples[sampleId])
 
-    for mesh_name in valid_mesh_names:
-        for sampleId in mesh_sample_id_dict[mesh_name]:
-            valid_samples.append(simplified_samples[sampleId])
+#     for mesh_name in valid_mesh_names:
+#         for sampleId in mesh_sample_id_dict[mesh_name]:
+#             valid_samples.append(simplified_samples[sampleId])
 
-    #save the train and test samples
-    np.save('sample_dirs/train_success_simplified_acronym_samples.npy', train_samples)
-    np.save('sample_dirs/valid_success_simplified_acronym_samples.npy', valid_samples)
-    print(f"Train mesh {len(train_mesh_names)}")
-    print(f"Test mesh {len(valid_mesh_names)}")
-    print(f"Train pairs {len(train_samples)}")
-    print(f"Test pairs {len(valid_samples)}")
+#     #save the train and test samples
+#     np.save('sample_dirs/train_success_simplified_acronym_samples.npy', train_samples)
+#     np.save('sample_dirs/valid_success_simplified_acronym_samples.npy', valid_samples)
+#     print(f"Train mesh {len(train_mesh_names)}")
+#     print(f"Test mesh {len(valid_mesh_names)}")
+#     print(f"Train pairs {len(train_samples)}")
+#     print(f"Test pairs {len(valid_samples)}")
 
 if __name__ == "__main__":
     # Parse the arguments

@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 from torch_geometric.nn import MLP, PointNetConv, fps, global_max_pool, radius, knn_interpolate
-
-
+import numpy as np
+from define_new_axis import define_new_axis
 
 class SAModule(torch.nn.Module):
     def __init__(self, ratio, r, nn):
@@ -47,27 +47,6 @@ class Encoder(nn.Module):
         sa2_out = self.sa2_module(*sa1_out)
         sa3_out = self.sa3_module(*sa2_out)
         return sa0_out, sa1_out, sa2_out, sa3_out
-    
-# class Encoder(torch.nn.Module):
-#     def __init__(self, out_channels=1024, point_feat_dim=256, ratios=[0.5, 0.25]):
-#         super().__init__()
-
-#         self.sa1_module = SAModule(ratios[0], 0.2, MLP([3, 64, 64, 128]))
-#         self.sa2_module = SAModule(ratios[1], 0.4, MLP([128 + 3, 128, 128, point_feat_dim]))
-#         self.sa3_module = GlobalSAModule(MLP([point_feat_dim + 3, point_feat_dim, 512, out_channels]))
-
-#     def forward(self, x, pos, batch):
-#         sa1_out = self.sa1_module(x, pos, batch)
-#         sa2_out = self.sa2_module(*sa1_out)
-#         point_feat, _, point_batch = sa2_out
-#         sa3_out = self.sa3_module(*sa2_out)
-#         # dublicate the scene features to match the number of points in the batch
-#         expaned_scene_feat = sa3_out[0][point_batch]
-#         # create edge features by concatenating the scene features with the point features 
-#         edge_feat = torch.cat([point_feat, expaned_scene_feat], dim=1)
-#         x, pos, batch = sa3_out
-
-#         return x, edge_feat, point_batch
 
 
 class FPModule(torch.nn.Module):
@@ -117,22 +96,24 @@ class GraspPointPredictor(nn.Module):
         x = self.mlp(x)
         return x
     
-class GraspTranslationPredictor(nn.Module):
-    def __init__(self, global_feat_dim, approach_feat_dim=64, out_size=3):
-        super(GraspTranslationPredictor, self).__init__()
+class GraspRotationClassifier(nn.Module):
+    def __init__(self, global_feat_dim, approach_feat_dim=64, rotation_bin_count=72):
+        super(GraspRotationClassifier, self).__init__()
         
         self.predictor = nn.Sequential(
             nn.Linear(global_feat_dim + approach_feat_dim, global_feat_dim  // 2),
             nn.ReLU(),
             nn.Linear(global_feat_dim // 2, global_feat_dim // 4),
             nn.ReLU(),
-            nn.Linear(global_feat_dim // 4, out_size),
+            nn.Linear(global_feat_dim // 4, rotation_bin_count),
         )
         self.approach_and_contact_points_encoder = nn.Sequential(
             nn.Linear(9, 32),
             nn.ReLU(),
             nn.Linear(32, approach_feat_dim)
         )
+        self.rotation_bin_count = rotation_bin_count
+        self.rotation_bins = torch.linspace(0, 2 * np.pi, rotation_bin_count)
     
     def forward(self, global_feats, approach_point, grasp_points):
         grasp_points = grasp_points.view(-1, 6)
@@ -140,7 +121,10 @@ class GraspTranslationPredictor(nn.Module):
         approach_feat = self.approach_and_contact_points_encoder(conditioned_points)
         x = torch.cat([global_feats, approach_feat], dim=1)
         x = self.predictor(x)
-        return x
+        x = torch.sigmoid(x)
+        rotation_idx = torch.argmax(x, dim=1)
+        rotation = self.rotation_bins[rotation_idx]
+        return rotation
 
 class GraspNet(nn.Module):
     def __init__(self, global_feat_dim, approach_feat_dim = 64, multi_gpu=False, device="cuda"):
@@ -149,7 +133,7 @@ class GraspNet(nn.Module):
         self.device = device
         self.encoder = Encoder(global_feat_dim)
         self.grasp_point_head = GraspPointPredictor(global_feat_dim, approach_feat_dim)
-        self.trans_head = GraspTranslationPredictor(global_feat_dim, approach_feat_dim)
+        self.trans_head = GraspRotationClassifier(global_feat_dim, approach_feat_dim)
 
         self.mse_loss = nn.MSELoss()
         self.gripper_length = 1.12169998e-01
@@ -234,17 +218,23 @@ class GraspNet(nn.Module):
 
         return vertices, grasp_gt, batch_idx, batch_querry_point_idx
     
-    def createGrasp(self, grasp_points, trans_pos):
+
+    def createGrasp(self, grasp_points, rotations):
         #create the translation vector
         p1 = grasp_points[:, 0]
         p2 = grasp_points[:, 1]
         #create the rotation matrix
         z_axis = p2 - p1
         z_axis = z_axis / torch.norm(z_axis)
+        mid_point, x_axis = [], []
+        for i in range(len(p1)):
+            mid_point_i, x_axis_i = define_new_axis(p1[i], p2[i], rotations[i])
+            mid_point.append(mid_point_i)
+            x_axis.append(x_axis_i)
+        mid_point = torch.stack(mid_point, dim=0)
+        x_axis = torch.stack(x_axis, dim=0)
+        translation = mid_point + x_axis * self.gripper_length
 
-        mid_point = (p1 + p2) / 2
-        x_axis = trans_pos - mid_point
-        x_axis = x_axis / torch.norm(x_axis)
         y_axis = torch.cross(z_axis, x_axis)
         y_axis = y_axis / torch.norm(y_axis)
 
@@ -252,11 +242,11 @@ class GraspNet(nn.Module):
         grasps = grasp.repeat(grasp_points.shape[0], 1, 1)
         r = torch.stack([x_axis, y_axis, z_axis], dim=1)
         grasps[:, :3, :3] = r
-        grasps[:, :3, 3] = trans_pos
+        grasps[:, :3, 3] = translation
         grasps = grasps.view(-1, 16)
 
 
-        gripper_length = torch.norm(trans_pos - mid_point) 
+        gripper_length = torch.norm(translation - mid_point) 
         dot_z_x = z_axis * x_axis
         dot_z_x = torch.sum(dot_z_x, dim=1)
 

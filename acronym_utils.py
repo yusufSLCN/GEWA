@@ -52,9 +52,14 @@ def get_simplified_samples(data_dir, success_threshold=0.5, num_mesh=-1, overrid
     grasp_directory =  os.path.join(data_dir, 'acronym/grasps')
     model_root = '../data/ShapeNetSem-backup/models-OBJ/models'
     point_grasp_dict_folder = os.path.join(data_dir, 'point_grasp_dict')
+    approach_points_folder = os.path.join(data_dir, 'approach_points')
     if not os.path.exists(point_grasp_dict_folder):
         print(f"Creating directory {point_grasp_dict_folder}")
         os.makedirs(point_grasp_dict_folder)
+    
+    if not os.path.exists(approach_points_folder):
+        print(f"Creating directory {approach_points_folder}")
+        os.makedirs(approach_points_folder)
 
     grasp_file_names = load_file_names(grasp_directory)
     sample_paths = extract_sample_info(grasp_file_names, model_root=model_root)
@@ -71,7 +76,8 @@ def get_simplified_samples(data_dir, success_threshold=0.5, num_mesh=-1, overrid
 
         simplify_save_path = f'{simplified_mesh_directory}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.obj'
         point_grasp_save_path = f'{point_grasp_dict_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
-
+        approach_points_save_path = f'{approach_points_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
+        
         # Check if the simplified mesh exists because not all samples have been simplified
         if os.path.exists(simplify_save_path):
             if num_mesh > 0 and simplified_mesh_count >= num_mesh:
@@ -85,7 +91,7 @@ def get_simplified_samples(data_dir, success_threshold=0.5, num_mesh=-1, overrid
             grasp_poses = np.array(data["grasps/transforms"])
             grasp_success = np.array(data["grasps/qualities/flex/object_in_gripper"])
             sample["point_grasp_save_path"] = point_grasp_save_path
-
+            sample["approach_points_save_path"] = approach_points_save_path
 
             #Filter the grasps based on the success threshold and add them to the simplified samples
             any_success = False
@@ -112,6 +118,10 @@ def get_simplified_samples(data_dir, success_threshold=0.5, num_mesh=-1, overrid
                     vertices = np.array(mesh_data.vertices) * float(sample["scale"])
                     point_grasp_dict = create_point_grasp_dict(vertices, grasp_poses, grasp_success)
                     np.save(point_grasp_save_path, point_grasp_dict)
+                
+                if not os.path.exists(approach_points_save_path) or override:
+                    approach_point_target = find_appraoch_point_target(vertices, grasp_poses, grasp_success, threshold=0.05)
+                    np.save(approach_points_save_path, approach_point_target)
             else:
                 print(f"No successful grasps for {simplify_save_path} in {grasp_poses.shape[0]} grasps")
 
@@ -127,9 +137,15 @@ def get_simplified_meshes_w_closest_grasp(data_dir, success_threshold=0.5, num_m
     grasp_directory =  os.path.join(data_dir, 'acronym/grasps')
     model_root = '../data/ShapeNetSem-backup/models-OBJ/models'
     point_grasp_dict_folder = os.path.join(data_dir, 'point_grasp_dict')
+    approach_points_folder = os.path.join(data_dir, 'approach_points')
+
     if not os.path.exists(point_grasp_dict_folder):
         print(f"Creating directory {point_grasp_dict_folder}")
         os.makedirs(point_grasp_dict_folder)
+
+    if not os.path.exists(approach_points_folder):
+        print(f"Creating directory {approach_points_folder}")
+        os.makedirs(approach_points_folder)
 
     grasp_file_names = load_file_names(grasp_directory)
     # read discarded_samples.txt
@@ -147,6 +163,7 @@ def get_simplified_meshes_w_closest_grasp(data_dir, success_threshold=0.5, num_m
     for i, sample in tqdm.tqdm(enumerate(sample_paths), total=len(sample_paths)):
         simplify_save_path = f'{simplified_mesh_directory}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.obj'
         point_grasp_save_path = f'{point_grasp_dict_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
+        approach_points_save_path = f'{approach_points_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
 
         # Check if the simplified mesh exists because not all samples have been simplified
         if os.path.exists(simplify_save_path):
@@ -162,16 +179,41 @@ def get_simplified_meshes_w_closest_grasp(data_dir, success_threshold=0.5, num_m
                 simplified_mesh_count += 1
                 sample["simplified_model_path"] = simplify_save_path
                 sample["point_grasp_save_path"] = point_grasp_save_path
+                sample["approach_points_save_path"] = approach_points_save_path
+
                 simplified_samples.append(sample)
-                # Check if the point grasp dict exists and create it if it doesn't
-                if not os.path.exists(point_grasp_save_path):
+                if not os.path.exists(point_grasp_save_path) or not os.path.exists(approach_points_save_path):
                     mesh_data = pywavefront.Wavefront(simplify_save_path)
                     vertices = np.array(mesh_data.vertices, dtype=np.float32) * float(sample["scale"])
-                    point_grasp_dict = create_point_grasp_dict(vertices, grasp_poses, grasp_success, n=n)
-                    np.save(point_grasp_save_path, point_grasp_dict)
+                    # Check if the point grasp dict exists and create it if it doesn't
+                    if not os.path.exists(point_grasp_save_path):
+                        point_grasp_dict = create_point_grasp_dict(vertices, grasp_poses, grasp_success, n=n)
+                        np.save(point_grasp_save_path, point_grasp_dict)
+
+                    if not os.path.exists(approach_points_save_path):
+                        approach_point_target = find_appraoch_point_target(vertices, grasp_poses, grasp_success, threshold=0.02)
+                        np.save(approach_points_save_path, approach_point_target)
+
     return simplified_samples
-            
-def find_n_closest_grasps(querry_point, grasp_poses, grasp_success, n=5):
+
+def find_gripper_contact_points(vertices, grasp_pose):
+    gripper_finger1_pos = [-4.100000e-02, -7.27595772e-12, 1.12169998e-01, 1]
+    gripper_finger2_pos = [4.10000000e-02, -7.27595772e-12, 1.12169998e-01, 1] 
+
+    gripper_finger1_pos = np.matmul(grasp_pose, gripper_finger1_pos)[:3]
+    gripper_finger2_pos = np.matmul(grasp_pose, gripper_finger2_pos)[:3]
+
+    distances = np.linalg.norm(vertices - gripper_finger1_pos, axis=1)
+    closest_finger1_idx = np.argmin(distances)
+    distances = np.linalg.norm(vertices - gripper_finger2_pos, axis=1)
+    closest_finger2_idx = np.argmin(distances)
+
+    contact_point1 = vertices[closest_finger1_idx]
+    contact_point2 = vertices[closest_finger2_idx]
+
+    return (contact_point1, closest_finger1_idx), (contact_point2, closest_finger2_idx)
+
+def find_n_closest_grasps_and_contact_points(vertices, querry_point, grasp_poses, grasp_success, n=5):
     success_idxs = np.where(grasp_success > 0.5)
     success_grasp_poses = grasp_poses[success_idxs]
     grasp_success = grasp_success[success_idxs]
@@ -187,17 +229,38 @@ def find_n_closest_grasps(querry_point, grasp_poses, grasp_success, n=5):
     closest_grasps = []
     try:
         for i in range(n):
-            closest_grasps.append((success_grasp_poses[sorted_indices[i]], grasp_success[sorted_indices[i]]))
+            grasp = success_grasp_poses[sorted_indices[i]]
+            success = grasp_success[sorted_indices[i]]
+            contact_point1, contact_point2 = find_gripper_contact_points(vertices, grasp)
+            closest_grasps.append((grasp, success, contact_point1, contact_point2))
     except:
         print(f"Warning: Not enough succesful grasps: {success_grasp_tip.shape}, {np.sum(grasp_success == 1)}, {sorted_indices.shape}")
     return closest_grasps
+
+def find_appraoch_point_target(vertices, grasp_poses, grasp_success, threshold=0.02):
+    success_idxs = np.where(grasp_success > 0.5)
+    grasp_poses = grasp_poses[success_idxs]
+    grasp_success = grasp_success[success_idxs]
+
+    approach_point_target = np.zeros((vertices.shape[0]), dtype=np.int16)
+    gripper_handle = np.array([0, 0, 1.12169998e-01, 1])
+    
+    grasp_tip_poses = np.matmul(grasp_poses, gripper_handle)[:, :3]
+    for i in range(vertices.shape[0]):
+        point = vertices[i].astype(np.float32)
+        distance_to_grasp = np.linalg.norm(point - grasp_tip_poses, axis=1)
+        num_good_grasps = np.sum(distance_to_grasp < threshold)
+        # print(f"Good grasps: {num_good_grasps}, vertices: {vertices.shape[0]}")
+        approach_point_target[i] = num_good_grasps
+
+    return approach_point_target
 
 def create_point_grasp_dict(vertices, grasp_poses, grasp_success, n=5):
     point_grasp_dict = {}
     for i in range(vertices.shape[0]):
         point = vertices[i].astype(np.float32)
         point_key = tuple(np.round(point, 3))
-        closest_grasps = find_n_closest_grasps(point, grasp_poses, grasp_success, n=n)
+        closest_grasps = find_n_closest_grasps_and_contact_points(vertices, point, grasp_poses, grasp_success, n=n)
         point_grasp_dict[point_key] = closest_grasps
     return point_grasp_dict
 

@@ -24,35 +24,66 @@ def visualize_random_best_grasps(vertices, point_grasp_dict, aug_matrix):
     random_indexes = np.random.choice(len(point_keys), 5, replace=False)
     print(f"Random indexes {random_indexes}")
     for i in random_indexes:
-        sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
+        sphare_query = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
+        sphare_contact1 = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
+        sphare_contact2 = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
+
         #add color to the sphare
-        sphare.visual.face_colors = [0, 255, 0, 255]
+        sphare_query.visual.face_colors = [0, 255, 0, 255]
+        sphare_contact1.visual.face_colors = [255, 0, 255, 255]
+        sphare_contact2.visual.face_colors = [255, 0, 255, 255]
         point_key = point_keys[i]
-        closest_grasp, success = point_grasp_dict[point_key][0]
+        closest_grasp, success, contact1, contact2 = point_grasp_dict[point_key][0]
+
+        #translation point
         point_key = aug_matrix @ np.array(point_key + (1,))
         point_key = point_key[:3]
-        sphare.apply_translation(point_key)
+        sphare_query.apply_translation(point_key)
+
+        #contact points
+        contact1 = aug_matrix @ np.append(contact1[0], 1)
+        contact2 = aug_matrix @ np.append(contact2[0], 1)
+        contact1 = contact1[:3]
+        contact2 = contact2[:3]
+        sphare_contact1.apply_translation(contact1)
+        sphare_contact2.apply_translation(contact2)
+
+        #gripper
         new_gripper = create_gripper_marker()
         closest_grasp = aug_matrix @ closest_grasp
         closest_grasp[:3, 3] = closest_grasp[:3, 3]
         point_gripper = new_gripper.apply_transform(closest_grasp)
-        scene.add_geometry(sphare)
+        scene.add_geometry(sphare_query)
+        scene.add_geometry(sphare_contact1)
+        scene.add_geometry(sphare_contact2)
         scene.add_geometry(point_gripper)
     scene.show()
 
 def visualize_grasps_of_point(vertices, point_idx, point_key, point_grasp_dict, aug_matrix):
     scene = create_scene_with_reference(vertices)
-    sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.007)
+    sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.004)
+    # contact1_point = trimesh.creation.icosphere(subdivisions=4, radius=0.004)
+    # contact2_point = trimesh.creation.icosphere(subdivisions=4, radius=0.004)
+    # contact1_point.visual.face_colors = [255, 0, 255, 255]
+    # contact2_point.visual.face_colors = [255, 0, 255, 255]
     sphare.visual.face_colors = [0, 255, 0, 255]
     point = vertices[point_idx]
     sphare.apply_translation(point)
     scene.add_geometry(sphare)
     point_key = tuple(np.round(point_key, 3))
-    for closest_grasp, success in  point_grasp_dict[point_key]:
+    for closest_grasp, success, contact1, contact2 in  point_grasp_dict[point_key]:
         new_gripper = create_gripper_marker()
         closest_grasp = aug_matrix @ closest_grasp
+        # contact1 = aug_matrix @ np.append(contact1[0], 1)
+        # contact2 = aug_matrix @ np.append(contact2[0], 1)
+        # contact1 = contact1[:3]
+        # contact2 = contact2[:3]
         point_gripper = new_gripper.apply_transform(closest_grasp)
+        # contact1_point.apply_translation(contact1)
+        # contact2_point.apply_translation(contact2)
         scene.add_geometry(point_gripper)
+        # scene.add_geometry(contact1_point)
+        # scene.add_geometry(contact2_point)
     scene.show()
 
 def visualize_grasp(vertices, grasp, query_point_idx):
@@ -83,6 +114,25 @@ def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point):
     pred_gripper = pred_gripper.apply_transform(pred)
     scene.add_geometry(pred_gripper)
     print(f"pred pose {pred}")
+    scene.show()
+
+def visualize_approach_points(vertices, approach_points):
+
+    gripper = create_gripper_marker()
+    sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
+    scene = trimesh.Scene(sphare + gripper)  #Add the ball to the scene
+
+    # colors = np.ones((len(vertices), 4), dtype=np.uint) *255
+    # valid_approaches_idx = approach_points > 0
+    # colors[valid_approaches] = [0, 255, 0, 255]
+    import matplotlib.pyplot as plt
+    # Choose a colormap
+    colormap = plt.cm.viridis
+    # approach_points *= 100
+    approach_prob = (approach_points - np.min(approach_points))/ (np.max(approach_points) - np.min(approach_points))
+    colors = colormap(approach_prob).reshape(-1, 4)
+    obj_points = trimesh.points.PointCloud(vertices, colors=colors)
+    scene.add_geometry(obj_points)
     scene.show()
 
 def visualize_sample(model_path, samples):
@@ -118,7 +168,7 @@ if __name__ == "__main__":
     transfom = Compose([RandomJitter(0.001), RandomRotationTransform(rotation_range)])
     train_dataset = AcronymDataset(train_paths, crop_radius=None, transform=transfom)
 
-    sample_idx = 2
+    sample_idx = 15
     
     sample = train_dataset[sample_idx]
     # vertices = sample[0].numpy().astype(np.float32)
@@ -134,8 +184,12 @@ if __name__ == "__main__":
     point_grasp_dict = np.load(sample.sample_info['point_grasp_save_path'], allow_pickle=True).item()
     mean = sample.sample_info['mean']
     aug_matrix = sample.sample_info['aug_matrix']
-    # visualize_random_best_grasps(vertices, point_grasp_dict, aug_matrix)
-    visualize_grasps_of_point(vertices, query_point_idx, grasp_querry_point, point_grasp_dict, aug_matrix)
+    approach_points = np.load(sample.sample_info['approach_points_save_path'], allow_pickle=True)
+
+    visualize_random_best_grasps(vertices, point_grasp_dict, aug_matrix)
+
+    # visualize_approach_points(vertices, approach_points)
+    # visualize_grasps_of_point(vertices, query_point_idx, grasp_querry_point, point_grasp_dict, aug_matrix)
     # print(grasp)
     #check the orthogonality of the grasp
     # print(f"Check col 1 and 2 {np.dot(grasp[:3, 0], grasp[:3, 1])}")
