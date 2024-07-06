@@ -136,7 +136,11 @@ for epoch in range(1, num_epochs + 1):
 
         grasp_gt = torch.stack([sample.y for sample in data], dim=0).to(device)
         # Compute the loss
-        grasp_matrix_loss,  gripper_length_const, dot_z_x_const = model.calculate_loss(grasp_gt, grasp_pred, gripper_lenght, dot_z_x)
+        if hasattr(model, 'module'):
+            grasp_matrix_loss,  gripper_length_const, dot_z_x_const = model.module.calculate_loss(grasp_gt, grasp_pred, gripper_lenght, dot_z_x)
+        else:
+            grasp_matrix_loss,  gripper_length_const, dot_z_x_const = model.calculate_loss(grasp_gt, grasp_pred, gripper_lenght, dot_z_x)
+
         loss = grasp_matrix_loss + 10 * gripper_length_const + 10 * dot_z_x_const
         # # Backward pass
         loss.backward()
@@ -180,7 +184,11 @@ for epoch in range(1, num_epochs + 1):
 
             grasp_gt = torch.stack([sample.y for sample in val_data], dim=0).to(device)
             # Compute the loss
-            grasp_matrix_loss,  gripper_length_const, dot_z_x_const = model.calculate_loss(grasp_gt, grasp_pred, gripper_lenght, dot_z_x)
+            if hasattr(model, 'module'):
+                grasp_matrix_loss,  gripper_length_const, dot_z_x_const = model.module.calculate_loss(grasp_gt, grasp_pred, gripper_lenght, dot_z_x)
+            else:
+                grasp_matrix_loss,  gripper_length_const, dot_z_x_const = model.calculate_loss(grasp_gt, grasp_pred, gripper_lenght, dot_z_x)
+            
             loss = grasp_matrix_loss + 10 * gripper_length_const + 10 * dot_z_x_const
 
             # Check for high error samples

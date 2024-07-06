@@ -50,7 +50,7 @@ class KnnEncoder(torch.nn.Module):
     def __init__(self, out_channels, point_feat_dim=256, k=16):
         super().__init__()
         self.k = k
-        self.conv1 = PointNetConv(MLP([3 + 3, 64, 128, point_feat_dim]))
+        self.conv1 = PointNetConv(MLP([3 + 3, 64, 128, 128]))
         self.conv2 = PointNetConv(MLP([128 + 3, 128, 128, point_feat_dim]))
         self.sa3_module = GlobalSAModule(MLP([point_feat_dim + 3, point_feat_dim, 512, out_channels]))
 
