@@ -21,7 +21,9 @@ def check_grasp_success_all_grasps(grasp, sample_info, trans_thresh, rotat_thres
     aug_matrix = sample_info['aug_matrix']
     
     if aug_matrix is not None:
-        success_targets = np.matmul(aug_matrix, success_targets.T).T
+        target_T = np.transpose(success_targets, (2, 1, 0))
+        success_targets = np.matmul(aug_matrix, target_T)
+        success_targets = np.transpose(success_targets, (2, 1, 0))
 
     for target in success_targets:
         if is_grasp_success(grasp, target, trans_thresh, rotat_thresh):
@@ -37,7 +39,9 @@ def check_grasp_success_from_dict(grasp, sample_info, trans_thresh, rotat_thresh
     targets = np.array([grasp[0] for grasp in point_grasp_dict[query_point_key]])
     aug_matrix = sample_info['aug_matrix']
     if aug_matrix is not None:
-        targets = np.matmul(aug_matrix, targets.T).T
+        targets_T = np.transpose(targets, (2, 1, 0))
+        targets = np.matmul(aug_matrix, targets_T)
+        targets = np.transpose(targets, (2, 1, 0))
         # print(targets.shape)
 
     for target in targets:
