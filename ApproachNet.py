@@ -122,13 +122,13 @@ class ApproachNet(nn.Module):
         self.grasp_head = GraspPosePredictor(global_feat_dim, approach_feat_dim)
 
         self.mse_loss = nn.MSELoss()
-        self.cross_entropy_loss = nn.CrossEntropyLoss()
+        self.bce_loss = nn.BCELoss()
     
     def forward(self, data):
         if self.multi_gpu:
-            pos, grasp_gt, batch_idx, approach_gt = self.multi_gpu_collate_fn(data)
+            pos, point_grasp_list, batch_idx, approach_gt = self.multi_gpu_collate_fn(data)
         else:
-            pos, grasp_gt, batch_idx, approach_gt = self.collate_fn(data)
+            pos, point_grasp_list, batch_idx, approach_gt = self.collate_fn(data)
             pos = pos.to(self.device)
             batch_idx = batch_idx.to(self.device)
 
@@ -139,6 +139,8 @@ class ApproachNet(nn.Module):
         approach_points = []
         approach_point_idxs = []
         approach_dist = []
+        grasp_gt = []
+        # print(point_grasp_list.shape)
         for i in range(batch_idx[-1] + 1):
             batch_mask = batch_idx == i
             pos_i = pos[batch_mask]
@@ -146,12 +148,14 @@ class ApproachNet(nn.Module):
             dist = F.log_softmax(approach_batch, dim=0)
             approach_dist.append(dist.squeeze())
             approach_point_idx = torch.argmax(approach_batch, dim=0)
+            grasp_gt.append(point_grasp_list[i][approach_point_idx].squeeze())
             approach_point = pos_i[approach_point_idx]
             approach_points.append(approach_point)
             approach_point_idxs.append(approach_point_idx)
 
         approach_points = torch.stack(approach_points, dim=0).squeeze()
         approach_point_idxs = torch.stack(approach_point_idxs, dim=0)
+        grasp_gt = torch.stack(grasp_gt, dim=0)
         # approach_dist = torch.stack(approach_dist, dim=0)
         global_feat = global_out[0]
         grasp_pred = self.grasp_head(global_feat, approach_points)
@@ -164,13 +168,13 @@ class ApproachNet(nn.Module):
         approch_loss = 0
         for a_dist, a_gt in zip(approach_dist, approach_gt):
             # print(a_dist.shape, a_gt.shape)
-            approch_loss += self.cross_entropy_loss(a_dist, a_gt)
-
+            approch_loss += self.bce_loss(F.sigmoid(a_dist), a_gt)
+        approch_loss = approch_loss / len(approach_gt)
         return grasp_loss, approch_loss
 
     def multi_gpu_collate_fn(self, data):
         pos = data.pos
-        grasps = data.y
+        point_grasp_list = data.point_grasp_list
         batch_idx = data.batch
         approch_dist = []
 
@@ -178,33 +182,35 @@ class ApproachNet(nn.Module):
             approch_dist.append(F.log_softmax(data[i].approach))
         
         approch_dist = torch.stack(approch_dist, dim=0)
-        return pos, grasps, batch_idx, approch_dist
+        return pos, point_grasp_list, batch_idx, approch_dist
 
     def collate_fn(self, batch):
         batch_idx = []
         vertices = []
-        grasp_gt = []
         batch_querry_point_idx = []
         vertex_count = 0
-        approch_dist = []
+        approch_gt = []
+        point_grasp_list = []
+
         for i, sample in enumerate(batch):
             points = sample.pos
-            gt = sample.y
             query_point_idx = sample.query_point_idx
             batch_querry_point_idx.append(query_point_idx + vertex_count)
             vertex_count += points.shape[0]
             batch_idx.extend([i] *  points.shape[0])
             vertices.append(points)
-            grasp_gt.append(gt)
-            approch_dist.append(F.log_softmax(sample.approach, dim=0))
+            point_grasp_list.append(sample.point_grasp_list.reshape(-1, 16))
+            approach = torch.tensor(sample.approach > 0, dtype=torch.float32)
+            approch_gt.append(approach)
+
                 
         batch_idx = torch.tensor(batch_idx, dtype=torch.int64)
         vertices = torch.cat(vertices, dim=0)
-        grasp_gt = torch.stack(grasp_gt, dim=0)
+        # point_grasp_list = torch.cat(point_grasp_list, dim=0)
         # approch_dist = torch.cat(approch_dist, dim=0)
 
 
-        return vertices, grasp_gt, batch_idx, approch_dist
+        return vertices, point_grasp_list, batch_idx, approch_gt
     
 
     def createGrasp(self, grasp_points, rotations):

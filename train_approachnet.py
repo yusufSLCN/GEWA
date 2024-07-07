@@ -30,7 +30,7 @@ parser.add_argument('-na', '--no_augment', dest='augment', action='store_false')
 parser.add_argument('-sfd', '--scene_feat_dims', type=int, default=512)
 parser.add_argument('-n', '--notes', type=str, default='')
 parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
-parser.add_argument('-cr', '--crop_radius', type=float, default=0.1)
+parser.add_argument('-cr', '--crop_radius', type=float, default=-1)
 args = parser.parse_args()
 
 
@@ -140,6 +140,7 @@ for epoch in range(1, num_epochs + 1):
 
         # Compute the loss
         loss = grasp_loss + approach_loss
+        loss.backward()
         # # Update the weights
         optimizer.step()
         total_loss += loss.item()

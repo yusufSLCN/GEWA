@@ -62,6 +62,11 @@ class AcronymDataset(Dataset):
         approach_point_counts = np.load(approach_points_save_path, allow_pickle=True)
         approach_point_counts = torch.tensor(approach_point_counts, dtype=torch.float32)
 
+        #load point grasp list
+        point_grasp_list_save_path = sample_info["point_grasp_list_save_path"]
+        point_grasp_list = np.load(point_grasp_list_save_path, allow_pickle=True)
+        point_grasp_list = torch.tensor(point_grasp_list, dtype=torch.float32)
+
         # pick random point from the vertices
         # query_point_idx = np.random.randint(len(vertices))
         query_point_idx = 0
@@ -105,7 +110,7 @@ class AcronymDataset(Dataset):
 
         # success = torch.tensor(success)
         data = Data(x=vertices, y=grasp_pose, pos=vertices, query_point_idx=query_point_idx,
-                     approach=approach_point_counts, sample_info=sample_info)
+                     approach=approach_point_counts, sample_info=sample_info, point_grasp_list=point_grasp_list)
         if self.transform != None:
             data = self.transform(data)
 
