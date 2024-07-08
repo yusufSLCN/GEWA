@@ -137,11 +137,11 @@ for epoch in range(1, num_epochs + 1):
         total_loss += loss.item()
         total_grasp_loss += grasp_loss.item()
         total_approach_loss += approach_loss.item()
-        if epoch % 50 == 0:
+        if epoch % 1 == 0:
             # Calculate the grasp success rate
-            grasp_pred = grasp_pred.cpu().detach().reshape(-1, 4, 4)
-            grasp_gt = grasp_gt.cpu().detach().reshape(-1, 4, 4)
-            train_grasp_success += check_batch_grasp_success(grasp_pred, grasp_gt,  0.03, np.deg2rad(30))
+            pred = grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
+            gt = grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
+            train_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
 
     if epoch % 50 == 0:
         train_success_rate = train_grasp_success / len(train_dataset)
@@ -154,7 +154,7 @@ for epoch in range(1, num_epochs + 1):
     wandb.log({"Train Loss": average_loss, "Train Grasp Loss": average_grasp_loss, "Train Approach Loss": average_approach_loss}, step=epoch)
     pred = grasp_pred[0].cpu().detach().numpy()
     gt = grasp_gt[0].cpu().detach().numpy()
-    #log the gt and pred gripper pose array with wandb
+    #log the gt and pred gripper pose array with wandb as an example
     wandb.log({"GT Grasp Pose": gt, "Pred Grasp Pose": pred}, step=epoch)
 
     # Validation loop
@@ -173,9 +173,9 @@ for epoch in range(1, num_epochs + 1):
 
             if epoch % 50 == 0:
                 # Calculate the grasp success rate
-                grasp_pred = grasp_pred.cpu().detach().reshape(-1, 4, 4)
-                grasp_gt = grasp_gt.cpu().detach().reshape(-1, 4, 4)
-                valid_grasp_success += check_batch_grasp_success(grasp_pred, grasp_gt,  0.03, np.deg2rad(30))
+                pred = grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
+                gt = grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
+                valid_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
 
             total_val_loss += val_loss.item()
             total_val_grasp_loss += grasp_loss.item()
