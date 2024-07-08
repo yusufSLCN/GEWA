@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch_geometric.nn import MLP, PointNetConv, fps, global_max_pool, radius, knn_interpolate
-import numpy as np
-from define_new_axis import define_new_axis
 
 class SAModule(torch.nn.Module):
     def __init__(self, ratio, r, nn):
@@ -214,38 +212,38 @@ class ApproachNet(nn.Module):
         return point_clouds, point_grasp_list, batch_idx, approch_gt
     
 
-    def createGrasp(self, grasp_points, rotations):
-        #create the translation vector
-        p1 = grasp_points[:, 0]
-        p2 = grasp_points[:, 1]
-        #create the rotation matrix
-        z_axis = p2 - p1
-        z_axis = z_axis / torch.norm(z_axis)
-        mid_point, x_axis = [], []
-        for i in range(len(p1)):
-            mid_point_i, x_axis_i = define_new_axis(p1[i], p2[i], rotations[i])
-            mid_point.append(mid_point_i)
-            x_axis.append(x_axis_i)
-        mid_point = torch.stack(mid_point, dim=0)
-        x_axis = torch.stack(x_axis, dim=0)
-        translation = mid_point + x_axis * self.gripper_length
+    # def createGrasp(self, grasp_points, rotations):
+    #     #create the translation vector
+    #     p1 = grasp_points[:, 0]
+    #     p2 = grasp_points[:, 1]
+    #     #create the rotation matrix
+    #     z_axis = p2 - p1
+    #     z_axis = z_axis / torch.norm(z_axis)
+    #     mid_point, x_axis = [], []
+    #     for i in range(len(p1)):
+    #         mid_point_i, x_axis_i = define_new_axis(p1[i], p2[i], rotations[i])
+    #         mid_point.append(mid_point_i)
+    #         x_axis.append(x_axis_i)
+    #     mid_point = torch.stack(mid_point, dim=0)
+    #     x_axis = torch.stack(x_axis, dim=0)
+    #     translation = mid_point + x_axis * self.gripper_length
 
-        y_axis = torch.cross(z_axis, x_axis)
-        y_axis = y_axis / torch.norm(y_axis)
+    #     y_axis = torch.cross(z_axis, x_axis)
+    #     y_axis = y_axis / torch.norm(y_axis)
 
-        grasp = torch.eye(4).to(grasp_points.device)
-        grasps = grasp.repeat(grasp_points.shape[0], 1, 1)
-        r = torch.stack([x_axis, y_axis, z_axis], dim=1)
-        grasps[:, :3, :3] = r
-        grasps[:, :3, 3] = translation
-        grasps = grasps.view(-1, 16)
+    #     grasp = torch.eye(4).to(grasp_points.device)
+    #     grasps = grasp.repeat(grasp_points.shape[0], 1, 1)
+    #     r = torch.stack([x_axis, y_axis, z_axis], dim=1)
+    #     grasps[:, :3, :3] = r
+    #     grasps[:, :3, 3] = translation
+    #     grasps = grasps.view(-1, 16)
 
 
-        gripper_length = torch.norm(translation - mid_point) 
-        dot_z_x = z_axis * x_axis
-        dot_z_x = torch.sum(dot_z_x, dim=1)
+    #     gripper_length = torch.norm(translation - mid_point) 
+    #     dot_z_x = z_axis * x_axis
+    #     dot_z_x = torch.sum(dot_z_x, dim=1)
 
-        return grasps, gripper_length, dot_z_x
+    #     return grasps, gripper_length, dot_z_x
 
 if __name__ == "__main__":
 
@@ -267,9 +265,4 @@ if __name__ == "__main__":
         # approach_gt = torch.stack([sample.approach_point_idx for sample in data], dim=0)
         # loss = model.calculate_loss(grasp_gt, grasp_pred, approach_gt, approch_pred)
         break
-    # # check the orthogonality of the grasp rotation
-    # grasp = grasps[0]
-    # print(grasp)
-    # orthogonality_check = torch.matmul(grasp.transpose(0, 1), grasp)
-    # print(orthogonality_check)
     

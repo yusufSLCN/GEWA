@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch_geometric.nn import MLP, PointNetConv, fps, global_max_pool, radius, knn_interpolate
 import numpy as np
-from define_new_axis import define_new_axis
+# from define_new_axis import define_new_axis
 
 class SAModule(torch.nn.Module):
     def __init__(self, ratio, r, nn):
