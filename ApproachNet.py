@@ -79,7 +79,8 @@ class ApproachPointPredictor(nn.Module):
             nn.Linear(128, 128),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(128, 1)
+            nn.Linear(128, 1),
+            nn.Sigmoid()
         )
     
     def forward(self, sa0_out, sa1_out, sa2_out, sa3_out):
@@ -138,17 +139,20 @@ class ApproachNet(nn.Module):
 
         approach_points = []
         approach_point_idxs = []
-        approach_dist = []
+        approach_score_pred = []
         grasp_gt = []
         # print(point_grasp_list.shape)
         for i in range(batch_idx[-1] + 1):
             batch_mask = batch_idx == i
             pos_i = pos[batch_mask]
-            approach_batch = approach_out[batch_mask]
-            dist = F.log_softmax(approach_batch, dim=0)
-            approach_dist.append(dist.squeeze())
-            approach_point_idx = torch.argmax(approach_batch, dim=0)
-            grasp_gt.append(point_grasp_list[i][approach_point_idx].squeeze())
+            approach_batch = approach_out[batch_mask].squeeze()
+            # dist = F.log_softmax(approach_batch, dim=0)
+            approach_score_pred.append(approach_batch)
+
+            # approach_point_idx = torch.argmax(approach_batch, dim=0)
+            approach_point_idx = torch.multinomial(approach_batch, 1)
+            grasp = point_grasp_list[i][approach_point_idx].squeeze()
+            grasp_gt.append(grasp)
             approach_point = pos_i[approach_point_idx]
             approach_points.append(approach_point)
             approach_point_idxs.append(approach_point_idx)
@@ -156,19 +160,19 @@ class ApproachNet(nn.Module):
         approach_points = torch.stack(approach_points, dim=0).squeeze()
         approach_point_idxs = torch.stack(approach_point_idxs, dim=0)
         grasp_gt = torch.stack(grasp_gt, dim=0)
-        # approach_dist = torch.stack(approach_dist, dim=0)
+        approach_score_pred = torch.stack(approach_score_pred, dim=0)
         global_feat = global_out[0]
         grasp_pred = self.grasp_head(global_feat, approach_points)
 
-        grasp_loss, approach_loss = self.calculate_loss(grasp_gt, grasp_pred, approach_gt, approach_dist)
-        return grasp_pred, approach_dist, grasp_loss, approach_loss
+        grasp_loss, approach_loss = self.calculate_loss(grasp_gt, grasp_pred, approach_gt, approach_score_pred)
+        return grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss 
     
     def calculate_loss(self, grasp_gt, grasp_pred, approach_gt, approach_dist):
+        # print(grasp_gt.shape, grasp_pred.shape)
         grasp_loss = self.mse_loss(grasp_pred, grasp_gt)
         approch_loss = 0
         for a_dist, a_gt in zip(approach_dist, approach_gt):
-            # print(a_dist.shape, a_gt.shape)
-            approch_loss += self.bce_loss(F.sigmoid(a_dist), a_gt)
+            approch_loss += self.bce_loss(a_dist, a_gt)
         approch_loss = approch_loss / len(approach_gt)
         return grasp_loss, approch_loss
 
@@ -186,31 +190,28 @@ class ApproachNet(nn.Module):
 
     def collate_fn(self, batch):
         batch_idx = []
-        vertices = []
-        batch_querry_point_idx = []
-        vertex_count = 0
+        point_clouds = []
         approch_gt = []
         point_grasp_list = []
 
         for i, sample in enumerate(batch):
             points = sample.pos
-            query_point_idx = sample.query_point_idx
-            batch_querry_point_idx.append(query_point_idx + vertex_count)
-            vertex_count += points.shape[0]
+            point_grasps = sample.y
+            approach_scores = sample.approach_scores
             batch_idx.extend([i] *  points.shape[0])
-            vertices.append(points)
-            point_grasp_list.append(sample.point_grasp_list.reshape(-1, 16))
-            approach = torch.tensor(sample.approach > 0, dtype=torch.float32)
-            approch_gt.append(approach)
+            point_clouds.append(points)
+            point_grasp_list.append(point_grasps.reshape(-1, 16))
+            approach_label = (approach_scores > 0).float()
+            approch_gt.append(approach_label)
 
-                
-        batch_idx = torch.tensor(batch_idx, dtype=torch.int64)
-        vertices = torch.cat(vertices, dim=0)
+        
+        point_grasp_list = torch.stack(point_grasp_list, dim=0).to(self.device)
+        batch_idx = torch.tensor(batch_idx, dtype=torch.int64).to(self.device)
+        point_clouds = torch.cat(point_clouds, dim=0).to(self.device)
+        approch_gt = torch.stack(approch_gt, dim=0).to(self.device)
         # point_grasp_list = torch.cat(point_grasp_list, dim=0)
         # approch_dist = torch.cat(approch_dist, dim=0)
-
-
-        return vertices, point_grasp_list, batch_idx, approch_gt
+        return point_clouds, point_grasp_list, batch_idx, approch_gt
     
 
     def createGrasp(self, grasp_points, rotations):
@@ -248,21 +249,20 @@ class ApproachNet(nn.Module):
 
 if __name__ == "__main__":
 
-    from acronym_dataset import AcronymDataset
-    from create_dataset_paths import save_split_meshes
+    from gewa_dataset import GewaDataset
+    from create_gewa_dataset import save_split_samples
     from torch_geometric.loader import DataListLoader
     from acronym_dataset import RandomRotationTransform
 
     model = ApproachNet(global_feat_dim=1024, device="cpu") 
-    train_paths, val_paths = save_split_meshes('../data', 100)
-    rotation_range = [-180, 180]
+    train_paths, val_paths = save_split_samples('../data', 100)
 
     # transform = RandomRotationTransform(rotation_range)
-    train_dataset = AcronymDataset(train_paths, crop_radius=None, transform=None, normalize_vertices=True)
+    train_dataset = GewaDataset(train_paths, transform=None, normalize_points=True)
     train_loader = DataListLoader(train_dataset, batch_size=16, shuffle=False, num_workers=0)
 
     for i, data in enumerate(train_loader):
-        grasp_pred, approch_pred = model(data)
+        grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss = model(data)
         # grasp_gt = torch.stack([sample.y for sample in data], dim=0)
         # approach_gt = torch.stack([sample.approach_point_idx for sample in data], dim=0)
         # loss = model.calculate_loss(grasp_gt, grasp_pred, approach_gt, approch_pred)

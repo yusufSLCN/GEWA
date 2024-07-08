@@ -5,13 +5,12 @@ from torch_geometric.transforms import RandomJitter, Compose
 import numpy as np
 from tqdm import tqdm
 from create_dataset_paths import save_split_meshes
-
+import open3d as o3d
 
 
 def create_scene_with_reference(vertices=None):
-    gripper = create_gripper_marker()
     sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
-    scene = trimesh.Scene(sphare + gripper)  #Add the ball to the scene
+    scene = trimesh.Scene(sphare)  #Add the ball to the scene
 
     if  vertices is not None:
         obj_points = trimesh.points.PointCloud(vertices)
@@ -98,6 +97,19 @@ def visualize_grasp(vertices, grasp, query_point_idx):
     scene.add_geometry(sphare)
     scene.show()
 
+def visualize_grasps(vertices, grasps, query_point_idxs):
+    scene = create_scene_with_reference(vertices)
+    for grasp, query_point_idx in zip(grasps, query_point_idxs):
+        new_gripper = create_gripper_marker()
+        point_gripper = new_gripper.apply_transform(grasp)
+        scene.add_geometry(point_gripper)
+        sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.005)
+        sphare.visual.face_colors = [0, 255, 0, 255]
+        query_point = vertices[query_point_idx]
+        sphare.apply_translation(query_point)
+        scene.add_geometry(sphare)
+    scene.show()
+
 def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point):
     scene = create_scene_with_reference(vertices)
     gt_gripper = create_gripper_marker(color=[0, 255, 0, 255])
@@ -117,10 +129,8 @@ def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point):
     scene.show()
 
 def visualize_approach_points(vertices, approach_points):
-
-    gripper = create_gripper_marker()
     sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
-    scene = trimesh.Scene(sphare + gripper)  #Add the ball to the scene
+    scene = trimesh.Scene(sphare)  #Add the ball to the scene
 
     # colors = np.ones((len(vertices), 4), dtype=np.uint) *255
     # valid_approaches_idx = approach_points > 0
@@ -128,12 +138,25 @@ def visualize_approach_points(vertices, approach_points):
     import matplotlib.pyplot as plt
     # Choose a colormap
     colormap = plt.cm.viridis
-    # approach_points *= 100
     approach_prob = (approach_points - np.min(approach_points))/ (np.max(approach_points) - np.min(approach_points))
     colors = colormap(approach_prob).reshape(-1, 4)
     obj_points = trimesh.points.PointCloud(vertices, colors=colors)
     scene.add_geometry(obj_points)
     scene.show()
+
+def visualize_point_cloud(model_file_name):
+        mesh_data = o3d.io.read_triangle_mesh(model_file_name)
+        point_cloud = mesh_data.sample_points_poisson_disk(500)
+        point_cloud = np.asarray(point_cloud.points)
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(point_cloud)
+        o3d.visualization.draw_geometries([pcd])
+
+def visualize_point_cloud(point_cloud: np.ndarray):
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(point_cloud)
+        o3d.visualization.draw_geometries([pcd])
+
 
 def visualize_sample(model_path, samples):
     dataset = AcronymDataset(samples)
@@ -186,8 +209,8 @@ if __name__ == "__main__":
     aug_matrix = sample.sample_info['aug_matrix']
     approach_points = np.load(sample.sample_info['approach_points_save_path'], allow_pickle=True)
 
-    visualize_random_best_grasps(vertices, point_grasp_dict, aug_matrix)
-
+    # visualize_random_best_grasps(vertices, point_grasp_dict, aug_matrix)
+    visualize_point_cloud(sample.sample_info['simplified_model_path'])
     # visualize_approach_points(vertices, approach_points)
     # visualize_grasps_of_point(vertices, query_point_idx, grasp_querry_point, point_grasp_dict, aug_matrix)
     # print(grasp)

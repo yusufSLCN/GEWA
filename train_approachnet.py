@@ -7,12 +7,11 @@ from torch_geometric.nn import DataParallel
 from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
-from acronym_dataset import AcronymDataset, RandomRotationTransform
+from gewa_dataset import GewaDataset
 # from EdgeGraspNet import EdgeGraspNet
 from GewaNet import GewaNet
 from ApproachNet import ApproachNet
-from create_dataset_paths import save_split_meshes
-from acronym_utils import analyze_dataset_stats
+from create_gewa_dataset import save_split_samples
 from metrics import check_grasp_success_all_grasps
 import os
 import numpy as np
@@ -40,8 +39,8 @@ if args.augment:
     # rotation_range = [-180, 180]
     rotation_range = None
     transform_list = [RandomJitter(translation_range)]
-    if rotation_range is not None:
-        transform_list.append(RandomRotationTransform(rotation_range))
+    # if rotation_range is not None:
+    #     transform_list.append(RandomRotationTransform(rotation_range))
     transform = Compose(transform_list)
     transfom_params = f"Translation Range: {translation_range}, Rotation Range: {rotation_range}"
 else:
@@ -51,9 +50,9 @@ else:
 print("Transform params: ", transfom_params)
 
 # Save the split samples
-train_dirs, val_dirs = save_split_meshes(args.data_dir, num_mesh=args.num_mesh)
-train_dataset = AcronymDataset(train_dirs, crop_radius=args.crop_radius, transform=transform)
-val_dataset = AcronymDataset(val_dirs, crop_radius=args.crop_radius, transform=None)
+train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh)
+train_dataset = GewaDataset(train_dirs)
+val_dataset = GewaDataset(val_dirs)
                    
 # Initialize wandb
 wandb.init(project="GEWA", notes=args.notes)
@@ -71,7 +70,7 @@ config.scene_feat_dims = args.scene_feat_dims
 if args.augment:
     config.transform = transfom_params
 
-config.normalize = train_dataset.normalize_vertices
+config.normalize = train_dataset.normalize_points
 config.crop_radius = args.crop_radius
 
 # Analyze the dataset class stats
@@ -114,13 +113,6 @@ train_data_loader = DataListLoader(train_dataset, batch_size=config.batch_size, 
 val_data_loader = DataListLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=args.num_workers)
 
 
-def prepare_samples(device, samples):
-    vertices, grasp_gt, batch_idx, querry_point_idx = samples
-    vertices = vertices.to(device)
-    grasp_gt = grasp_gt.to(device)
-    batch_idx = batch_idx.to(device)
-    querry_point_idx = querry_point_idx.to(device)
-    return vertices, grasp_gt ,batch_idx, querry_point_idx
 
 print(f"Train data size: {len(train_dataset)}")
 print(f"Val data size: {len(val_dataset)}")
@@ -135,8 +127,7 @@ for epoch in range(1, num_epochs + 1):
     for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         # Forward pass
-        # vertices, grasp_gt, batch_idx, querry_point_idx = prepare_samples(device, samples)
-        grasp_pred, approach_dist, grasp_loss, approach_loss = model(data)
+        grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss = model(data)
 
         # Compute the loss
         loss = grasp_loss + approach_loss
@@ -163,7 +154,7 @@ for epoch in range(1, num_epochs + 1):
     # wandb.log({"Train Loss": average_loss}, step=epoch)
     wandb.log({"Train Loss": average_loss, "Train Grasp Loss": average_grasp_loss, "Train Approach Loss": average_approach_loss}, step=epoch)
     pred = grasp_pred[0].cpu().detach().numpy()
-    gt = data[0].y[0].cpu().detach().numpy()
+    gt = grasp_gt[0].cpu().detach().numpy()
     #log the gt and pred gripper pose array with wandb
     wandb.log({"GT Grasp Pose": gt, "Pred Grasp Pose": pred}, step=epoch)
 
@@ -177,10 +168,9 @@ for epoch in range(1, num_epochs + 1):
         high_error_models = []
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             # vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
-            grasp_pred, approach_dist, grasp_loss, approach_loss = model(val_data)
+            grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss = model(val_data)
 
             val_loss = grasp_loss + approach_loss
-            grasp_gt = torch.stack([sample.y for sample in val_data], dim=0).to(device)
             # Check for high error samples
             errors = torch.sum(grasp_gt - grasp_pred, dim=1)
             large_erros_idx = torch.abs(errors) > 10

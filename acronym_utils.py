@@ -192,13 +192,15 @@ def get_simplified_meshes_w_closest_grasp(data_dir, success_threshold=0.5, num_m
                 if not os.path.exists(point_grasp_save_path) or not os.path.exists(approach_points_save_path) or not os.path.exists(point_grasp_list_save_path):
                     mesh_data = pywavefront.Wavefront(simplify_save_path)
                     vertices = np.array(mesh_data.vertices, dtype=np.float32) * float(sample["scale"])
+                    success_mask = grasp_success > success_threshold
+                    success_grasp_poses = grasp_poses[success_mask]
                     # Check if the point grasp dict exists and create it if it doesn't
                     if not os.path.exists(point_grasp_save_path):
-                        point_grasp_dict = create_point_grasp_dict(vertices, grasp_poses, grasp_success, n=n)
+                        point_grasp_dict = create_point_grasp_dict(vertices, success_grasp_poses, n=n)
                         np.save(point_grasp_save_path, point_grasp_dict)
 
                     if not os.path.exists(point_grasp_list_save_path):
-                        point_grasp_list = create_point_grasp_list(vertices, grasp_poses, grasp_success, n=1)
+                        point_grasp_list = create_point_grasp_list(vertices, success_grasp_poses, n=1)
                         np.save(point_grasp_list_save_path, point_grasp_list)
 
                     if not os.path.exists(approach_points_save_path):
@@ -222,38 +224,24 @@ def find_gripper_contact_points(vertices, grasp_pose):
     contact_point1 = vertices[closest_finger1_idx]
     contact_point2 = vertices[closest_finger2_idx]
 
-    return (contact_point1, closest_finger1_idx), (contact_point2, closest_finger2_idx)
+    return contact_point1, closest_finger1_idx, contact_point2, closest_finger2_idx
 
-def find_n_closest_grasps_and_contact_points(vertices, querry_point, grasp_poses, grasp_success, n=5):
-    success_idxs = np.where(grasp_success > 0.5)
-    success_grasp_poses = grasp_poses[success_idxs]
-    grasp_success = grasp_success[success_idxs]
-    if success_grasp_poses.shape[1:] != (4, 4):
-        success_grasp_poses = success_grasp_poses.reshape(-1, 4, 4)
-    # success_prasp_locations = np.array([0, 0, 0, 1])
+def find_n_closest_grasps_and_contact_points(vertices, querry_point, grasp_poses, n=5):
     #tip of the gripper
     success_prasp_locations = np.array([0, 0, 1.12169998e-01, 1])
     
-    success_grasp_tip = np.matmul(success_grasp_poses, success_prasp_locations)[:, :3]
+    success_grasp_tip = np.matmul(grasp_poses, success_prasp_locations)[:, :3]
     distances = np.linalg.norm(querry_point - success_grasp_tip, axis=1)
     sorted_indices = np.argsort(distances)
     closest_grasps = []
-    try:
-        for i in range(n):
-            grasp = success_grasp_poses[sorted_indices[i]]
-            success = grasp_success[sorted_indices[i]]
-            contact_point1, contact_point2 = find_gripper_contact_points(vertices, grasp)
-            closest_grasps.append((grasp, success, contact_point1, contact_point2))
-    except:
-        print(f"Warning: Not enough succesful grasps: {success_grasp_tip.shape}, {np.sum(grasp_success == 1)}, {sorted_indices.shape}")
+    for i in range(n):
+        grasp = grasp_poses[sorted_indices[i]]
+        contact_point1, closest_finger1_idx, contact_point2, closest_finger2_idx = find_gripper_contact_points(vertices, grasp)
+        closest_grasps.append((grasp, closest_finger1_idx, closest_finger2_idx))
     return closest_grasps
 
-def find_appraoch_point_target(vertices, grasp_poses, grasp_success, threshold=0.02):
-    success_idxs = np.where(grasp_success > 0.5)
-    grasp_poses = grasp_poses[success_idxs]
-    grasp_success = grasp_success[success_idxs]
-
-    approach_point_target = np.zeros((vertices.shape[0]), dtype=np.int16)
+def find_appraoch_score_target(vertices, grasp_poses, threshold=0.02):
+    approach_score_target = np.zeros((vertices.shape[0]), dtype=np.int16)
     gripper_handle = np.array([0, 0, 1.12169998e-01, 1])
     
     grasp_tip_poses = np.matmul(grasp_poses, gripper_handle)[:, :3]
@@ -262,26 +250,26 @@ def find_appraoch_point_target(vertices, grasp_poses, grasp_success, threshold=0
         distance_to_grasp = np.linalg.norm(point - grasp_tip_poses, axis=1)
         num_good_grasps = np.sum(distance_to_grasp < threshold)
         # print(f"Good grasps: {num_good_grasps}, vertices: {vertices.shape[0]}")
-        approach_point_target[i] = num_good_grasps
+        approach_score_target[i] = num_good_grasps
 
-    return approach_point_target
+    return approach_score_target
 
-def create_point_grasp_dict(vertices, grasp_poses, grasp_success, n=5):
+def create_point_grasp_dict(vertices, grasp_poses, n=5):
     point_grasp_dict = {}
     for i in range(vertices.shape[0]):
         point = vertices[i].astype(np.float32)
         point_key = tuple(np.round(point, 3))
-        closest_grasps = find_n_closest_grasps_and_contact_points(vertices, point, grasp_poses, grasp_success, n=n)
+        closest_grasps = find_n_closest_grasps_and_contact_points(vertices, point, grasp_poses, n=n)
         point_grasp_dict[point_key] = closest_grasps
     return point_grasp_dict
 
-def create_point_grasp_list(vertices, grasp_poses, grasp_success, n=5):
+def create_point_grasp_list(vertices, grasp_poses, n=1):
     point_grasp_list = []
     for i in range(vertices.shape[0]):
         point = vertices[i].astype(np.float32)
-        closest_grasps = find_n_closest_grasps_and_contact_points(vertices, point, grasp_poses, grasp_success, n=n)
+        closest_grasps = find_n_closest_grasps_and_contact_points(vertices, point, grasp_poses, n=n)
         # print(closest_grasps[0][0].shape)
-        point_grasp_list.append(closest_grasps[0][0])
+        point_grasp_list.append(closest_grasps[0])
 
     return point_grasp_list
 def convert2graph(sample, N=None):
