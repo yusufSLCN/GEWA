@@ -11,6 +11,15 @@ def is_grasp_success(grasp, target, trans_thresh, rotat_thresh):
         return True
     else:
         return False
+    
+def check_batch_grasp_success(grasp_pred, grasp_gt, trans_thresh, rotat_thresh):
+    trans_diff = np.linalg.norm(grasp_pred[:, :3, 3] - grasp_gt[:, :3, 3], axis=1)
+    h = (np.trace(np.matmul(grasp_pred[:, :3, :3].transpose(0, 2, 1), grasp_gt[:, :3, :3]), axis1=1, axis2=2) - 1) / 2
+    h = np.clip(h, -1, 1)
+    rotat_diff = np.arccos(h)
+    success = np.logical_and(rotat_diff < rotat_thresh, trans_diff < trans_thresh)
+    num_success = np.sum(success)
+    return num_success 
 
 def check_grasp_success_all_grasps(grasp, sample_info, trans_thresh, rotat_thresh):
     target_file_path = sample_info['grasps']

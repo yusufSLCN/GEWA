@@ -250,7 +250,8 @@ if __name__ == "__main__":
     from gewa_dataset import GewaDataset
     from create_gewa_dataset import save_split_samples
     from torch_geometric.loader import DataListLoader
-    from acronym_dataset import RandomRotationTransform
+    from metrics import check_batch_grasp_success
+    import numpy as np
 
     model = ApproachNet(global_feat_dim=1024, device="cpu") 
     train_paths, val_paths = save_split_samples('../data', 100)
@@ -258,11 +259,17 @@ if __name__ == "__main__":
     # transform = RandomRotationTransform(rotation_range)
     train_dataset = GewaDataset(train_paths, transform=None, normalize_points=True)
     train_loader = DataListLoader(train_dataset, batch_size=16, shuffle=False, num_workers=0)
-
+    num_success= 0
     for i, data in enumerate(train_loader):
+        print(f"Batch: {i}/{len(train_loader)}")
         grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss = model(data)
+
+        grasp_pred = grasp_pred.reshape(-1, 4, 4).detach().numpy()
+        grasp_gt = grasp_gt.reshape(-1, 4, 4).detach().numpy()
+        num_success += check_batch_grasp_success(grasp_gt, grasp_gt, 0.03, np.deg2rad(30))
         # grasp_gt = torch.stack([sample.y for sample in data], dim=0)
         # approach_gt = torch.stack([sample.approach_point_idx for sample in data], dim=0)
         # loss = model.calculate_loss(grasp_gt, grasp_pred, approach_gt, approch_pred)
-        break
+    
+    print(f"Success rate: {num_success / len(train_dataset)}")
     

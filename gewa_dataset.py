@@ -26,6 +26,8 @@ class GewaDataset(Dataset):
         point_cloud = torch.tensor(point_cloud, dtype=torch.float32)
         approach_scores = torch.tensor(approach_scores, dtype=torch.float32)
 
+        contact_points = np.array([[point_grasps[i][1], point_grasps[i][2]]  for i in range(len(point_grasps))])
+        contact_points = torch.tensor(contact_points, dtype=torch.float32)
         grasps = np.array([point_grasps[i][0] for i in range(len(point_grasps))])
         point_grasps = torch.tensor(grasps, dtype=torch.float32)
 
@@ -38,7 +40,7 @@ class GewaDataset(Dataset):
 
         # success = torch.tensor(success)
         data = Data(x=point_cloud, y=point_grasps, pos=point_cloud,
-                     approach_scores=approach_scores, sample_info=sample_info)
+                     approach_scores=approach_scores, contact_points=contact_points, sample_info=sample_info)
         if self.transform != None:
             data = self.transform(data)
 

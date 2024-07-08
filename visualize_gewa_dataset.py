@@ -7,7 +7,8 @@ import numpy as np
 def show_grasps(dataset, idx):
     point_idxs = np.random.randint(len(dataset[idx].pos), size=5)
     grasps = dataset[idx].y[point_idxs].numpy()
-    visualize_grasps(dataset[idx].pos.numpy(), grasps, point_idxs)
+    contact_points_idx = dataset[idx].contact_points[point_idxs].numpy().astype(int)
+    visualize_grasps(dataset[idx].pos.numpy(), grasps, point_idxs, contact_points_idx)
 
 
 if __name__ == "__main__":
