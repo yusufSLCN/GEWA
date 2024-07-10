@@ -28,6 +28,7 @@ parser.add_argument('-dd', '--data_dir', type=str, default='../data')
 parser.add_argument('-na', '--no_augment', dest='augment', action='store_false')
 parser.add_argument('-sfd', '--scene_feat_dims', type=int, default=512)
 parser.add_argument('-n', '--notes', type=str, default='')
+parser.add_argument('-di', '--device_id', type=int, default=0)
 parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 parser.add_argument('-cr', '--crop_radius', type=float, default=-1)
 args = parser.parse_args()
@@ -84,7 +85,7 @@ num_epochs = args.epochs
 
 # device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
 if args.device == 'cuda' and torch.cuda.is_available():
-    device = torch.device("cuda:0")
+    device = torch.device(f"cuda:{args.device_id}")
 else:
     device = torch.device('cpu')
 
@@ -203,7 +204,7 @@ for epoch in range(1, num_epochs + 1):
             wandb.log_artifact(artifact)
 
     wandb.log({"Val Loss": average_val_loss, "Val Grasp Loss": average_val_grasp_loss, "Val Approach Loss": average_val_approach_loss}, step=epoch)
-    print(f"Train Loss: {average_loss} - Val Loss: {average_val_loss}")
+    print(f"Train Grasp Loss: {average_grasp_loss:.4f} - Train Approach Loss: {average_approach_loss:.4f} \nVal Grasp Loss: {average_val_grasp_loss:4f} - Val Approach Loss {average_val_approach_loss:.4f}")
 
 # Finish wandb run
 wandb.finish()

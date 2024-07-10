@@ -36,8 +36,11 @@ class GlobalSAModule(torch.nn.Module):
 class Encoder(nn.Module):
     def __init__(self, global_feat_dim):
         super(Encoder, self).__init__()
-        self.sa1_module = SAModule(0.2, 0.2, MLP([3 + 3, 64, 64, 128]))
-        self.sa2_module = SAModule(0.25, 0.4, MLP([128 + 3, 128, 128, 256]))
+        # self.sa1_module = SAModule(0.2, 0.2, MLP([3 + 3, 64, 64, 128]))
+        # self.sa2_module = SAModule(0.25, 0.4, MLP([128 + 3, 128, 128, 256]))
+        self.sa1_module = SAModule(0.5, 0.02, MLP([3 + 3, 64, 64, 128]))
+        self.sa2_module = SAModule(0.5, 0.1, MLP([128 + 3, 128, 128, 256]))
+
         self.sa3_module = GlobalSAModule(MLP([256 + 3, 256, 512, global_feat_dim]))
     
     def forward(self, x, pos, batch):
