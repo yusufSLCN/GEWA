@@ -254,7 +254,7 @@ if __name__ == "__main__":
     import numpy as np
 
     model = ApproachNet(global_feat_dim=1024, device="cpu") 
-    train_paths, val_paths = save_split_samples('../data', 100)
+    train_paths, val_paths = save_split_samples('../data', -1)
 
     # transform = RandomRotationTransform(rotation_range)
     train_dataset = GewaDataset(train_paths, transform=None, normalize_points=True)

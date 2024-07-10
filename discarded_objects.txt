@@ -1,2 +1,11 @@
 ../data/ShapeNetSem-backup/models-OBJ/models/c644689138389daa749ddac355b8e63d.obj
-./data/ShapeNetSem-backup/models-OBJ/models/83fd0b145f76fb012f81cb887dc35578.obj
+../data/ShapeNetSem-backup/models-OBJ/models/83fd0b145f76fb012f81cb887dc35578.obj
+../data/ShapeNetSem-backup/models-OBJ/models/341ecb71545d84835ecd29875b6f0d44.obj
+../data/ShapeNetSem-backup/models-OBJ/models/9451d2c47dcc1980446afc8051bc4afc.obj
+../data/ShapeNetSem-backup/models-OBJ/models/7d9cb088956a9c4993e60794f9200b7.obj
+../data/ShapeNetSem-backup/models-OBJ/models/5cea034b028af000c2843529921f9ad7.obj
+../data/ShapeNetSem-backup/models-OBJ/models/5c848a830ec567bb9220647403cfb896.obj
+../data/ShapeNetSem-backup/models-OBJ/models/2180c4770b8c4fce951b9c885c695a12.obj
+../data/ShapeNetSem-backup/models-OBJ/models/5fb26d2cac0e7b028d2314678ee778a2.obj
+../data/ShapeNetSem-backup/models-OBJ/models/5aeefb539699524044b2fa2cac0778f5.obj
+../data/ShapeNetSem-backup/models-OBJ/models/3fd993924ef28b30cb1981abcfe85234.obj

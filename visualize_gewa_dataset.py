@@ -10,9 +10,28 @@ def show_grasps(dataset, idx):
     contact_points_idx = dataset[idx].contact_points[point_idxs].numpy().astype(int)
     visualize_grasps(dataset[idx].pos.numpy(), grasps, point_idxs, contact_points_idx)
 
+def show_object_graph(sample, ratio, r):
+    from torch_geometric.nn import fps, radius
+    import torch
+    import open3d as o3d
+
+    pos = sample.pos
+    batch = torch.zeros(pos.shape[0], dtype=torch.long)
+
+    idx = fps(pos, batch, ratio=ratio)
+    row, col = radius(pos, pos[idx], r, batch, batch[idx],
+                          max_num_neighbors=64)
+    edge_index = torch.stack([col, row], dim=0).numpy().T
+    points = pos.numpy()
+    line_set = o3d.geometry.LineSet(
+    points=o3d.utility.Vector3dVector(points),
+    lines=o3d.utility.Vector2iVector(edge_index))
+    o3d.visualization.draw_geometries([line_set])
+
+
 
 if __name__ == "__main__":
-    train_data, valid_data = save_split_samples('../data', 100)
+    train_data, valid_data = save_split_samples('../data', -1)
     dataset = GewaDataset(train_data)
 
     parser = argparse.ArgumentParser()
@@ -20,12 +39,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     idx = args.index
-    print(dataset[idx])
-
-    # print(dataset[0][1].shape)
-    # print(dataset[0][2])
     # visualize_point_cloud(dataset[idx].pos)
     # visualize_approach_points(dataset[idx].pos.numpy(), dataset[idx].approach_scores.numpy())
-
-
-    show_grasps(dataset, idx)
+    show_object_graph(dataset[idx], ratio=0.5, r=0.02)
+    # show_grasps(dataset, idx)

@@ -1,0 +1,162 @@
+----------------------------------------------------------------------------------------------------
+277
+Data(
+  x=[1000, 3],
+  y=[1000, 4, 4],
+  pos=[1000, 3],
+  approach_scores=[1000],
+  contact_points=[1000, 2],
+  sample_info={
+    class='Chair',
+    grasps='../data/acronym/grasps/Chair_341ecb71545d84835ecd29875b6f0d44_0.007666181329077954.h5',
+    model_path='../data/ShapeNetSem-backup/models-OBJ/models/341ecb71545d84835ecd29875b6f0d44.obj',
+    model_name='341ecb71545d84835ecd29875b6f0d44',
+    scale=0.007666181329077954,
+    mean=[3],
+  }
+)
+tensor(2.)
+----------------------------------------------------------------------------------------------------
+604
+Data(
+  x=[1000, 3],
+  y=[1000, 4, 4],
+  pos=[1000, 3],
+  approach_scores=[1000],
+  contact_points=[1000, 2],
+  sample_info={
+    class='Ring',
+    grasps='../data/acronym/grasps/Ring_9451d2c47dcc1980446afc8051bc4afc_0.0009223769477018752.h5',
+    model_path='../data/ShapeNetSem-backup/models-OBJ/models/9451d2c47dcc1980446afc8051bc4afc.obj',
+    model_name='9451d2c47dcc1980446afc8051bc4afc',
+    scale=0.0009223769477018752,
+    mean=[3],
+  }
+)
+tensor(7.)
+----------------------------------------------------------------------------------------------------
+761
+Data(
+  x=[1000, 3],
+  y=[1000, 4, 4],
+  pos=[1000, 3],
+  approach_scores=[1000],
+  contact_points=[1000, 2],
+  sample_info={
+    class='Pillow',
+    grasps='../data/acronym/grasps/Pillow_7d9cb088956a9c4993e60794f9200b7_0.000452811316987507.h5',
+    model_path='../data/ShapeNetSem-backup/models-OBJ/models/7d9cb088956a9c4993e60794f9200b7.obj',
+    model_name='7d9cb088956a9c4993e60794f9200b7',
+    scale=0.000452811316987507,
+    mean=[3],
+  }
+)
+tensor(3.)
+----------------------------------------------------------------------------------------------------
+1488
+Data(
+  x=[1000, 3],
+  y=[1000, 4, 4],
+  pos=[1000, 3],
+  approach_scores=[1000],
+  contact_points=[1000, 2],
+  sample_info={
+    class='Couch',
+    grasps='../data/acronym/grasps/Couch_5cea034b028af000c2843529921f9ad7_1.0016118150204515e-06.h5',
+    model_path='../data/ShapeNetSem-backup/models-OBJ/models/5cea034b028af000c2843529921f9ad7.obj',
+    model_name='5cea034b028af000c2843529921f9ad7',
+    scale=1.0016118150204515e-06,
+    mean=[3],
+  }
+)
+tensor(0.)
+----------------------------------------------------------------------------------------------------
+1598
+Data(
+  x=[1000, 3],
+  y=[1000, 4, 4],
+  pos=[1000, 3],
+  approach_scores=[1000],
+  contact_points=[1000, 2],
+  sample_info={
+    class='Donut',
+    grasps='../data/acronym/grasps/Donut_5c848a830ec567bb9220647403cfb896_0.0006932990102359324.h5',
+    model_path='../data/ShapeNetSem-backup/models-OBJ/models/5c848a830ec567bb9220647403cfb896.obj',
+    model_name='5c848a830ec567bb9220647403cfb896',
+    scale=0.0006932990102359324,
+    mean=[3],
+  }
+)
+tensor(0.)
+----------------------------------------------------------------------------------------------------
+2443
+Data(
+  x=[1000, 3],
+  y=[1000, 4, 4],
+  pos=[1000, 3],
+  approach_scores=[1000],
+  contact_points=[1000, 2],
+  sample_info={
+    class='ToyFigure',
+    grasps='../data/acronym/grasps/ToyFigure_2180c4770b8c4fce951b9c885c695a12_0.01040561201560998.h5',
+    model_path='../data/ShapeNetSem-backup/models-OBJ/models/2180c4770b8c4fce951b9c885c695a12.obj',
+    model_name='2180c4770b8c4fce951b9c885c695a12',
+    scale=0.01040561201560998,
+    mean=[3],
+  }
+)
+tensor(4.)
+----------------------------------------------------------------------------------------------------
+2792
+Data(
+  x=[1000, 3],
+  y=[1000, 4, 4],
+  pos=[1000, 3],
+  approach_scores=[1000],
+  contact_points=[1000, 2],
+  sample_info={
+    class='Chair',
+    grasps='../data/acronym/grasps/Chair_5fb26d2cac0e7b028d2314678ee778a2_0.00454863344947787.h5',
+    model_path='../data/ShapeNetSem-backup/models-OBJ/models/5fb26d2cac0e7b028d2314678ee778a2.obj',
+    model_name='5fb26d2cac0e7b028d2314678ee778a2',
+    scale=0.00454863344947787,
+    mean=[3],
+  }
+)
+tensor(0.)
+----------------------------------------------------------------------------------------------------
+3234
+Data(
+  x=[1000, 3],
+  y=[1000, 4, 4],
+  pos=[1000, 3],
+  approach_scores=[1000],
+  contact_points=[1000, 2],
+  sample_info={
+    class='BeanBag',
+    grasps='../data/acronym/grasps/BeanBag_5aeefb539699524044b2fa2cac0778f5_0.005198917382571352.h5',
+    model_path='../data/ShapeNetSem-backup/models-OBJ/models/5aeefb539699524044b2fa2cac0778f5.obj',
+    model_name='5aeefb539699524044b2fa2cac0778f5',
+    scale=0.005198917382571352,
+    mean=[3],
+  }
+)
+tensor(0.)
+----------------------------------------------------------------------------------------------------
+4110
+Data(
+  x=[1000, 3],
+  y=[1000, 4, 4],
+  pos=[1000, 3],
+  approach_scores=[1000],
+  contact_points=[1000, 2],
+  sample_info={
+    class='Donut',
+    grasps='../data/acronym/grasps/Donut_3fd993924ef28b30cb1981abcfe85234_0.02556506306827045.h5',
+    model_path='../data/ShapeNetSem-backup/models-OBJ/models/3fd993924ef28b30cb1981abcfe85234.obj',
+    model_name='3fd993924ef28b30cb1981abcfe85234',
+    scale=0.02556506306827045,
+    mean=[3],
+  }
+)
+tensor(0.)

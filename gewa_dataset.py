@@ -47,11 +47,16 @@ class GewaDataset(Dataset):
         return data
     
 if __name__ == "__main__":
-
-    train_data, valid_data = save_split_samples('../data', 100)
+    train_data, valid_data = save_split_samples('../data', -1)
     dataset = GewaDataset(train_data)
-
-    print(dataset[0])
+    for i in range(len(dataset)):   
+        total_approach_scores = torch.sum(dataset[i].approach_scores)
+        if total_approach_scores < 10:
+            print(100 * '-')
+            print(i)
+            print(dataset[i])
+            print(total_approach_scores)
+    # print(dataset[0])
 
     # print(dataset[0][1].shape)
     # print(dataset[0][2])
