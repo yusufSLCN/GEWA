@@ -1,10 +1,7 @@
 import trimesh
 from acronym_utils import create_gripper_marker
-from acronym_dataset import AcronymDataset, RandomRotationTransform
 from torch_geometric.transforms import RandomJitter, Compose
 import numpy as np
-from tqdm import tqdm
-from create_dataset_paths import save_split_meshes
 import open3d as o3d
 
 
@@ -163,9 +160,10 @@ def visualize_approach_points(vertices, approach_points):
     scene.add_geometry(obj_points)
     scene.show()
 
-def visualize_point_cloud(model_file_name):
+def create_and_show_point_cloud(model_file_name:str):
         mesh_data = o3d.io.read_triangle_mesh(model_file_name)
-        point_cloud = mesh_data.sample_points_poisson_disk(500)
+        point_cloud = mesh_data.sample_points_poisson_disk(1000)
+        # point_cloud = mesh_data.sample_points_uniformly(1000)
         point_cloud = np.asarray(point_cloud.points)
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(point_cloud)
@@ -198,38 +196,29 @@ def visualize_sample(model_path, samples):
         print("Sample not found")
 
 if __name__ == "__main__":
-    scene = create_scene_with_reference()
-    # train_dataset = AcronymDataset('sample_dirs/train_success_simplified_acronym_samples.npy')
-    rotation_range = (-180, 180)  # full circle range in radians
-    translation_range = (-0.3, 0.3)  # translation values range
-    transfom_params = {"rotation_range": rotation_range, "translation_range": translation_range}
-    train_paths, val_paths = save_split_meshes('../data', -1)
+    from gewa_dataset import GewaDataset
+    from create_gewa_dataset import save_split_samples
+
+
+    train_paths, val_paths = save_split_samples('../data', -1)
     # val_dataset = AcronymDataset(val_paths)
 
-
-    transfom = Compose([RandomJitter(0.001), RandomRotationTransform(rotation_range)])
-    train_dataset = AcronymDataset(train_paths, crop_radius=None, transform=transfom)
+    train_dataset = GewaDataset(train_paths)
 
     sample_idx = 15
     
     sample = train_dataset[sample_idx]
-    # vertices = sample[0].numpy().astype(np.float32)
-    # sample_info = sample[2]
-    # grasp_querry_point = sample_info['query_point']
-    # grasp_querry_point = grasp_querry_point.numpy().astype(np.float32)
-    # point_grasp_dict = np.load(sample_info['point_grasp_save_path'], allow_pickle=True).item()
-    print(sample.sample_info['simplified_model_path'])
-    vertices = sample.pos.numpy().astype(np.float32)
-    grasp = sample.y.numpy().astype(np.float32).reshape(4, 4)
-    grasp_querry_point = sample.sample_info['query_point']
-    query_point_idx = sample.sample_info['query_point_idx']
-    point_grasp_dict = np.load(sample.sample_info['point_grasp_save_path'], allow_pickle=True).item()
-    mean = sample.sample_info['mean']
-    aug_matrix = sample.sample_info['aug_matrix']
-    approach_points = np.load(sample.sample_info['approach_points_save_path'], allow_pickle=True)
 
+    print(sample)
     # visualize_random_best_grasps(vertices, point_grasp_dict, aug_matrix)
-    visualize_point_cloud(sample.sample_info['simplified_model_path'])
+    grasp_path = sample.sample_info['grasps']
+    file_name = grasp_path.split("/")[-1]
+    simplified_model_path = f"../data/simplified_obj/{file_name}"
+    #change extention to obj
+    simplified_model_path = simplified_model_path.replace(".h5", ".obj")
+    print(simplified_model_path)
+    create_and_show_point_cloud(simplified_model_path)
+    # create_and_show_point_cloud("../data/simplified_obj/TissueBox_ac6df890acbf354894bed81c37648d8f_0.015413931634988332.obj")
     # visualize_approach_points(vertices, approach_points)
     # visualize_grasps_of_point(vertices, query_point_idx, grasp_querry_point, point_grasp_dict, aug_matrix)
     # print(grasp)

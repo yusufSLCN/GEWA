@@ -4,10 +4,17 @@ from create_gewa_dataset import save_split_samples
 import argparse
 import numpy as np
 
-def show_grasps(dataset, idx):
-    point_idxs = np.random.randint(len(dataset[idx].pos), size=5)
+def show_grasps(dataset, idx, show_contacts=False):
+    approach_scores = dataset[idx].approach_scores.numpy()
+    good_approach_score_idxs = np.arange(approach_scores.shape[0])[approach_scores > 0.5]
+    point_idxs = np.random.choice(good_approach_score_idxs, 5)
+    print(point_idxs)
+    # point_idxs = np.random.randint(len(dataset[idx].pos), size=5)
     grasps = dataset[idx].y[point_idxs].numpy()
-    contact_points_idx = dataset[idx].contact_points[point_idxs].numpy().astype(int)
+    if show_contacts:
+        contact_points_idx = dataset[idx].contact_points[point_idxs].numpy().astype(int)
+    else:
+        contact_points_idx = None
     visualize_grasps(dataset[idx].pos.numpy(), grasps, point_idxs, contact_points_idx)
 
 def show_object_graph(sample, ratio, r):
@@ -26,7 +33,10 @@ def show_object_graph(sample, ratio, r):
     line_set = o3d.geometry.LineSet(
     points=o3d.utility.Vector3dVector(points),
     lines=o3d.utility.Vector2iVector(edge_index))
-    o3d.visualization.draw_geometries([line_set])
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(pos.numpy())
+    o3d.visualization.draw_geometries([line_set, pcd])
+
 
 
 
@@ -41,5 +51,5 @@ if __name__ == "__main__":
     idx = args.index
     # visualize_point_cloud(dataset[idx].pos)
     # visualize_approach_points(dataset[idx].pos.numpy(), dataset[idx].approach_scores.numpy())
-    show_object_graph(dataset[idx], ratio=0.5, r=0.02)
+    show_object_graph(dataset[idx], ratio=0.2, r=0.1)
     # show_grasps(dataset, idx)

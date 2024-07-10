@@ -112,16 +112,17 @@ def get_simplified_samples(data_dir, success_threshold=0.5, num_mesh=-1, overrid
             
             if any_success:
                 simplified_mesh_count += 1
+                success_grasp_poses = grasp_poses[grasp_success > success_threshold]
                 # Check if the point grasp dict exists and create it if it doesn't
                 if not os.path.exists(point_grasp_save_path) or override:
                     mesh_data = pywavefront.Wavefront(simplify_save_path)
                     vertices = np.array(mesh_data.vertices) * float(sample["scale"])
-                    point_grasp_dict = create_point_grasp_dict(vertices, grasp_poses, grasp_success)
+                    point_grasp_dict = create_point_grasp_dict(vertices, success_grasp_poses)
                     np.save(point_grasp_save_path, point_grasp_dict)
                     
 
                 if not os.path.exists(approach_points_save_path) or override:
-                    approach_point_target = find_appraoch_point_target(vertices, grasp_poses, grasp_success, threshold=0.05)
+                    approach_point_target = find_appraoch_score_target(vertices, success_grasp_poses, threshold=0.05)
                     np.save(approach_points_save_path, approach_point_target)
             else:
                 print(f"No successful grasps for {simplify_save_path} in {grasp_poses.shape[0]} grasps")
@@ -204,7 +205,7 @@ def get_simplified_meshes_w_closest_grasp(data_dir, success_threshold=0.5, num_m
                         np.save(point_grasp_list_save_path, point_grasp_list)
 
                     if not os.path.exists(approach_points_save_path):
-                        approach_point_target = find_appraoch_point_target(vertices, grasp_poses, grasp_success, threshold=0.02)
+                        approach_point_target = find_appraoch_score_target(vertices, success_grasp_poses, threshold=0.02)
                         np.save(approach_points_save_path, approach_point_target)
 
     return simplified_samples
