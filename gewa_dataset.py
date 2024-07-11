@@ -10,6 +10,7 @@ class GewaDataset(Dataset):
         self.data = data
         self.transform = transform
         self.normalize_points = normalize_points
+        self.device = "cpu"
 
     def __len__(self):
         return len(self.data)

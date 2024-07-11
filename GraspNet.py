@@ -27,7 +27,6 @@ class GraspNet(nn.Module):
 
     def forward(self, data):
         x, batch = data.pos, data.batch
-        
         x1 = self.conv1(x, batch)
         x2 = self.conv2(x1, batch)
         x3 = self.conv3(x2, batch)

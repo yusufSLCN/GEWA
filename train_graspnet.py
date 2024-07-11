@@ -137,6 +137,7 @@ for epoch in range(1, num_epochs + 1):
     for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         # Forward pass
+        data.to(device)
         approach_score_pred, grasp_pred = model(data)
 
         approach_loss, grasp_loss = calculate_loss(approach_score_pred, grasp_pred, data.approach_scores, data.y)
@@ -177,6 +178,7 @@ for epoch in range(1, num_epochs + 1):
         high_error_models = []
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             # vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
+            val_data.to(device)
             approach_score_pred, grasp_pred = model(val_data)
             val_approach_loss, val_grasp_loss = calculate_loss(approach_score_pred, grasp_pred, val_data.approach_scores, val_data.y)
                 
