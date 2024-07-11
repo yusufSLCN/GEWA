@@ -115,9 +115,9 @@ val_data_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=
 def calculate_loss(approach_score_pred, grasp_pred, approach_score_gt, grasp_target):
     approach_mask = approach_score_gt > 0.5
     approach_target = approach_mask.float()
-    grasp_target = grasp_target.reshape(-1, 16)
     approach_loss = F.binary_cross_entropy(approach_score_pred, approach_target)
 
+    grasp_target = grasp_target.reshape(-1, 16)
     good_grasp_pred = grasp_pred[approach_mask]
     good_grasp_target = grasp_target[approach_mask]
     grasp_loss = F.mse_loss(good_grasp_pred, good_grasp_target)

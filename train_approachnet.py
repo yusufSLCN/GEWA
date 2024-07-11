@@ -138,7 +138,7 @@ for epoch in range(1, num_epochs + 1):
         total_loss += loss.item()
         total_grasp_loss += grasp_loss.item()
         total_approach_loss += approach_loss.item()
-        if epoch % 1 == 0:
+        if epoch % 50 == 0:
             # Calculate the grasp success rate
             pred = grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
             gt = grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
@@ -190,7 +190,7 @@ for epoch in range(1, num_epochs + 1):
             wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
 
         # Save the model if the validation loss is low
-        if epoch % 10 == 0 and average_val_loss < 0.1:
+        if epoch % 10 == 0 and average_val_loss < 0.15:
             model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}"
             model_folder = f"models/{model_name}"
             if not os.path.exists(model_folder):
