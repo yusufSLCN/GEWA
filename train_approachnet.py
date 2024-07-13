@@ -26,11 +26,12 @@ parser.add_argument('-nw', '--num_workers', type=int, default=0)
 parser.add_argument('-nm', '--num_mesh', type=int, default=10)
 parser.add_argument('-dd', '--data_dir', type=str, default='../data')
 parser.add_argument('-na', '--no_augment', dest='augment', action='store_false')
-parser.add_argument('-sfd', '--scene_feat_dims', type=int, default=512)
+parser.add_argument('-sfd', '--scene_feat_dims', type=int, default=1024)
 parser.add_argument('-n', '--notes', type=str, default='')
 parser.add_argument('-di', '--device_id', type=int, default=0)
 parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 parser.add_argument('-cr', '--crop_radius', type=float, default=-1)
+parser.add_argument('-gd','--grasp_dim', type=int, default=16)
 args = parser.parse_args()
 
 
@@ -52,7 +53,7 @@ print("Transform params: ", transfom_params)
 
 # Save the split samples
 train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh)
-train_dataset = GewaDataset(train_dirs)
+train_dataset = GewaDataset(train_dirs, transform=transform)
 val_dataset = GewaDataset(val_dirs)
                    
 # Initialize wandb
@@ -68,6 +69,7 @@ config.data_dir = args.data_dir
 config.num_workers = args.num_workers
 config.dataset = train_dataset.__class__.__name__
 config.scene_feat_dims = args.scene_feat_dims
+config.grasp_dim = args.grasp_dim
 if args.augment:
     config.transform = transfom_params
 
@@ -95,7 +97,7 @@ print(device)
 # Initialize the model
 # model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
 # model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
-model = ApproachNet(global_feat_dim= config.scene_feat_dims, device=device).to(device)
+model = ApproachNet(global_feat_dim= config.scene_feat_dims, grasp_dim=args.grasp_dim, device=device).to(device)
 
 config.model_name = model.__class__.__name__
 

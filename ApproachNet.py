@@ -115,13 +115,14 @@ class GraspPosePredictor(nn.Module):
         return grasp
 
 class ApproachNet(nn.Module):
-    def __init__(self, global_feat_dim, approach_feat_dim=64, multi_gpu=False, device="cuda"):
+    def __init__(self, global_feat_dim, approach_feat_dim=64, grasp_dim=16, multi_gpu=False, device="cuda"):
         super(ApproachNet, self).__init__()
         self.multi_gpu = multi_gpu
         self.device = device
+        self.grasp_dim = grasp_dim
         self.encoder = Encoder(global_feat_dim)
         self.approach_head = ApproachPointPredictor(global_feat_dim)
-        self.grasp_head = GraspPosePredictor(global_feat_dim, approach_feat_dim)
+        self.grasp_head = GraspPosePredictor(global_feat_dim, approach_feat_dim, grasp_dim)
 
         self.mse_loss = nn.MSELoss()
         self.bce_loss = nn.BCELoss()
@@ -164,6 +165,9 @@ class ApproachNet(nn.Module):
         approach_score_pred = torch.stack(approach_score_pred, dim=0)
         global_feat = global_out[0]
         grasp_pred = self.grasp_head(global_feat, approach_points)
+        if self.grasp_dim != 16:
+            grasp_pred = self.calculateTransformationMatrix(grasp_pred)
+            grasp_pred = grasp_pred.view(-1, 16)
 
         grasp_loss, approach_loss = self.calculate_loss(grasp_gt, grasp_pred, approach_gt, approach_score_pred)
         return grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss 
@@ -215,38 +219,22 @@ class ApproachNet(nn.Module):
         return point_clouds, point_grasp_list, batch_idx, approch_gt
     
 
-    # def createGrasp(self, grasp_points, rotations):
-    #     #create the translation vector
-    #     p1 = grasp_points[:, 0]
-    #     p2 = grasp_points[:, 1]
-    #     #create the rotation matrix
-    #     z_axis = p2 - p1
-    #     z_axis = z_axis / torch.norm(z_axis)
-    #     mid_point, x_axis = [], []
-    #     for i in range(len(p1)):
-    #         mid_point_i, x_axis_i = define_new_axis(p1[i], p2[i], rotations[i])
-    #         mid_point.append(mid_point_i)
-    #         x_axis.append(x_axis_i)
-    #     mid_point = torch.stack(mid_point, dim=0)
-    #     x_axis = torch.stack(x_axis, dim=0)
-    #     translation = mid_point + x_axis * self.gripper_length
-
-    #     y_axis = torch.cross(z_axis, x_axis)
-    #     y_axis = y_axis / torch.norm(y_axis)
-
-    #     grasp = torch.eye(4).to(grasp_points.device)
-    #     grasps = grasp.repeat(grasp_points.shape[0], 1, 1)
-    #     r = torch.stack([x_axis, y_axis, z_axis], dim=1)
-    #     grasps[:, :3, :3] = r
-    #     grasps[:, :3, 3] = translation
-    #     grasps = grasps.view(-1, 16)
-
-
-    #     gripper_length = torch.norm(translation - mid_point) 
-    #     dot_z_x = z_axis * x_axis
-    #     dot_z_x = torch.sum(dot_z_x, dim=1)
-
-    #     return grasps, gripper_length, dot_z_x
+    def calculateTransformationMatrix(self, grasp):
+        translation = grasp[:, :3]
+        r1 = grasp[:, 3:6]
+        r2 = grasp[:, 6:]
+        #orthogonalize the rotation vectors
+        r1 = r1 / torch.norm(r1, dim=1, keepdim=True)
+        r2 = r2 - torch.sum(r1 * r2, dim=1, keepdim=True) * r1
+        r2 = r2 / torch.norm(r2, dim=1, keepdim=True)
+        r3 = torch.cross(r1, r2, dim=1)
+        #create the rotation matrix
+        r = torch.stack([r1, r2, r3], dim=2)
+        #create 4x4 transformation matrix for each 
+        trans_m = torch.eye(4).repeat(len(grasp), 1, 1).to(grasp.device)
+        trans_m[:,:3, :3] = r
+        trans_m[:, :3, 3] = translation
+        return trans_m
 
 if __name__ == "__main__":
 
