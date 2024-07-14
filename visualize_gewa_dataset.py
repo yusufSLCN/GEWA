@@ -27,7 +27,7 @@ def show_object_graph(sample, ratio, r):
 
     idx = fps(pos, batch, ratio=ratio)
     row, col = radius(pos, pos[idx], r, batch, batch[idx],
-                          max_num_neighbors=64)
+                          max_num_neighbors=16)
     edge_index = torch.stack([col, row], dim=0).numpy().T
     points = pos.numpy()
     line_set = o3d.geometry.LineSet(
@@ -36,6 +36,23 @@ def show_object_graph(sample, ratio, r):
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(pos.numpy())
     o3d.visualization.draw_geometries([line_set, pcd])
+
+def show_knn_grap(sample, k=16):
+    from torch_geometric.nn import knn
+    import torch
+    pos = sample.pos
+    batch = torch.zeros(pos.shape[0], dtype=torch.long)
+    row, col = knn(pos, pos, k, batch, batch)
+    edge_index = torch.stack([col, row], dim=0).numpy().T
+    points = pos.numpy()
+    import open3d as o3d
+    line_set = o3d.geometry.LineSet(
+    points=o3d.utility.Vector3dVector(points),
+    lines=o3d.utility.Vector2iVector(edge_index))
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(pos.numpy())
+    o3d.visualization.draw_geometries([line_set, pcd])
+
 
 
 
@@ -51,5 +68,6 @@ if __name__ == "__main__":
     idx = args.index
     # visualize_point_cloud(dataset[idx].pos)
     # visualize_approach_points(dataset[idx].pos.numpy(), dataset[idx].approach_scores.numpy())
-    show_object_graph(dataset[idx], ratio=0.2, r=0.1)
+    show_object_graph(dataset[idx], ratio=1., r=0.1)
     # show_grasps(dataset, idx)
+    # show_knn_grap(dataset[idx])
