@@ -68,6 +68,6 @@ if __name__ == "__main__":
     idx = args.index
     # visualize_point_cloud(dataset[idx].pos)
     # visualize_approach_points(dataset[idx].pos.numpy(), dataset[idx].approach_scores.numpy())
-    show_object_graph(dataset[idx], ratio=1., r=0.1)
-    # show_grasps(dataset, idx)
+    # show_object_graph(dataset[idx], ratio=0.2, r=0.0001)
+    show_grasps(dataset, idx, show_contacts=True)
     # show_knn_grap(dataset[idx])

@@ -91,6 +91,9 @@ class ApproachPointPredictor(nn.Module):
         x = self.mlp(x)
         return x
     
+# class ApproachPointClassifier(nn.Module):
+
+    
 class GraspPosePredictor(nn.Module):
     def __init__(self, global_feat_dim, approach_feat_dim=64, grasp_dim=16):
         super(GraspPosePredictor, self).__init__()
@@ -110,16 +113,19 @@ class GraspPosePredictor(nn.Module):
     
     def forward(self, global_feats, approach_point):
         approach_feat = self.approach_encoder(approach_point)
+        if approach_feat.dim() == 1:
+            approach_feat = approach_feat.unsqueeze(0)
         x = torch.cat([global_feats, approach_feat], dim=1)
         grasp = self.grasp_predictor(x)
         return grasp
 
 class ApproachNet(nn.Module):
-    def __init__(self, global_feat_dim, approach_feat_dim=64, grasp_dim=16, multi_gpu=False, device="cuda"):
+    def __init__(self, global_feat_dim, approach_feat_dim=64, grasp_dim=16, num_grasp_sample=1000, multi_gpu=False, device="cuda"):
         super(ApproachNet, self).__init__()
         self.multi_gpu = multi_gpu
         self.device = device
         self.grasp_dim = grasp_dim
+        self.num_grasp_sample = num_grasp_sample
         self.encoder = Encoder(global_feat_dim)
         self.approach_head = ApproachPointPredictor(global_feat_dim)
         self.grasp_head = GraspPosePredictor(global_feat_dim, approach_feat_dim, grasp_dim)
@@ -128,55 +134,62 @@ class ApproachNet(nn.Module):
         self.bce_loss = nn.BCELoss()
     
     def forward(self, data):
-        if self.multi_gpu:
-            pos, point_grasp_list, batch_idx, approach_gt = self.multi_gpu_collate_fn(data)
-        else:
-            pos, point_grasp_list, batch_idx, approach_gt = self.collate_fn(data)
-            pos = pos.to(self.device)
-            batch_idx = batch_idx.to(self.device)
+        # if self.multi_gpu:
+        #     pos, point_grasp_list, batch_idx, approach_gt = self.multi_gpu_collate_fn(data)
+        # else:
+        #     pos, point_grasp_list, batch_idx, approach_gt = self.collate_fn(data)
+        #     pos = pos.to(self.device)
+        #     batch_idx = batch_idx.to(self.device)
+        pos = data.pos
+        point_grasp_list = data.y
+        batch_idx = data.batch
 
         sa0_out, sa1_out, sa2_out, global_out = self.encoder(pos, pos, batch_idx)
         # approach_point = pos[approach_point_idx]
         approach_out = self.approach_head(sa0_out, sa1_out, sa2_out, global_out)
 
         approach_points = []
-        approach_point_idxs = []
+        # approach_point_idxs = []
         approach_score_pred = []
         grasp_gt = []
         # print(point_grasp_list.shape)
         for i in range(batch_idx[-1] + 1):
             batch_mask = batch_idx == i
             pos_i = pos[batch_mask]
-            approach_batch = approach_out[batch_mask].squeeze()
+            approach_i = approach_out[batch_mask].squeeze()
+            point_grasps_i = point_grasp_list[batch_mask]
             # dist = F.log_softmax(approach_batch, dim=0)
-            approach_score_pred.append(approach_batch)
+            approach_score_pred.append(approach_i)
 
             # approach_point_idx = torch.argmax(approach_batch, dim=0)
-            approach_point_idx = torch.multinomial(approach_batch, 1)
-            grasp = point_grasp_list[i][approach_point_idx].squeeze()
+            approach_point_idx = torch.multinomial(approach_i, self.num_grasp_sample)
+            grasp = point_grasps_i[approach_point_idx].squeeze()
             grasp_gt.append(grasp)
             approach_point = pos_i[approach_point_idx]
             approach_points.append(approach_point)
-            approach_point_idxs.append(approach_point_idx)
+            # approach_point_idxs.append(approach_point_idx)
 
-        approach_points = torch.stack(approach_points, dim=0).squeeze()
-        approach_point_idxs = torch.stack(approach_point_idxs, dim=0)
-        grasp_gt = torch.stack(grasp_gt, dim=0)
+        approach_points = torch.stack(approach_points, dim=0).reshape(-1, 3)
+        # approach_point_idxs = torch.stack(approach_point_idxs, dim=0)
+        grasp_gt = torch.stack(grasp_gt, dim=0).reshape(-1, 16)
         approach_score_pred = torch.stack(approach_score_pred, dim=0)
-        global_feat = global_out[0]
+        global_feat = global_out[0].repeat(self.num_grasp_sample, 1)
         grasp_pred = self.grasp_head(global_feat, approach_points)
         if self.grasp_dim != 16:
-            grasp_pred = self.calculateTransformationMatrix(grasp_pred)
+            grasp_pred = self.calculateTransformationMatrix(grasp_pred, approach_points)
             grasp_pred = grasp_pred.view(-1, 16)
 
-        grasp_loss, approach_loss = self.calculate_loss(grasp_gt, grasp_pred, approach_gt, approach_score_pred)
-        return grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss 
+
+        grasp_loss, approach_loss = self.calculate_loss(grasp_gt, grasp_pred, data.approach_scores, approach_score_pred)
+        return grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss, approach_points
     
-    def calculate_loss(self, grasp_gt, grasp_pred, approach_gt, approach_dist):
+    def calculate_loss(self, grasp_gt, grasp_pred, approach_scores, approach_pred):
+        approach_gt = approach_scores > 0
+        approach_gt = approach_gt.float().reshape(-1, approach_pred.shape[-1])
         # print(grasp_gt.shape, grasp_pred.shape)
         grasp_loss = self.mse_loss(grasp_pred, grasp_gt)
         approch_loss = 0
-        for a_dist, a_gt in zip(approach_dist, approach_gt):
+        for a_dist, a_gt in zip(approach_pred, approach_gt):
             approch_loss += self.bce_loss(a_dist, a_gt)
         approch_loss = approch_loss / len(approach_gt)
         return grasp_loss, approch_loss
@@ -200,6 +213,7 @@ class ApproachNet(nn.Module):
         point_grasp_list = []
 
         for i, sample in enumerate(batch):
+            print(sample)
             points = sample.pos
             point_grasps = sample.y
             approach_scores = sample.approach_scores
@@ -219,8 +233,8 @@ class ApproachNet(nn.Module):
         return point_clouds, point_grasp_list, batch_idx, approch_gt
     
 
-    def calculateTransformationMatrix(self, grasp):
-        translation = grasp[:, :3]
+    def calculateTransformationMatrix(self, grasp, points):
+        translation = grasp[:, :3] + points
         r1 = grasp[:, 3:6]
         r2 = grasp[:, 6:]
         #orthogonalize the rotation vectors
@@ -240,7 +254,7 @@ if __name__ == "__main__":
 
     from gewa_dataset import GewaDataset
     from create_gewa_dataset import save_split_samples
-    from torch_geometric.loader import DataListLoader
+    from torch_geometric.loader import DataLoader
     from metrics import check_batch_grasp_success
     import numpy as np
 
@@ -249,11 +263,11 @@ if __name__ == "__main__":
 
     # transform = RandomRotationTransform(rotation_range)
     train_dataset = GewaDataset(train_paths, transform=None, normalize_points=True)
-    train_loader = DataListLoader(train_dataset, batch_size=16, shuffle=False, num_workers=0)
+    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=False, num_workers=0)
     num_success= 0
     for i, data in enumerate(train_loader):
         print(f"Batch: {i}/{len(train_loader)}")
-        grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss = model(data)
+        grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss, approach_points = model(data)
 
         grasp_pred = grasp_pred.reshape(-1, 4, 4).detach().numpy()
         grasp_gt = grasp_gt.reshape(-1, 4, 4).detach().numpy()

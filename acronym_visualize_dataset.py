@@ -126,18 +126,32 @@ def visualize_grasps(vertices, grasps, query_point_idxs, contact_points_idx=None
             scene.add_geometry(contact2_sphare)
     scene.show()
 
-def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point):
-    scene = create_scene_with_reference(vertices)
+def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point, approach_scores=None):
+    if approach_scores is not None:
+        sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
+        scene = trimesh.Scene(sphare)  #Add the ball to the scene
+        import matplotlib.pyplot as plt
+        # Choose a colormap
+        colormap = plt.cm.viridis
+        # approach_prob = (approach_scores - np.min(approach_scores))/ (np.max(approach_scores) - np.min(approach_scores))
+        colors = colormap(approach_scores).reshape(-1, 4)
+        obj_points = trimesh.points.PointCloud(vertices, colors=colors)
+        scene.add_geometry(obj_points)
+    else:
+        scene = create_scene_with_reference(vertices)
+
     gt_gripper = create_gripper_marker(color=[0, 255, 0, 255])
     gt_gripper = gt_gripper.apply_transform(gt)
     scene.add_geometry(gt_gripper)
     print(f"gt pose {gt}")
 
-    sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
-    sphare.visual.face_colors = [0, 255, 0, 255]
-    sphare.apply_translation(query_point)
-    scene.add_geometry(sphare)
+    if query_point is not None:
+        sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
+        sphare.visual.face_colors = [0, 255, 0, 255]
+        sphare.apply_translation(query_point)
+        scene.add_geometry(sphare)
 
+        
     pred_gripper = create_gripper_marker(color=[255, 0, 0, 255])
     pred_gripper = pred_gripper.apply_transform(pred)
     scene.add_geometry(pred_gripper)

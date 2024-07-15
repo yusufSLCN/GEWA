@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch_geometric.transforms as T
 import wandb
-from torch_geometric.loader import DataListLoader
+from torch_geometric.loader import DataLoader
 from torch_geometric.nn import DataParallel
 from torch_geometric.transforms import RandomJitter, Compose
 import argparse
@@ -32,6 +32,7 @@ parser.add_argument('-di', '--device_id', type=int, default=0)
 parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 parser.add_argument('-cr', '--crop_radius', type=float, default=-1)
 parser.add_argument('-gd','--grasp_dim', type=int, default=16)
+parser.add_argument('gs', '--grasp_samples', type=int, default=1000)
 args = parser.parse_args()
 
 
@@ -70,6 +71,7 @@ config.num_workers = args.num_workers
 config.dataset = train_dataset.__class__.__name__
 config.scene_feat_dims = args.scene_feat_dims
 config.grasp_dim = args.grasp_dim
+config.grasp_samples = args.grasp_samples
 if args.augment:
     config.transform = transfom_params
 
@@ -97,7 +99,8 @@ print(device)
 # Initialize the model
 # model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
 # model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
-model = ApproachNet(global_feat_dim= config.scene_feat_dims, grasp_dim=args.grasp_dim, device=device).to(device)
+model = ApproachNet(global_feat_dim= config.scene_feat_dims, grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples,
+                     device=device).to(device)
 
 config.model_name = model.__class__.__name__
 
@@ -112,8 +115,8 @@ if torch.cuda.device_count() > 1 and args.multi_gpu:
 optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 
 # Create data loader
-train_data_loader = DataListLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=args.num_workers)
-val_data_loader = DataListLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=args.num_workers)
+train_data_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=args.num_workers)
+val_data_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=args.num_workers)
 
 
 
@@ -130,7 +133,8 @@ for epoch in range(1, num_epochs + 1):
     for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         # Forward pass
-        grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss = model(data)
+        data = data.to(device)
+        grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss, approach_points = model(data)
 
         # Compute the loss
         loss = grasp_loss + approach_loss
@@ -170,7 +174,7 @@ for epoch in range(1, num_epochs + 1):
         high_error_models = []
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             # vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
-            grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss = model(val_data)
+            grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss, approach_points = model(val_data)
 
             val_loss = grasp_loss + approach_loss
 
