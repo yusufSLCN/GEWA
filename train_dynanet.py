@@ -25,11 +25,11 @@ parser.add_argument('-nw', '--num_workers', type=int, default=0)
 parser.add_argument('-nm', '--num_mesh', type=int, default=10)
 parser.add_argument('-dd', '--data_dir', type=str, default='../data')
 parser.add_argument('-na', '--no_augment', dest='augment', action='store_false')
-parser.add_argument('-sfd', '--scene_feat_dims', type=int, default=512)
 parser.add_argument('-n', '--notes', type=str, default='')
 parser.add_argument('-di', '--device_id', type=int, default=0)
 parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 parser.add_argument('-cr', '--crop_radius', type=float, default=-1)
+parser.add_argument('-gd','--grasp_dim', type=int, default=16)
 args = parser.parse_args()
 
 
@@ -66,12 +66,12 @@ config.num_mesh = args.num_mesh
 config.data_dir = args.data_dir
 config.num_workers = args.num_workers
 config.dataset = train_dataset.__class__.__name__
-config.scene_feat_dims = args.scene_feat_dims
 if args.augment:
     config.transform = transfom_params
 
 config.normalize = train_dataset.normalize_points
 config.crop_radius = args.crop_radius
+config.grasp_dim = args.grasp_dim
 
 # Analyze the dataset class stats
 num_epochs = args.epochs
@@ -94,7 +94,7 @@ print(device)
 # Initialize the model
 # model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
 # model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
-model = DynANet().to(device)
+model = DynANet(grasp_dim=args.grasp_dim).to(device)
 
 config.model_name = model.__class__.__name__
 

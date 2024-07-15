@@ -4,9 +4,10 @@ import torch.nn.functional as F
 from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool
 
 class DynANet(nn.Module):
-    def __init__(self, k=16):
+    def __init__(self, grasp_dim=16, k=16):
         super(DynANet, self).__init__()
         
+        self.grap_dim = grasp_dim
         self.k = k
         self.multi_gpu = False
         
@@ -23,7 +24,7 @@ class DynANet(nn.Module):
         self.grasp_head = nn.Sequential(
             nn.Linear(128 + 3, 64),  # 128 from embedding, 3 from selected point
             nn.ReLU(),
-            nn.Linear(64, 16)
+            nn.Linear(64, self.grap_dim)
         )
 
     def forward(self, data, temperature=1.0):
@@ -71,9 +72,28 @@ class DynANet(nn.Module):
         # Grasp prediction for the entire batch
         grasp_input = torch.cat([global_embedding, selected_points], dim=1)
         grasp_outputs = self.grasp_head(grasp_input)
+        if self.grap_dim != 16:
+            grasp_outputs = self.calculateTransformationMatrix(grasp_outputs)
+            grasp_outputs = grasp_outputs.view(-1, 16)
         
         return classification_output, grasp_outputs, point_distributions, selected_points, grasp_gt
-
+    
+    def calculateTransformationMatrix(self, grasp):
+        translation = grasp[:, :3]
+        r1 = grasp[:, 3:6]
+        r2 = grasp[:, 6:]
+        #orthogonalize the rotation vectors
+        r1 = r1 / torch.norm(r1, dim=1, keepdim=True)
+        r2 = r2 - torch.sum(r1 * r2, dim=1, keepdim=True) * r1
+        r2 = r2 / torch.norm(r2, dim=1, keepdim=True)
+        r3 = torch.cross(r1, r2, dim=1)
+        #create the rotation matrix
+        r = torch.stack([r1, r2, r3], dim=2)
+        #create 4x4 transformation matrix for each 
+        trans_m = torch.eye(4).repeat(len(grasp), 1, 1).to(grasp.device)
+        trans_m[:,:3, :3] = r
+        trans_m[:, :3, 3] = translation
+        return trans_m
 if __name__ == "__main__":
 
     from gewa_dataset import GewaDataset
