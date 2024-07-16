@@ -38,8 +38,8 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         # self.sa1_module = SAModule(0.2, 0.2, MLP([3 + 3, 64, 64, 128]))
         # self.sa2_module = SAModule(0.25, 0.4, MLP([128 + 3, 128, 128, 256]))
-        self.sa1_module = SAModule(0.5, 0.1, MLP([3 + 3, 64, 64, 128]))
-        self.sa2_module = SAModule(0.2, 0.2, MLP([128 + 3, 128, 128, 256]))
+        self.sa1_module = SAModule(1., 0.1, MLP([3 + 3, 64, 64, 128]))
+        self.sa2_module = SAModule(1., 0.2, MLP([128 + 3, 128, 128, 256]))
 
         self.sa3_module = GlobalSAModule(MLP([256 + 3, 256, 512, global_feat_dim]))
     
@@ -74,13 +74,10 @@ class ApproachPointPredictor(nn.Module):
 
         # self.mlp = MLP([128 + approach_feat_dim, 128, 128, 1], dropout=0.5, act=None)
         self.mlp = nn.Sequential(
-            nn.Linear(128, 128),
+            nn.Linear(128, 64),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(128, 1),
+            nn.Linear(64, 1),
             nn.Sigmoid()
         )
     
@@ -98,18 +95,20 @@ class GraspPosePredictor(nn.Module):
     def __init__(self, global_feat_dim, approach_feat_dim=64, grasp_dim=16):
         super(GraspPosePredictor, self).__init__()
         
-        self.grasp_predictor = nn.Sequential(
-            nn.Linear(global_feat_dim + approach_feat_dim, global_feat_dim  // 2),
-            nn.ReLU(),
-            nn.Linear(global_feat_dim // 2, global_feat_dim // 4),
-            nn.ReLU(),
-            nn.Linear(global_feat_dim // 4, grasp_dim),
-        )
         self.approach_encoder = nn.Sequential(
             nn.Linear(3, 32),
             nn.ReLU(),
             nn.Linear(32, approach_feat_dim)
         )
+
+        self.grasp_predictor = nn.Sequential(
+            nn.Linear(global_feat_dim + approach_feat_dim + 128 + 256, global_feat_dim  // 2),
+            nn.ReLU(),
+            nn.Linear(global_feat_dim // 2, global_feat_dim // 4),
+            nn.ReLU(),
+            nn.Linear(global_feat_dim // 4, grasp_dim),
+        )
+
     
     def forward(self, global_feats, approach_point):
         approach_feat = self.approach_encoder(approach_point)
@@ -134,17 +133,13 @@ class ApproachNet(nn.Module):
         self.bce_loss = nn.BCELoss()
     
     def forward(self, data):
-        # if self.multi_gpu:
-        #     pos, point_grasp_list, batch_idx, approach_gt = self.multi_gpu_collate_fn(data)
-        # else:
-        #     pos, point_grasp_list, batch_idx, approach_gt = self.collate_fn(data)
-        #     pos = pos.to(self.device)
-        #     batch_idx = batch_idx.to(self.device)
         pos = data.pos
         point_grasp_list = data.y
         batch_idx = data.batch
 
         sa0_out, sa1_out, sa2_out, global_out = self.encoder(pos, pos, batch_idx)
+
+        # print(sa0_out[0].shape, sa1_out[0].shape, sa2_out[0].shape, global_out[0].shape)
         # approach_point = pos[approach_point_idx]
         approach_out = self.approach_head(sa0_out, sa1_out, sa2_out, global_out)
 
@@ -173,8 +168,11 @@ class ApproachNet(nn.Module):
         # approach_point_idxs = torch.stack(approach_point_idxs, dim=0)
         grasp_gt = torch.stack(grasp_gt, dim=0).reshape(-1, 16)
         approach_score_pred = torch.stack(approach_score_pred, dim=0)
-        global_feat = global_out[0].repeat(self.num_grasp_sample, 1)
-        grasp_pred = self.grasp_head(global_feat, approach_points)
+        repeated_global_out = global_out[0].repeat(1000, 1)
+        grasp_features = torch.cat((sa1_out[0], sa2_out[0], repeated_global_out), dim=1)
+        # grasp_features = grasp_features.repeat(self.num_grasp_sample, 1)
+        # print(grasp_features.shape, approach_points.shape)
+        grasp_pred = self.grasp_head(grasp_features, approach_points)
         if self.grasp_dim != 16:
             grasp_pred = self.calculateTransformationMatrix(grasp_pred, approach_points)
             grasp_pred = grasp_pred.view(-1, 16)
@@ -193,44 +191,6 @@ class ApproachNet(nn.Module):
             approch_loss += self.bce_loss(a_dist, a_gt)
         approch_loss = approch_loss / len(approach_gt)
         return grasp_loss, approch_loss
-
-    def multi_gpu_collate_fn(self, data):
-        pos = data.pos
-        point_grasp_list = data.point_grasp_list
-        batch_idx = data.batch
-        approch_dist = []
-
-        for i in range(len(data)):
-            approch_dist.append(F.log_softmax(data[i].approach))
-        
-        approch_dist = torch.stack(approch_dist, dim=0)
-        return pos, point_grasp_list, batch_idx, approch_dist
-
-    def collate_fn(self, batch):
-        batch_idx = []
-        point_clouds = []
-        approch_gt = []
-        point_grasp_list = []
-
-        for i, sample in enumerate(batch):
-            print(sample)
-            points = sample.pos
-            point_grasps = sample.y
-            approach_scores = sample.approach_scores
-            batch_idx.extend([i] *  points.shape[0])
-            point_clouds.append(points)
-            point_grasp_list.append(point_grasps.reshape(-1, 16))
-            approach_label = (approach_scores > 0).float()
-            approch_gt.append(approach_label)
-
-        
-        point_grasp_list = torch.stack(point_grasp_list, dim=0).to(self.device)
-        batch_idx = torch.tensor(batch_idx, dtype=torch.int64).to(self.device)
-        point_clouds = torch.cat(point_clouds, dim=0).to(self.device)
-        approch_gt = torch.stack(approch_gt, dim=0).to(self.device)
-        # point_grasp_list = torch.cat(point_grasp_list, dim=0)
-        # approch_dist = torch.cat(approch_dist, dim=0)
-        return point_clouds, point_grasp_list, batch_idx, approch_gt
     
 
     def calculateTransformationMatrix(self, grasp, points):

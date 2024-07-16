@@ -31,8 +31,8 @@ parser.add_argument('-n', '--notes', type=str, default='')
 parser.add_argument('-di', '--device_id', type=int, default=0)
 parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 parser.add_argument('-cr', '--crop_radius', type=float, default=-1)
-parser.add_argument('-gd','--grasp_dim', type=int, default=16)
-parser.add_argument('gs', '--grasp_samples', type=int, default=1000)
+parser.add_argument('-gd','--grasp_dim', type=int, default=9)
+parser.add_argument('-gs', '--grasp_samples', type=int, default=1000)
 args = parser.parse_args()
 
 
@@ -151,7 +151,7 @@ for epoch in range(1, num_epochs + 1):
             train_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
 
     if epoch % 50 == 0:
-        train_success_rate = train_grasp_success / len(train_dataset)
+        train_success_rate = train_grasp_success / (len(train_dataset) * args.grasp_samples)
         wandb.log({"Train Grasp Success Rate": train_success_rate}, step=epoch)
     average_loss = total_loss / len(train_data_loader)
     average_grasp_loss = total_grasp_loss / len(train_data_loader)
@@ -174,6 +174,7 @@ for epoch in range(1, num_epochs + 1):
         high_error_models = []
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             # vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
+            val_data = val_data.to(device)
             grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss, approach_points = model(val_data)
 
             val_loss = grasp_loss + approach_loss
@@ -192,22 +193,22 @@ for epoch in range(1, num_epochs + 1):
         average_val_grasp_loss = total_val_grasp_loss / len(val_data_loader)
         average_val_approach_loss = total_val_approach_loss / len(val_data_loader)
         if epoch % 50 == 0:
-            grasp_success_rate = valid_grasp_success / len(val_dataset)
+            grasp_success_rate = valid_grasp_success / (len(val_dataset) * args.grasp_samples)
             wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
 
-        # Save the model if the validation loss is low
-        if epoch % 10 == 0 and average_val_loss < 0.15:
-            model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}"
-            model_folder = f"models/{model_name}"
-            if not os.path.exists(model_folder):
-                os.makedirs(model_folder)
+            # Save the model if the validation loss is low
+            if grasp_success_rate < 0.001:
+                model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}"
+                model_folder = f"models/{model_name}"
+                if not os.path.exists(model_folder):
+                    os.makedirs(model_folder)
 
-            model_file = f"{model_name}_epoch_{epoch}.pth"
-            model_path = os.path.join(model_folder, model_file)
-            torch.save(model.state_dict(), model_path)
-            artifact = wandb.Artifact(model_file, type='model')
-            artifact.add_file(model_path)
-            wandb.log_artifact(artifact)
+                model_file = f"{model_name}_epoch_{epoch}.pth"
+                model_path = os.path.join(model_folder, model_file)
+                torch.save(model.state_dict(), model_path)
+                artifact = wandb.Artifact(model_file, type='model')
+                artifact.add_file(model_path)
+                wandb.log_artifact(artifact)
 
     wandb.log({"Val Loss": average_val_loss, "Val Grasp Loss": average_val_grasp_loss, "Val Approach Loss": average_val_approach_loss}, step=epoch)
     print(f"Train Grasp Loss: {average_grasp_loss:.4f} - Train Approach Loss: {average_approach_loss:.4f} \nVal Grasp Loss: {average_val_grasp_loss:4f} - Val Approach Loss {average_val_approach_loss:.4f}")
