@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch_geometric.transforms as T
 import wandb
-from torch_geometric.loader import DataLoader
+from torch_geometric.loader import DataLoader, DataListLoader
 from torch_geometric.nn import DataParallel
 from torch_geometric.transforms import RandomJitter, Compose
 import argparse
@@ -111,12 +111,17 @@ if torch.cuda.device_count() > 1 and args.multi_gpu:
     model.multi_gpu = True
     model = DataParallel(model)
 
+    train_data_loader = DataListLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=args.num_workers)
+    val_data_loader = DataListLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=args.num_workers)
+
+else:
+    train_data_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=args.num_workers)
+    val_data_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=args.num_workers)
+
 # Define the optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 
-# Create data loader
-train_data_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=args.num_workers)
-val_data_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=args.num_workers)
+
 
 
 
@@ -134,10 +139,14 @@ for epoch in range(1, num_epochs + 1):
     for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         # Forward pass
-        data = data.to(device)
+        if not model.module.multi_gpu:
+            data = data.to(device)
         grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss, approach_points = model(data)
 
         # Compute the loss
+        if model.module.multi_gpu:
+            grasp_loss = grasp_loss.sum()
+            approach_loss = grasp_loss.sum()
         loss = grasp_loss + approach_loss
         loss.backward()
         # # Update the weights
@@ -152,7 +161,12 @@ for epoch in range(1, num_epochs + 1):
             train_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
 
             # Calculate the approach accuracy
-            train_approach_accuracy += count_correct_approach_scores(approach_score_pred, data.approach_scores)
+            if model.module.multi_gpu:
+                approach_scores_gt = torch.stack([s.approach_scores for s in data], dim=0).to(approach_score_pred.device)
+            else:
+                approach_scores_gt = data.approach_scores
+
+            train_approach_accuracy += count_correct_approach_scores(approach_score_pred, approach_scores_gt)
 
     if epoch % 50 == 0:
         train_success_rate = train_grasp_success / (len(train_dataset) * args.grasp_samples)
@@ -181,9 +195,14 @@ for epoch in range(1, num_epochs + 1):
         high_error_models = []
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             # vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
-            val_data = val_data.to(device)
+            if not model.module.multi_gpu:
+                val_data = val_data.to(device)
             grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss, approach_points = model(val_data)
 
+            # Compute the loss
+            if model.module.multi_gpu:
+                grasp_loss = grasp_loss.sum()
+                approach_loss = grasp_loss.sum()
             val_loss = grasp_loss + approach_loss
 
             if epoch % 50 == 0:
@@ -193,7 +212,11 @@ for epoch in range(1, num_epochs + 1):
                     gt = grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
                     valid_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
                     # Calculate the approach accuracy
-                    valid_aprroach_accuracy += count_correct_approach_scores(approach_score_pred, val_data.approach_scores)
+                    if model.module.multi_gpu:
+                        approach_scores_gt = torch.stack([s.approach_scores for s in val_data], dim=0).to(approach_score_pred.device)
+                    else:
+                        approach_scores_gt = val_data.approach_scores
+                    valid_aprroach_accuracy += count_correct_approach_scores(approach_score_pred, approach_scores_gt)
 
             total_val_loss += val_loss.item()
             total_val_grasp_loss += grasp_loss.item()

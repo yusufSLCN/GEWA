@@ -11,11 +11,11 @@ class DynANet(nn.Module):
         self.k = k
         self.multi_gpu = False
         
-        self.conv1 = DynamicEdgeConv(MLP([6, 64, 64]), k=self.k, aggr='max')
-        self.conv2 = DynamicEdgeConv(MLP([128, 128]), k=self.k, aggr='max')
-        self.conv3 = DynamicEdgeConv(MLP([256, 256]), k=self.k, aggr='max')
+        self.conv1 = DynamicEdgeConv(MLP([32, 64, 64, 128]), k=self.k, aggr='max')
+        self.conv2 = DynamicEdgeConv(MLP([128, 128, 128, 256]), k=self.k, aggr='max')
+        self.conv3 = DynamicEdgeConv(MLP([256, 256, 256, 512]), k=self.k, aggr='max')
         
-        self.shared_mlp = MLP([256 + 128 + 64, 256, 128])
+        self.shared_mlp = MLP([512 + 256 + 64, 256, 128])
         
         # Classification head (per-point)
         self.classification_head = nn.Linear(128, 1)
