@@ -1,5 +1,6 @@
 import numpy as np
 import h5py
+import torch
 
 def is_grasp_success(grasp, target, trans_thresh, rotat_thresh):
     trans_diff = np.linalg.norm(grasp[:3, 3] - target[:3, 3])
@@ -67,6 +68,13 @@ def calculate_success_rate(grasps, targets, trans_thresh, rotat_thresh):
     success_rate = success_count / len(grasps)
     return success_rate
 
+def count_correct_approach_scores(approach_pred, approach_gt):
+    approach_gt = (approach_gt > 0).float()
+    approach_pred = (approach_pred > 0.5).float()
+    num_correct = torch.sum(approach_pred == approach_gt).item()
+    # acc = num_correct / len(approach_pred)
+    return num_correct
+
 if __name__ == "__main__":
     # num_grasps = 1000
     # #generate valid random grasps 4x4 matrices
@@ -86,40 +94,30 @@ if __name__ == "__main__":
 
 
     # print(f"Succes rate: {sr}")
+    from gewa_dataset import GewaDataset
+    from create_gewa_dataset import save_split_samples
+    from torch_geometric.loader import DataLoader
+    # from acronym_dataset import RandomRotationTransform
 
-    from acronym_dataset import AcronymDataset
-    from create_dataset_paths import save_split_meshes
-    from torch_geometric.loader import DataListLoader
-    from acronym_dataset import RandomRotationTransform
 
-
-    train_paths, val_paths = save_split_meshes('../data', -1)
+    train_paths, val_paths = save_split_samples('../data', -1)
     rotation_range = [-180, 180]
 
-    transform = RandomRotationTransform(rotation_range)
-    train_dataset = AcronymDataset(train_paths, crop_radius=None, transform=transform, normalize_vertices=True)
-    train_loader = DataListLoader(train_dataset, batch_size=16, shuffle=False, num_workers=0)
+    # transform = RandomRotationTransform(rotation_range)
+    train_dataset = GewaDataset(train_paths, normalize_points=True)
+    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=False, num_workers=0)
     total_success = 0
+    approach_acc = 0
 
     for i, data in enumerate(train_loader):
-        for i in range(len(data)):
-            sample = data[i]
-            target = sample.y.reshape(4, 4)
-            aug_matrix = sample.sample_info['aug_matrix']
-            # point_grasp_save_path = sample.sample_info['point_grasp_save_path']
-            # point_grasp_dict = np.load(point_grasp_save_path, allow_pickle=True).item()
-            # target = point_grasp_dict[list(point_grasp_dict.keys())[0]][0][0].reshape(4, 4)
-            # target = torch.tensor(target, dtype=torch.float32)
+        target = data.y.reshape(-1, 4, 4).detach().numpy()
+        success = check_batch_grasp_success(target, target,  0.03, np.deg2rad(30))
+        total_success += success
 
-            #load grasps
-            grasps_file_name = sample.sample_info['grasps']
-            # grasps = h5py.File(grasps_file_name, "r")
-            # grasp_poses = np.array(grasps["grasps/transforms"])
-            # grasp_success = np.array(grasps["grasps/qualities/flex/object_in_gripper"])
-            # grasp_poses = grasp_poses[np.where(grasp_success > 0)]
-            # target =  torch.tensor(grasp_poses[0])
-            # success = check_grasp_success(target, grasps_file_name, 0.03, np.deg2rad(30), aug_matrix=aug_matrix)
-            success = check_grasp_success_from_dict(target, sample.sample_info, 0.03, np.deg2rad(30))
-            total_success += success
+        approach_acc += count_correct_approach_scores(data.approach_scores, data.approach_scores)
 
-    print(f"Total success rate: {total_success / len(train_dataset)}")
+
+
+
+    print(f"Approach accuracy: {approach_acc / (len(train_dataset) * 1000)}")
+    print(f"Total success rate: {total_success / (len(train_dataset) * 1000)}")

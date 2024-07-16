@@ -12,7 +12,7 @@ from gewa_dataset import GewaDataset
 from GewaNet import GewaNet
 from ApproachNet import ApproachNet
 from create_gewa_dataset import save_split_samples
-from metrics import check_batch_grasp_success
+from metrics import check_batch_grasp_success, count_correct_approach_scores
 import os
 import numpy as np
 
@@ -130,6 +130,7 @@ for epoch in range(1, num_epochs + 1):
     total_grasp_loss = 0
     total_approach_loss = 0
     train_grasp_success = 0
+    train_approach_accuracy = 0
     for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         # Forward pass
@@ -150,9 +151,14 @@ for epoch in range(1, num_epochs + 1):
             gt = grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
             train_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
 
+            # Calculate the approach accuracy
+            train_approach_accuracy += count_correct_approach_scores(approach_score_pred, data.approach_scores)
+
     if epoch % 50 == 0:
         train_success_rate = train_grasp_success / (len(train_dataset) * args.grasp_samples)
         wandb.log({"Train Grasp Success Rate": train_success_rate}, step=epoch)
+        train_approach_accuracy = train_approach_accuracy / (len(train_dataset) * args.grasp_samples)
+        wandb.log({"Train Approach Accuracy": train_approach_accuracy}, step=epoch)
     average_loss = total_loss / len(train_data_loader)
     average_grasp_loss = total_grasp_loss / len(train_data_loader)
     average_approach_loss = total_approach_loss / len(train_data_loader)
@@ -171,6 +177,7 @@ for epoch in range(1, num_epochs + 1):
         total_val_grasp_loss = 0
         total_val_approach_loss = 0
         valid_grasp_success = 0
+        valid_aprroach_accuracy = 0
         high_error_models = []
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             # vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
@@ -180,10 +187,13 @@ for epoch in range(1, num_epochs + 1):
             val_loss = grasp_loss + approach_loss
 
             if epoch % 50 == 0:
-                # Calculate the grasp success rate
-                pred = grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
-                gt = grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
-                valid_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
+                with torch.no_grad():
+                    # Calculate the grasp success rate
+                    pred = grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
+                    gt = grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
+                    valid_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
+                    # Calculate the approach accuracy
+                    valid_aprroach_accuracy += count_correct_approach_scores(approach_score_pred, val_data.approach_scores)
 
             total_val_loss += val_loss.item()
             total_val_grasp_loss += grasp_loss.item()
@@ -195,6 +205,8 @@ for epoch in range(1, num_epochs + 1):
         if epoch % 50 == 0:
             grasp_success_rate = valid_grasp_success / (len(val_dataset) * args.grasp_samples)
             wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
+            approach_accuracy = valid_aprroach_accuracy / (len(val_dataset) * args.grasp_samples)
+            wandb.log({"Valid Approach Accuracy": approach_accuracy}, step=epoch)
 
             # Save the model if the validation loss is low
             if grasp_success_rate < 0.001:
