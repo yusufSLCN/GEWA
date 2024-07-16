@@ -161,7 +161,7 @@ for epoch in range(1, num_epochs + 1):
                 train_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
 
                 # Calculate the approach accuracy
-                if model.module.multi_gpu:
+                if multi_gpu:
                     approach_scores_gt = torch.stack([s.approach_scores for s in data], dim=0).to(approach_score_pred.device)
                 else:
                     approach_scores_gt = data.approach_scores
