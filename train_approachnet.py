@@ -32,7 +32,7 @@ parser.add_argument('-di', '--device_id', type=int, default=0)
 parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 parser.add_argument('-cr', '--crop_radius', type=float, default=-1)
 parser.add_argument('-gd','--grasp_dim', type=int, default=9)
-parser.add_argument('-gs', '--grasp_samples', type=int, default=1000)
+parser.add_argument('-gs', '--grasp_samples', type=int, default=500)
 args = parser.parse_args()
 
 
@@ -103,12 +103,13 @@ model = ApproachNet(global_feat_dim= config.scene_feat_dims, grasp_dim=args.gras
                      device=device).to(device)
 
 config.model_name = model.__class__.__name__
-
+multi_gpu = False
 # If we have multiple GPUs, parallelize the model
 if torch.cuda.device_count() > 1 and args.multi_gpu:
     print("Let's use", torch.cuda.device_count(), "GPUs!")
     config.used_gpu_count = torch.cuda.device_count()
     model.multi_gpu = True
+    multi_gpu = True
     model = DataParallel(model)
 
     train_data_loader = DataListLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=args.num_workers)
@@ -120,9 +121,6 @@ else:
 
 # Define the optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
-
-
-
 
 
 print(f"Train data size: {len(train_dataset)}")
@@ -139,12 +137,12 @@ for epoch in range(1, num_epochs + 1):
     for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         # Forward pass
-        if not model.module.multi_gpu:
+        if not multi_gpu:
             data = data.to(device)
         grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss, approach_points = model(data)
 
         # Compute the loss
-        if model.module.multi_gpu:
+        if multi_gpu:
             grasp_loss = grasp_loss.sum()
             approach_loss = grasp_loss.sum()
         loss = grasp_loss + approach_loss
@@ -154,19 +152,21 @@ for epoch in range(1, num_epochs + 1):
         total_loss += loss.item()
         total_grasp_loss += grasp_loss.item()
         total_approach_loss += approach_loss.item()
+
         if epoch % 50 == 0:
-            # Calculate the grasp success rate
-            pred = grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
-            gt = grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
-            train_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
+            with torch.no_grad():
+                # Calculate the grasp success rate
+                pred = grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
+                gt = grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
+                train_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
 
-            # Calculate the approach accuracy
-            if model.module.multi_gpu:
-                approach_scores_gt = torch.stack([s.approach_scores for s in data], dim=0).to(approach_score_pred.device)
-            else:
-                approach_scores_gt = data.approach_scores
+                # Calculate the approach accuracy
+                if model.module.multi_gpu:
+                    approach_scores_gt = torch.stack([s.approach_scores for s in data], dim=0).to(approach_score_pred.device)
+                else:
+                    approach_scores_gt = data.approach_scores
 
-            train_approach_accuracy += count_correct_approach_scores(approach_score_pred, approach_scores_gt)
+                train_approach_accuracy += count_correct_approach_scores(approach_score_pred, approach_scores_gt)
 
     if epoch % 50 == 0:
         train_success_rate = train_grasp_success / (len(train_dataset) * args.grasp_samples)
@@ -192,31 +192,29 @@ for epoch in range(1, num_epochs + 1):
         total_val_approach_loss = 0
         valid_grasp_success = 0
         valid_aprroach_accuracy = 0
-        high_error_models = []
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             # vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
-            if not model.module.multi_gpu:
+            if not multi_gpu:
                 val_data = val_data.to(device)
             grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss, approach_points = model(val_data)
 
             # Compute the loss
-            if model.module.multi_gpu:
+            if multi_gpu:
                 grasp_loss = grasp_loss.sum()
                 approach_loss = grasp_loss.sum()
             val_loss = grasp_loss + approach_loss
 
             if epoch % 50 == 0:
-                with torch.no_grad():
-                    # Calculate the grasp success rate
-                    pred = grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
-                    gt = grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
-                    valid_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
-                    # Calculate the approach accuracy
-                    if model.module.multi_gpu:
-                        approach_scores_gt = torch.stack([s.approach_scores for s in val_data], dim=0).to(approach_score_pred.device)
-                    else:
-                        approach_scores_gt = val_data.approach_scores
-                    valid_aprroach_accuracy += count_correct_approach_scores(approach_score_pred, approach_scores_gt)
+                # Calculate the grasp success rate
+                pred = grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
+                gt = grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
+                valid_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
+                # Calculate the approach accuracy
+                if multi_gpu:
+                    approach_scores_gt = torch.stack([s.approach_scores for s in val_data], dim=0).to(approach_score_pred.device)
+                else:
+                    approach_scores_gt = val_data.approach_scores
+                valid_aprroach_accuracy += count_correct_approach_scores(approach_score_pred, approach_scores_gt)
 
             total_val_loss += val_loss.item()
             total_val_grasp_loss += grasp_loss.item()

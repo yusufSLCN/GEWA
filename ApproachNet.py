@@ -144,7 +144,7 @@ class ApproachNet(nn.Module):
         approach_out = self.approach_head(sa0_out, sa1_out, sa2_out, global_out)
 
         approach_points = []
-        # approach_point_idxs = []
+        approach_point_idxs = []
         approach_score_pred = []
         grasp_gt = []
         # print(point_grasp_list.shape)
@@ -162,21 +162,24 @@ class ApproachNet(nn.Module):
             grasp_gt.append(grasp)
             approach_point = pos_i[approach_point_idx]
             approach_points.append(approach_point)
-            # approach_point_idxs.append(approach_point_idx)
+            approach_point_idxs.append(approach_point_idx + i * len(pos_i))
 
+        #prepare input for grasp prediction
         approach_points = torch.stack(approach_points, dim=0).reshape(-1, 3)
-        # approach_point_idxs = torch.stack(approach_point_idxs, dim=0)
-        grasp_gt = torch.stack(grasp_gt, dim=0).reshape(-1, 16)
-        approach_score_pred = torch.stack(approach_score_pred, dim=0)
-        repeated_global_out = global_out[0].repeat(1000, 1)
-        grasp_features = torch.cat((sa1_out[0], sa2_out[0], repeated_global_out), dim=1)
-        # grasp_features = grasp_features.repeat(self.num_grasp_sample, 1)
-        # print(grasp_features.shape, approach_points.shape)
-        grasp_pred = self.grasp_head(grasp_features, approach_points)
+        approach_point_idxs = torch.cat(approach_point_idxs, dim=0)
+        local_features = torch.cat((sa1_out[0], sa2_out[0]), dim=1)
+        #select the grasp features for the selected approach points
+        selected_grasp_features = local_features[approach_point_idxs]
+        repeated_global_out = global_out[0].repeat(self.num_grasp_sample, 1) #repeat the global feature for each point cloud point
+        selected_grasp_features = torch.cat([selected_grasp_features, repeated_global_out], dim=1)
+        
+        grasp_pred = self.grasp_head(selected_grasp_features, approach_points)
         if self.grasp_dim != 16:
             grasp_pred = self.calculateTransformationMatrix(grasp_pred, approach_points)
             grasp_pred = grasp_pred.view(-1, 16)
 
+        approach_score_pred = torch.stack(approach_score_pred, dim=0)
+        grasp_gt = torch.stack(grasp_gt, dim=0).reshape(-1, 16)
 
         grasp_loss, approach_loss = self.calculate_loss(grasp_gt, grasp_pred, data.approach_scores, approach_score_pred)
         return grasp_pred, approach_score_pred, grasp_gt, grasp_loss, approach_loss, approach_points
@@ -218,7 +221,7 @@ if __name__ == "__main__":
     from metrics import check_batch_grasp_success
     import numpy as np
 
-    model = ApproachNet(global_feat_dim=1024, device="cpu") 
+    model = ApproachNet(global_feat_dim=1024, num_grasp_sample=500, device="cpu") 
     train_paths, val_paths = save_split_samples('../data', -1)
 
     # transform = RandomRotationTransform(rotation_range)

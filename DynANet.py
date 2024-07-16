@@ -4,25 +4,26 @@ import torch.nn.functional as F
 from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool
 
 class DynANet(nn.Module):
-    def __init__(self, grasp_dim=16, k=16):
+    def __init__(self, grasp_dim=16, k=16, num_grasp_sample=500):
         super(DynANet, self).__init__()
         
+        self.num_grasp_sample = num_grasp_sample
         self.grap_dim = grasp_dim
         self.k = k
         self.multi_gpu = False
         
-        self.conv1 = DynamicEdgeConv(MLP([32, 64, 64, 128]), k=self.k, aggr='max')
-        self.conv2 = DynamicEdgeConv(MLP([128, 128, 128, 256]), k=self.k, aggr='max')
+        self.conv1 = DynamicEdgeConv(MLP([6, 16, 16, 32]), k=self.k, aggr='max')
+        self.conv2 = DynamicEdgeConv(MLP([64, 64, 64, 128]), k=self.k, aggr='max')
         self.conv3 = DynamicEdgeConv(MLP([256, 256, 256, 512]), k=self.k, aggr='max')
         
-        self.shared_mlp = MLP([512 + 256 + 64, 256, 128])
+        self.shared_mlp = MLP([512 + 128 + 32, 256, 128])
         
         # Classification head (per-point)
         self.classification_head = nn.Linear(128, 1)
         
         # Grasp prediction head
         self.grasp_head = nn.Sequential(
-            nn.Linear(128 + 3, 64),  # 128 from embedding, 3 from selected point
+            nn.Linear(512 + 128 + 32 + 128 + 3, 64),  # 512 + 128 + 32  local features,  128 from global embedding, 3 from selected point
             nn.ReLU(),
             nn.Linear(64, self.grap_dim)
         )
@@ -46,40 +47,43 @@ class DynANet(nn.Module):
         global_embedding = global_max_pool(shared_features, batch)
         
         # Point selection (per point cloud)
-        scaled_logits = classification_logits / temperature
+        # scaled_logits = classification_logits / temperature
         
         point_distributions = []
-        selected_points = []
+        approach_points = []
         grasp_gt = []
+        approach_point_idxs = []
         
         for i in range(batch.max() + 1):  # Iterate over each point cloud in the batch
             mask = (batch == i)
-            cloud_logits = scaled_logits[mask]
-            cloud_pos = pos[mask]
+            sample_appraoch_prob = classification_output[mask]
+            sample_pos = pos[mask]
             sample_grasps = data.y[mask]
             
-            cloud_distribution = F.softmax(cloud_logits, dim=0)
-            point_distributions.append(cloud_distribution)
-            
             # Multinomial sampling for point selection
-            point_index = torch.multinomial(cloud_distribution, num_samples=1)
-            selected_point = cloud_pos[point_index].squeeze(0)
-            selected_points.append(selected_point)
+            point_index = torch.multinomial(sample_appraoch_prob, num_samples=self.num_grasp_sample)
+            selected_point = sample_pos[point_index].squeeze(0)
+            approach_points.append(selected_point)
             grasp_gt.append(sample_grasps[point_index].reshape(-1, 16))
+            approach_point_idxs.append(point_index + i * sample_pos.shape[0])
         
-        selected_points = torch.stack(selected_points)
+        approach_points = torch.cat(approach_points)
         grasp_gt = torch.cat(grasp_gt)
+        approach_point_idxs = torch.cat(approach_point_idxs)
         # Grasp prediction for the entire batch
-        grasp_input = torch.cat([global_embedding, selected_points], dim=1)
-        grasp_outputs = self.grasp_head(grasp_input)
+        repeated_global_embedding = global_embedding.repeat(self.num_grasp_sample, 1)
+        selected_local_features = x[approach_point_idxs]
+        grasp_features = torch.cat([selected_local_features, repeated_global_embedding, approach_points], dim=1)
+
+        grasp_outputs = self.grasp_head(grasp_features)
         if self.grap_dim != 16:
-            grasp_outputs = self.calculateTransformationMatrix(grasp_outputs)
+            grasp_outputs = self.calculateTransformationMatrix(grasp_outputs, approach_points)
             grasp_outputs = grasp_outputs.view(-1, 16)
         
-        return classification_output, grasp_outputs, point_distributions, selected_points, grasp_gt
+        return classification_output, grasp_outputs, approach_points, grasp_gt
     
-    def calculateTransformationMatrix(self, grasp):
-        translation = grasp[:, :3]
+    def calculateTransformationMatrix(self, grasp, approach_points):
+        translation = grasp[:, :3] + approach_points
         r1 = grasp[:, 3:6]
         r2 = grasp[:, 6:]
         #orthogonalize the rotation vectors
@@ -112,7 +116,7 @@ if __name__ == "__main__":
     num_success= 0
     for i, data in enumerate(train_loader):
         print(f"Batch: {i}/{len(train_loader)}")
-        classification_output, grasp_outputs, point_distributions, selected_points, grasp_gt = model(data)
+        classification_output, grasp_outputs, approach_points, grasp_gt = model(data)
         approach_score_gt = data.approach_scores
         approach_score_gt = (approach_score_gt > 0).float()
         # print(approach_score_gt.shape, grasp_target.shape)
