@@ -165,13 +165,14 @@ for epoch in range(1, num_epochs + 1):
                     approach_scores_gt = torch.stack([s.approach_scores for s in data], dim=0).to(approach_score_pred.device)
                 else:
                     approach_scores_gt = data.approach_scores
+                    approach_score_pred = approach_score_pred.reshape(-1)
 
                 train_approach_accuracy += count_correct_approach_scores(approach_score_pred, approach_scores_gt)
 
     if epoch % 50 == 0:
         train_success_rate = train_grasp_success / (len(train_dataset) * args.grasp_samples)
         wandb.log({"Train Grasp Success Rate": train_success_rate}, step=epoch)
-        train_approach_accuracy = train_approach_accuracy / (len(train_dataset) * args.grasp_samples)
+        train_approach_accuracy = train_approach_accuracy / (len(train_dataset) * 1000)
         wandb.log({"Train Approach Accuracy": train_approach_accuracy}, step=epoch)
     average_loss = total_loss / len(train_data_loader)
     average_grasp_loss = total_grasp_loss / len(train_data_loader)
@@ -204,7 +205,7 @@ for epoch in range(1, num_epochs + 1):
                 approach_loss = grasp_loss.sum()
             val_loss = grasp_loss + approach_loss
 
-            if epoch % 50 == 0:
+            if epoch % 1 == 0:
                 # Calculate the grasp success rate
                 pred = grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
                 gt = grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
@@ -214,6 +215,8 @@ for epoch in range(1, num_epochs + 1):
                     approach_scores_gt = torch.stack([s.approach_scores for s in val_data], dim=0).to(approach_score_pred.device)
                 else:
                     approach_scores_gt = val_data.approach_scores
+                    approach_score_pred = approach_score_pred.reshape(-1)
+
                 valid_aprroach_accuracy += count_correct_approach_scores(approach_score_pred, approach_scores_gt)
 
             total_val_loss += val_loss.item()
@@ -226,7 +229,7 @@ for epoch in range(1, num_epochs + 1):
         if epoch % 50 == 0:
             grasp_success_rate = valid_grasp_success / (len(val_dataset) * args.grasp_samples)
             wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
-            approach_accuracy = valid_aprroach_accuracy / (len(val_dataset) * args.grasp_samples)
+            approach_accuracy = valid_aprroach_accuracy / (len(val_dataset) * 1000)
             wandb.log({"Valid Approach Accuracy": approach_accuracy}, step=epoch)
 
             # Save the model if the validation loss is low

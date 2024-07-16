@@ -173,7 +173,7 @@ for epoch in range(1, num_epochs + 1):
     if epoch % 50 == 0:
         train_success_rate = train_grasp_success / (len(train_dataset) * args.grasp_samples)
         wandb.log({"Train Grasp Success Rate": train_success_rate}, step=epoch)
-        train_approach_accuracy = train_approach_accuracy / (len(train_dataset) * 100)
+        train_approach_accuracy = train_approach_accuracy / (len(train_dataset) * 1000)
         wandb.log({"Train Approach Accuracy": train_approach_accuracy}, step=epoch)
     average_loss = total_loss / len(train_data_loader)
     average_grasp_loss = total_grasp_loss / len(train_data_loader)
