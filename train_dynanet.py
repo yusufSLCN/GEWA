@@ -119,7 +119,8 @@ classification_criterion = nn.BCELoss()
 grasp_criterion = nn.MSELoss()
 
 def calculate_loss(approach_score_pred, grasp_pred, approach_score_gt, grasp_target):
-    approach_score_gt = (approach_score_gt > 0).float()
+    approach_score_gt = (approach_score_gt > 0).float().to(approach_score_pred.device)
+    grasp_target = grasp_target.to(grasp_pred.device)
     # print(approach_score_gt.shape, grasp_target.shape)
     approach_loss = classification_criterion(approach_score_pred, approach_score_gt)
     grasp_loss = grasp_criterion(grasp_pred, grasp_target)
@@ -143,9 +144,12 @@ for epoch in range(1, num_epochs + 1):
 
         if not multi_gpu:
             data = data.to(device)
+            approach_gt = data.approach_scores
+        else:
+            approach_gt = torch.cat([s.approach_scores for s in data])
         approach_score_pred, grasp_pred, approach_points, grasp_gt = model(data)
 
-        approach_loss, grasp_loss = calculate_loss(approach_score_pred, grasp_pred, data.approach_scores, grasp_gt)
+        approach_loss, grasp_loss = calculate_loss(approach_score_pred, grasp_pred, approach_gt, grasp_gt)
 
         if multi_gpu:
             grasp_loss = grasp_loss.mean()
@@ -158,7 +162,7 @@ for epoch in range(1, num_epochs + 1):
         total_grasp_loss += grasp_loss.item()
         total_approach_loss += approach_loss.item()
 
-        if epoch % 50 == 0:
+        if epoch % 20 == 0:
             with torch.no_grad():
                 # Calculate the grasp success rate
                 pred = grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
@@ -167,13 +171,13 @@ for epoch in range(1, num_epochs + 1):
 
                 # Calculate the approach accuracy
                 if multi_gpu:
-                    approach_scores_gt = torch.stack([s.approach_scores for s in data], dim=0).to(approach_score_pred.device)
+                    approach_scores_gt = torch.cat([s.approach_scores for s in data], dim=0).to(approach_score_pred.device)
                 else:
                     approach_scores_gt = data.approach_scores
 
                 train_approach_accuracy += count_correct_approach_scores(approach_score_pred, approach_scores_gt)
     scheduler.step()
-    if epoch % 50 == 0:
+    if epoch % 20 == 0:
         train_success_rate = train_grasp_success / len(train_data_loader)
         wandb.log({"Train Grasp Success Rate": train_success_rate}, step=epoch)
         train_approach_accuracy = train_approach_accuracy / (len(train_dataset) * 1000)
@@ -202,22 +206,26 @@ for epoch in range(1, num_epochs + 1):
             # vertices, grasp_gt, batch_idx, querry_point = prepare_samples(device, samples)
             if not multi_gpu:
                 val_data = val_data.to(device)
+                val_approach_gt = val_data.approach_scores
+            else:
+                val_approach_gt = torch.cat([s.approach_scores for s in val_data])
+
             approach_score_pred, val_grasp_pred, approach_points, val_grasp_gt = model(val_data)
-            val_approach_loss, val_grasp_loss = calculate_loss(approach_score_pred, val_grasp_pred, val_data.approach_scores, val_grasp_gt)
+            val_approach_loss, val_grasp_loss = calculate_loss(approach_score_pred, val_grasp_pred, val_approach_gt, val_grasp_gt)
             
             if multi_gpu:
                 val_grasp_loss = val_grasp_loss.mean()
                 val_approach_loss = val_approach_loss.mean()
             val_loss = val_approach_loss + val_grasp_loss
 
-            if epoch % 50 == 0:
+            if epoch % 20 == 0:
                 # Calculate the grasp success rate
                 pred = val_grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
                 gt = val_grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
                 valid_grasp_success += check_batch_grasp_success(pred, gt,  0.05, np.deg2rad(45)) / len(pred)
                 # Calculate the approach accuracy
                 if multi_gpu:
-                    approach_scores_gt = torch.stack([s.approach_scores for s in val_data], dim=0).to(approach_score_pred.device)
+                    approach_scores_gt = torch.cat([s.approach_scores for s in val_data], dim=0).to(approach_score_pred.device)
                 else:
                     approach_scores_gt = val_data.approach_scores
                 valid_approach_accuracy += count_correct_approach_scores(approach_score_pred, approach_scores_gt)
@@ -229,7 +237,7 @@ for epoch in range(1, num_epochs + 1):
         average_val_loss = total_val_loss / len(val_data_loader)
         average_val_grasp_loss = total_val_grasp_loss / len(val_data_loader)
         average_val_approach_loss = total_val_approach_loss / len(val_data_loader)
-        if epoch % 50 == 0:
+        if epoch % 20 == 0:
             grasp_success_rate = valid_grasp_success / len(val_data_loader)
             wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
             approach_accuracy = valid_approach_accuracy / (len(val_dataset) * 1000)
