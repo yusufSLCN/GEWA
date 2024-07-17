@@ -62,8 +62,13 @@ class DynANet(nn.Module):
             
             # Multinomial sampling for point selection
             point_index = torch.multinomial(sample_appraoch_prob, num_samples=self.num_grasp_sample)
+            # point_index = torch.arange(len(sample_pos))
             selected_point = sample_pos[point_index].squeeze(0)
             approach_points.append(selected_point)
+            #FOR TEST
+            # dummy_gt = torch.eye(4).reshape(-1).repeat(len(point_index), 1).to(sample_grasps.device)
+            # grasp_gt.append(dummy_gt)
+
             grasp_gt.append(sample_grasps[point_index].reshape(-1, 16))
             approach_point_idxs.append(point_index + i * sample_pos.shape[0])
         

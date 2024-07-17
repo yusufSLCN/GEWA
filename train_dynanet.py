@@ -13,11 +13,12 @@ from create_gewa_dataset import save_split_samples
 from metrics import check_batch_grasp_success, count_correct_approach_scores
 import os
 import numpy as np
+import torch.optim as optim
 
 # Parse the arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('-bs','--batch_size', type=int, default=64)
-parser.add_argument('-lr', '--learning_rate', type=float, default=0.0001)
+parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
 parser.add_argument('-e', '--epochs', type=int, default=50)
 parser.add_argument('-d', '--device', type=str, default='cuda')
 parser.add_argument('-nw', '--num_workers', type=int, default=0)
@@ -56,7 +57,7 @@ train_dataset = GewaDataset(train_dirs)
 val_dataset = GewaDataset(val_dirs)
                    
 # Initialize wandb
-wandb.init(project="GEWA", notes=args.notes)
+wandb.init(project="Grasp", notes=args.notes)
 
 # Log hyperparameters
 config = wandb.config
@@ -110,7 +111,9 @@ else:
     val_data_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=args.num_workers)
 
 # Define the optimizer
-optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.8)
 
 classification_criterion = nn.BCELoss()
 grasp_criterion = nn.MSELoss()
@@ -160,7 +163,7 @@ for epoch in range(1, num_epochs + 1):
                 # Calculate the grasp success rate
                 pred = grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
                 gt = grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
-                train_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
+                train_grasp_success += check_batch_grasp_success(pred, gt,  0.05, np.deg2rad(45)) / len(pred)
 
                 # Calculate the approach accuracy
                 if multi_gpu:
@@ -169,9 +172,9 @@ for epoch in range(1, num_epochs + 1):
                     approach_scores_gt = data.approach_scores
 
                 train_approach_accuracy += count_correct_approach_scores(approach_score_pred, approach_scores_gt)
-
+    scheduler.step()
     if epoch % 50 == 0:
-        train_success_rate = train_grasp_success / (len(train_dataset) * args.grasp_samples)
+        train_success_rate = train_grasp_success / len(train_data_loader)
         wandb.log({"Train Grasp Success Rate": train_success_rate}, step=epoch)
         train_approach_accuracy = train_approach_accuracy / (len(train_dataset) * 1000)
         wandb.log({"Train Approach Accuracy": train_approach_accuracy}, step=epoch)
@@ -211,7 +214,7 @@ for epoch in range(1, num_epochs + 1):
                 # Calculate the grasp success rate
                 pred = val_grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
                 gt = val_grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
-                valid_grasp_success += check_batch_grasp_success(pred, gt,  0.03, np.deg2rad(30))
+                valid_grasp_success += check_batch_grasp_success(pred, gt,  0.05, np.deg2rad(45)) / len(pred)
                 # Calculate the approach accuracy
                 if multi_gpu:
                     approach_scores_gt = torch.stack([s.approach_scores for s in val_data], dim=0).to(approach_score_pred.device)
@@ -227,13 +230,13 @@ for epoch in range(1, num_epochs + 1):
         average_val_grasp_loss = total_val_grasp_loss / len(val_data_loader)
         average_val_approach_loss = total_val_approach_loss / len(val_data_loader)
         if epoch % 50 == 0:
-            grasp_success_rate = valid_grasp_success / (len(val_dataset) * args.grasp_samples)
+            grasp_success_rate = valid_grasp_success / len(val_data_loader)
             wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
             approach_accuracy = valid_approach_accuracy / (len(val_dataset) * 1000)
             wandb.log({"Valid Approach Accuracy": approach_accuracy}, step=epoch)
 
             # Save the model if the validation loss is low
-            if grasp_success_rate < 0.001:
+            if grasp_success_rate > 0.001:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}"
                 model_folder = f"models/{model_name}"
                 if not os.path.exists(model_folder):
