@@ -84,6 +84,10 @@ class DynANet(nn.Module):
         if self.grap_dim != 16:
             grasp_outputs = self.calculateTransformationMatrix(grasp_outputs, approach_points)
             grasp_outputs = grasp_outputs.view(-1, 16)
+        else:
+            grasp_outputs = grasp_outputs.reshape(-1, 4, 4)
+            grasp_outputs[:, :3, 3] + approach_points
+            grasp_outputs = grasp_outputs.view(-1, 16)
         
         return classification_output, grasp_outputs, approach_points, grasp_gt
     

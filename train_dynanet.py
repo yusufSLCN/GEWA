@@ -113,7 +113,7 @@ else:
 # Define the optimizer
 optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.8)
+scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[200, 1000], gamma=0.5)
 
 classification_criterion = nn.BCELoss()
 grasp_criterion = nn.MSELoss()
