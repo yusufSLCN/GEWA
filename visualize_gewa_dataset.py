@@ -15,7 +15,19 @@ def show_grasps(dataset, idx, show_contacts=False):
         contact_points_idx = dataset[idx].contact_points[point_idxs].numpy().astype(int)
     else:
         contact_points_idx = None
+
     visualize_grasps(dataset[idx].pos.numpy(), grasps, point_idxs, contact_points_idx)
+
+    # from DynANet import DynANet
+    # import torch    
+    # grasps = dataset[idx].y[point_idxs]
+    # r1 = grasps[:, :3, 0]
+    # r2 = grasps[:, :3, 1]
+    # t = grasps[:, :3, 3]
+    # artifical_output = torch.cat([t, r1, r2], axis=1)
+    # m = DynANet()
+    # artifical_output = m.calculateTransformationMatrix(artifical_output, 0).numpy()
+    # visualize_grasps(dataset[idx].pos.numpy(), artifical_output, point_idxs, contact_points_idx)
 
 def show_object_graph(sample, ratio, r):
     from torch_geometric.nn import fps, radius

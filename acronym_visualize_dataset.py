@@ -158,6 +158,40 @@ def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point, approach_scores=
     print(f"pred pose {pred}")
     scene.show()
 
+def visualize_gt_and_pred_gasps(vertices, gt, pred, query_point, approach_scores=None):
+    if approach_scores is not None:
+        sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
+        scene = trimesh.Scene(sphare)  #Add the ball to the scene
+        import matplotlib.pyplot as plt
+        # Choose a colormap
+        colormap = plt.cm.viridis
+        # approach_prob = (approach_scores - np.min(approach_scores))/ (np.max(approach_scores) - np.min(approach_scores))
+        colors = colormap(approach_scores).reshape(-1, 4)
+        obj_points = trimesh.points.PointCloud(vertices, colors=colors)
+        scene.add_geometry(obj_points)
+    else:
+        scene = create_scene_with_reference(vertices)
+
+    for i in range(len(gt)):
+        gt_gripper = create_gripper_marker(color=[0, 255, 0, 255])
+        gt_gripper = gt_gripper.apply_transform(gt[i])
+        scene.add_geometry(gt_gripper)
+        print(f"gt pose {gt[i]}")
+
+
+        if query_point is not None:
+            sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
+            sphare.visual.face_colors = [0, 255, 0, 255]
+            sphare.apply_translation(query_point[i])
+            scene.add_geometry(sphare)
+
+            
+        pred_gripper = create_gripper_marker(color=[255, 0, 0, 255])
+        pred_gripper = pred_gripper.apply_transform(pred[i])
+        scene.add_geometry(pred_gripper)
+        print(f"pred pose {pred}")
+    scene.show()
+
 def visualize_approach_points(vertices, approach_points):
     sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
     scene = trimesh.Scene(sphare)  #Add the ball to the scene
@@ -168,7 +202,8 @@ def visualize_approach_points(vertices, approach_points):
     import matplotlib.pyplot as plt
     # Choose a colormap
     colormap = plt.cm.viridis
-    approach_prob = (approach_points - np.min(approach_points))/ (np.max(approach_points) - np.min(approach_points))
+    # approach_prob = (approach_points - np.min(approach_points))/ (np.max(approach_points) - np.min(approach_points))
+    approach_prob = (approach_points > 0) * 1.0
     colors = colormap(approach_prob).reshape(-1, 4)
     obj_points = trimesh.points.PointCloud(vertices, colors=colors)
     scene.add_geometry(obj_points)
