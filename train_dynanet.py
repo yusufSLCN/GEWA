@@ -113,19 +113,33 @@ else:
 # Define the optimizer
 optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
-scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[200, 1000], gamma=0.5)
+scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[500, 1000], gamma=0.5)
 
 classification_criterion = nn.BCELoss()
-grasp_criterion = nn.MSELoss()
+mse_loss = nn.MSELoss()
 
-def calculate_loss(approach_score_pred, grasp_pred, approach_score_gt, grasp_target):
+
+def calculate_loss(approach_score_pred, grasp_pred, approach_score_gt, grasp_target, approach_points):
     approach_score_gt = (approach_score_gt > 0).float().to(approach_score_pred.device)
     grasp_target = grasp_target.to(grasp_pred.device)
     # print(approach_score_gt.shape, grasp_target.shape)
     approach_loss = classification_criterion(approach_score_pred, approach_score_gt)
-    grasp_loss = grasp_criterion(grasp_pred, grasp_target)
 
-    return approach_loss, grasp_loss
+    gripper_height = torch.tensor([0, 0, 1.12169998e-01, 1]).to(grasp_pred.device)
+    grasp_pred = grasp_pred.reshape(-1, 4, 4)
+    grasp_tip = torch.matmul(grasp_pred, gripper_height)[:, :3]
+    tip_loss = mse_loss(grasp_tip, approach_points)
+
+    grasp_target = grasp_target.reshape(-1, 4, 4)
+    target_tip = torch.matmul(grasp_target, gripper_height)[:, :3]
+    dist = (target_tip - approach_points).pow(2).sum(1).sqrt()
+    dist_mask = dist < 0.02
+    grasp_pred = grasp_pred[dist_mask].reshape(-1, 16)
+    grasp_target = grasp_target[dist_mask].reshape(-1, 16)
+    grasp_loss = mse_loss(grasp_pred, grasp_target)
+
+    
+    return approach_loss, grasp_loss, tip_loss
 
 
 print(f"Train data size: {len(train_dataset)}")
@@ -137,6 +151,7 @@ for epoch in range(1, num_epochs + 1):
     total_loss = 0
     total_grasp_loss = 0
     total_approach_loss = 0
+    total_tip_loss = 0
     train_grasp_success = 0
     train_approach_accuracy = 0
     for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
@@ -149,18 +164,21 @@ for epoch in range(1, num_epochs + 1):
             approach_gt = torch.cat([s.approach_scores for s in data])
         approach_score_pred, grasp_pred, approach_points, grasp_gt = model(data)
 
-        approach_loss, grasp_loss = calculate_loss(approach_score_pred, grasp_pred, approach_gt, grasp_gt)
+        approach_loss, grasp_loss, tip_loss = calculate_loss(approach_score_pred, grasp_pred, approach_gt, grasp_gt, approach_points)
 
         if multi_gpu:
             grasp_loss = grasp_loss.mean()
-            approach_loss = grasp_loss.mean()
-        loss = approach_loss + grasp_loss
+            approach_loss = approach_loss.mean()
+            tip_loss = tip_loss.mean()
+
+        loss = approach_loss + 50 * tip_loss + grasp_loss
         loss.backward()
         # # Update the weights
         optimizer.step()
         total_loss += loss.item()
         total_grasp_loss += grasp_loss.item()
         total_approach_loss += approach_loss.item()
+        total_tip_loss += tip_loss.item()
 
         if epoch % 20 == 0:
             with torch.no_grad():
@@ -185,9 +203,11 @@ for epoch in range(1, num_epochs + 1):
     average_loss = total_loss / len(train_data_loader)
     average_grasp_loss = total_grasp_loss / len(train_data_loader)
     average_approach_loss = total_approach_loss / len(train_data_loader)
+    average_tip_loss = total_tip_loss / len(train_data_loader)
 
     # wandb.log({"Train Loss": average_loss}, step=epoch)
-    wandb.log({"Train Loss": average_loss, "Train Grasp Loss": average_grasp_loss, "Train Approach Loss": average_approach_loss}, step=epoch)
+    wandb.log({"Train Loss": average_loss, "Train Grasp Loss": average_grasp_loss, "Train Approach Loss": average_approach_loss,
+              "Train Tip Loss": average_tip_loss}, step=epoch)
     pred = grasp_pred[0].cpu().detach().numpy()
     gt = grasp_gt[0].cpu().detach().numpy()
     #log the gt and pred gripper pose array with wandb as an example
@@ -199,6 +219,7 @@ for epoch in range(1, num_epochs + 1):
         total_val_loss = 0
         total_val_grasp_loss = 0
         total_val_approach_loss = 0
+        total_val_tip_loss = 0
         valid_grasp_success = 0
         valid_approach_accuracy = 0
 
@@ -211,7 +232,7 @@ for epoch in range(1, num_epochs + 1):
                 val_approach_gt = torch.cat([s.approach_scores for s in val_data])
 
             approach_score_pred, val_grasp_pred, approach_points, val_grasp_gt = model(val_data)
-            val_approach_loss, val_grasp_loss = calculate_loss(approach_score_pred, val_grasp_pred, val_approach_gt, val_grasp_gt)
+            val_approach_loss, val_grasp_loss, val_tip_loss = calculate_loss(approach_score_pred, val_grasp_pred, val_approach_gt, val_grasp_gt, approach_points)
             
             if multi_gpu:
                 val_grasp_loss = val_grasp_loss.mean()
@@ -233,10 +254,12 @@ for epoch in range(1, num_epochs + 1):
             total_val_loss += val_loss.item()
             total_val_grasp_loss += val_grasp_loss.item()
             total_val_approach_loss += val_approach_loss.item()
+            total_val_tip_loss += val_tip_loss.item()
 
         average_val_loss = total_val_loss / len(val_data_loader)
         average_val_grasp_loss = total_val_grasp_loss / len(val_data_loader)
         average_val_approach_loss = total_val_approach_loss / len(val_data_loader)
+        average_val_tip_loss = total_val_tip_loss / len(val_data_loader)
         if epoch % 20 == 0:
             grasp_success_rate = valid_grasp_success / len(val_data_loader)
             wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
@@ -257,7 +280,8 @@ for epoch in range(1, num_epochs + 1):
                 artifact.add_file(model_path)
                 wandb.log_artifact(artifact)
 
-    wandb.log({"Val Loss": average_val_loss, "Val Grasp Loss": average_val_grasp_loss, "Val Approach Loss": average_val_approach_loss}, step=epoch)
+    wandb.log({"Val Loss": average_val_loss, "Val Grasp Loss": average_val_grasp_loss, "Val Approach Loss": average_val_approach_loss,
+              "Val Tip Loss":average_val_tip_loss}, step=epoch)
     print(f"Train Grasp Loss: {average_grasp_loss:.4f} - Train Approach Loss: {average_approach_loss:.4f} \nVal Grasp Loss: {average_val_grasp_loss:4f} - Val Approach Loss {average_val_approach_loss:.4f}")
 
 # Finish wandb run

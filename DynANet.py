@@ -30,7 +30,6 @@ class DynANet(nn.Module):
 
     def forward(self, data, temperature=1.0):
         pos, batch = data.pos, data.batch
-        print(pos.shape, batch.shape)
         x1 = self.conv1(pos, batch)
         x2 = self.conv2(x1, batch)
         x3 = self.conv3(x2, batch)
