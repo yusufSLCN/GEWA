@@ -126,16 +126,16 @@ def calculate_loss(approach_score_pred, grasp_pred, approach_score_gt, grasp_tar
     approach_loss = classification_criterion(approach_score_pred, approach_score_gt)
 
     gripper_height = torch.tensor([0, 0, 1.12169998e-01, 1]).to(grasp_pred.device)
-    grasp_pred = grasp_pred.reshape(-1, 4, 4)
-    grasp_tip = torch.matmul(grasp_pred, gripper_height)[:, :3]
+    grasp_pred_mat = grasp_pred.reshape(-1, 4, 4)
+    grasp_tip = torch.matmul(grasp_pred_mat, gripper_height)[:, :3]
     tip_loss = mse_loss(grasp_tip, approach_points)
 
-    grasp_target = grasp_target.reshape(-1, 4, 4)
-    target_tip = torch.matmul(grasp_target, gripper_height)[:, :3]
-    dist = (target_tip - approach_points).pow(2).sum(1).sqrt()
-    dist_mask = dist < 0.02
-    grasp_pred = grasp_pred[dist_mask].reshape(-1, 16)
-    grasp_target = grasp_target[dist_mask].reshape(-1, 16)
+    # grasp_target = grasp_target.reshape(-1, 4, 4)
+    # target_tip = torch.matmul(grasp_target, gripper_height)[:, :3]
+    # dist = (target_tip - approach_points).pow(2).sum(1).sqrt()
+    # dist_mask = dist < 0.02
+    # grasp_pred = grasp_pred[dist_mask].reshape(-1, 16)
+    # grasp_target = grasp_target[dist_mask].reshape(-1, 16)
     grasp_loss = mse_loss(grasp_pred, grasp_target)
 
     

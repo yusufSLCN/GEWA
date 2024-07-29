@@ -55,12 +55,23 @@ class DynANet(nn.Module):
         
         for i in range(batch.max() + 1):  # Iterate over each point cloud in the batch
             mask = (batch == i)
-            sample_appraoch_prob = classification_output[mask]
             sample_pos = pos[mask]
             sample_grasps = data.y[mask]
             
             # Multinomial sampling for point selection
-            point_index = torch.multinomial(sample_appraoch_prob, num_samples=self.num_grasp_sample)
+            if self.training:
+                approach_scores = data.approach_scores[mask]
+                with_replacement = torch.sum(approach_scores > 0.5) < self.num_grasp_sample
+                point_index = torch.multinomial(approach_scores, num_samples=self.num_grasp_sample,
+                                                replacement=with_replacement.item())
+            else:
+                sample_appraoch_prob = classification_output[mask]
+                with_replacement = torch.sum(sample_appraoch_prob > 0.5) < self.num_grasp_sample
+                point_index = torch.multinomial(sample_appraoch_prob, num_samples=self.num_grasp_sample, 
+                                                replacement=with_replacement.item())
+ 
+
+            # point_index = torch.multinomial(da, num_samples=self.num_grasp_sample)
             # point_index = torch.arange(len(sample_pos))
             selected_point = sample_pos[point_index].squeeze(0)
             approach_points.append(selected_point)
