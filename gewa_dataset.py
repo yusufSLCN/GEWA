@@ -6,11 +6,12 @@ import numpy as np
 
     
 class GewaDataset(Dataset):
-    def __init__(self, data, transform=None, normalize_points=True):
+    def __init__(self, data, transform=None, normalize_points=True, max_grasp_perpoint=20):
         self.data = data
         self.transform = transform
         self.normalize_points = normalize_points
         self.device = "cpu"
+        self.max_grasp_perpoint = max_grasp_perpoint
 
     def __len__(self):
         return len(self.data)
@@ -27,9 +28,17 @@ class GewaDataset(Dataset):
         point_cloud = torch.tensor(point_cloud, dtype=torch.float32)
         approach_scores = torch.tensor(approach_scores, dtype=torch.float32)
 
-        contact_points = np.array([[point_grasps[i][1], point_grasps[i][2]]  for i in range(len(point_grasps))])
-        contact_points = torch.tensor(contact_points, dtype=torch.float32)
-        grasps = np.array([point_grasps[i][0] for i in range(len(point_grasps))])
+        # contact_points = np.array([[point_grasps[i][1], point_grasps[i][2]]  for i in range(len(point_grasps))])
+        # contact_points = torch.tensor(contact_points, dtype=torch.float32)
+        num_grasps = torch.tensor([len(point_grasps[i]) for i in range(len(point_grasps))])
+        grasps = np.zeros((len(point_grasps), self.max_grasp_perpoint, 4, 4))
+        for i in range(len(point_grasps)):
+            for j in range(self.max_grasp_perpoint):
+                if j < len(point_grasps[i]):
+                    grasps[i, j] = point_grasps[i][j]
+                else:
+                    grasps[i, j] = np.eye(4)
+        # grasps = np.array([point_grasps[i][0] for i in range(len(point_grasps))])
         point_grasps = torch.tensor(grasps, dtype=torch.float32)
 
         #normalize the vertices
@@ -37,11 +46,11 @@ class GewaDataset(Dataset):
             mean = torch.mean(point_cloud, axis=0)
             point_cloud = point_cloud - mean
             sample_info['mean'] = mean
-            point_grasps[:, 0:3, 3] = point_grasps[:, 0:3, 3] - mean
+            point_grasps[:, :, 0:3, 3] = point_grasps[:, :, 0:3, 3] - mean
 
         # success = torch.tensor(success)
-        data = Data(x=point_cloud, y=point_grasps, pos=point_cloud,
-                     approach_scores=approach_scores, contact_points=contact_points, sample_info=sample_info)
+        data = Data(x=point_cloud, y=point_grasps, pos=point_cloud, num_grasps=num_grasps,
+                     approach_scores=approach_scores, sample_info=sample_info)
         if self.transform != None:
             data = self.transform(data)
 
@@ -50,6 +59,9 @@ class GewaDataset(Dataset):
 if __name__ == "__main__":
     train_data, valid_data = save_split_samples('../data', -1)
     dataset = GewaDataset(train_data)
+    print(dataset[0])
+    # print(dataset[4207].num_grasps)
+    bad_sample_count = 0
     for i in range(len(dataset)):   
         total_approach_scores = torch.sum(dataset[i].approach_scores)
         if total_approach_scores < 10:
@@ -57,6 +69,8 @@ if __name__ == "__main__":
             print(i)
             print(dataset[i])
             print(total_approach_scores)
+            bad_sample_count += 1
+    print(f"Bad samples: {bad_sample_count}")
     # print(dataset[0])
 
     # print(dataset[0][1].shape)

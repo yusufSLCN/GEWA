@@ -2,7 +2,7 @@ import os
 import numpy as np
 from Sample import Sample
 import tqdm
-from acronym_utils import load_file_names, extract_sample_info, create_point_grasp_list, find_appraoch_score_target
+from acronym_utils import load_file_names, extract_sample_info, find_appraoch_score_target, create_point_close_grasp_list_and_approach_scores
 import h5py
 import open3d as o3d
 
@@ -101,17 +101,18 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
                     point_cloud = mesh_data.sample_points_poisson_disk(num_points)
                     sample['scale'] = float(sample['scale'])
                     point_cloud = np.asarray(point_cloud.points) * sample['scale']
+
+
+                    if not os.path.exists(point_grasps_save_path) or not os.path.exists(approach_points_save_path):
+                        point_grasp_list, approach_point_scores = create_point_close_grasp_list_and_approach_scores(point_cloud, success_grasp_poses, radius=0.01)
+                        if np.sum(approach_point_scores) < 10:
+                            continue
+                        point_grasp_array = np.array(point_grasp_list, dtype=object)
+                        np.save(point_grasps_save_path, point_grasp_array)
+                        np.save(approach_points_save_path, approach_point_scores)
+
                     if not os.path.exists(point_cloud_save_path):
                         np.save(point_cloud_save_path, point_cloud)
-
-                    if not os.path.exists(point_grasps_save_path):
-                        point_grasp_list = create_point_grasp_list(point_cloud, success_grasp_poses, n=1)
-                        poin_grasp_array = np.array(point_grasp_list, dtype=object)
-                        np.save(point_grasps_save_path, poin_grasp_array)
-
-                    if not os.path.exists(approach_points_save_path):
-                        approach_point_target = find_appraoch_score_target(point_cloud, success_grasp_poses, threshold=0.02)
-                        np.save(approach_points_save_path, approach_point_target)
                 
                 point_cloud_sample = Sample(simplified_mesh_path, point_cloud_save_path, approach_points_save_path, point_grasps_save_path, grasps_file_name, sample)
                 point_cloud_samples.append(point_cloud_sample)

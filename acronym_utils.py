@@ -272,7 +272,33 @@ def create_point_grasp_list(vertices, grasp_poses, n=1):
         # print(closest_grasps[0][0].shape)
         point_grasp_list.append(closest_grasps[0])
 
-    return point_grasp_list
+def create_point_close_grasp_list_and_approach_scores(vertices, grasp_poses, radius=0.01):
+    point_grasp_list = []
+    approach_score_target = np.zeros((vertices.shape[0]), dtype=np.int16)
+
+    for i in range(vertices.shape[0]):
+        point = vertices[i].astype(np.float32)
+
+        gripper_tip_vector = np.array([0, 0, 1.12169998e-01, 1])
+    
+        grasp_tip_pos = np.matmul(grasp_poses, gripper_tip_vector)[:, :3]
+        distances = np.linalg.norm(point - grasp_tip_pos, axis=1)
+
+        approach_score = np.sum(distances < radius)
+        approach_score_target[i] = approach_score
+        if approach_score > 0:
+            sorted_indices = np.argsort(distances)
+            sorted_grasp_poses = grasp_poses[sorted_indices]
+            sorted_distances = distances[sorted_indices]
+            sorted_close_grasps = sorted_grasp_poses[sorted_distances < radius]
+        else:
+            sorted_close_grasps = []
+        
+        point_grasp_list.append(sorted_close_grasps)
+
+    return point_grasp_list, approach_score_target
+
+
 def convert2graph(sample, N=None):
     if N is None or N >= len(sample):
         simplified_mesh = sample

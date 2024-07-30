@@ -158,7 +158,7 @@ def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point, approach_scores=
     print(f"pred pose {pred}")
     scene.show()
 
-def visualize_gt_and_pred_gasps(vertices, gt, pred, query_point, approach_scores=None):
+def visualize_gt_and_pred_gasps(vertices, gt, pred, query_point, approach_scores=None, num_grasps_of_approach_points=None):
     if approach_scores is not None:
         sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
         scene = trimesh.Scene(sphare)  #Add the ball to the scene
@@ -174,14 +174,14 @@ def visualize_gt_and_pred_gasps(vertices, gt, pred, query_point, approach_scores
 
     for i in range(len(gt)):
         gt_gripper = create_gripper_marker(color=[0, 255, 0, 255])
+
         gt_gripper = gt_gripper.apply_transform(gt[i])
         scene.add_geometry(gt_gripper)
-        print(f"gt pose {gt[i]}")
-
 
         if query_point is not None:
             sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
-            sphare.visual.face_colors = [0, 255, 0, 255]
+            is_valid_approach_point = num_grasps_of_approach_points[i] > 0
+            sphare.visual.face_colors = [0, 255, 0, 255] if is_valid_approach_point else [255, 0, 0, 255]
             sphare.apply_translation(query_point[i])
             scene.add_geometry(sphare)
 
@@ -189,7 +189,7 @@ def visualize_gt_and_pred_gasps(vertices, gt, pred, query_point, approach_scores
         pred_gripper = create_gripper_marker(color=[255, 0, 0, 255])
         pred_gripper = pred_gripper.apply_transform(pred[i])
         scene.add_geometry(pred_gripper)
-        print(f"pred pose {pred}")
+        # print(f"pred pose {pred}")
     scene.show()
 
 def visualize_approach_points(vertices, approach_points):

@@ -22,24 +22,40 @@ def check_batch_grasp_success(grasp_pred, grasp_gt, trans_thresh, rotat_thresh):
     num_success = np.sum(success)
     return num_success 
 
-def check_grasp_success_all_grasps(grasp, sample_info, trans_thresh, rotat_thresh):
-    target_file_path = sample_info['grasps']
-    data = h5py.File(target_file_path, "r")
-    T = np.array(data["grasps/transforms"])
-    success = np.array(data["grasps/qualities/flex/object_in_gripper"])
-    success_targets = T[np.where(success > 0)]
-    aug_matrix = sample_info['aug_matrix']
-    
-    if aug_matrix is not None:
-        target_T = np.transpose(success_targets, (2, 1, 0))
-        success_targets = np.matmul(aug_matrix, target_T)
-        success_targets = np.transpose(success_targets, (2, 1, 0))
+def check_batch_grasp_success_all_grasps(grasps, grasp_gt_paths, trans_thresh, rotat_thresh, means=None):
+    success_count = 0
+    # print(len(grasps), len(grasp_gt_paths))
+    pred_per_model = len(grasps) // len(grasp_gt_paths)
+    # print(pred_per_model)
+    if means is not None:
+        means = means.detach().numpy().reshape(-1, 3)
 
-    for target in success_targets:
-        if is_grasp_success(grasp, target, trans_thresh, rotat_thresh):
+    for i in range(len(grasp_gt_paths)):
+        target_file_path = grasp_gt_paths[i]
+        data = h5py.File(target_file_path, "r")
+        T = np.array(data["grasps/transforms"])
+        success = np.array(data["grasps/qualities/flex/object_in_gripper"])
+        success_targets = T[np.where(success > 0)]
+        if means is not None:
+            mean = means[i]
+            success_targets[:, :3, 3] -= mean
+
+        for grasp in grasps[i * pred_per_model: (i + 1) * pred_per_model]:
+            # print(grasp.shape)
+            if check_grasp_success_all_grasps(grasp, success_targets, trans_thresh, rotat_thresh):
+                success_count += 1
+    return success_count
+
+def check_grasp_success_all_grasps(grasp, success_targets, trans_thresh, rotat_thresh):
+
+    if grasp.ndim == 2:
+        grasp = grasp.reshape(-1, 4, 4)
+    repeated_pred = np.repeat(grasp, len(success_targets), axis=0)
+    if check_batch_grasp_success(repeated_pred, success_targets, trans_thresh, rotat_thresh) > 0:
             return True
     
     return False
+
 
 def check_grasp_success_from_dict(grasp, sample_info, trans_thresh, rotat_thresh):
     point_grasp_save_path = sample_info['point_grasp_save_path']
@@ -98,26 +114,36 @@ if __name__ == "__main__":
     from create_gewa_dataset import save_split_samples
     from torch_geometric.loader import DataLoader
     # from acronym_dataset import RandomRotationTransform
+    import time
 
 
     train_paths, val_paths = save_split_samples('../data', -1)
     rotation_range = [-180, 180]
 
     # transform = RandomRotationTransform(rotation_range)
-    train_dataset = GewaDataset(train_paths, normalize_points=True)
+    train_dataset = GewaDataset(val_paths, normalize_points=True)
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=False, num_workers=0)
     total_success = 0
     approach_acc = 0
 
+    start_t = time.time()
+    num_points = 500
     for i, data in enumerate(train_loader):
+        print(f"Batch: {i}/{len(train_loader)}")
         target = data.y.reshape(-1, 4, 4).detach().numpy()
-        success = check_batch_grasp_success(target, target,  0.03, np.deg2rad(30))
+        # success = check_batch_grasp_success(target, target,  0.03, np.deg2rad(30))
+        grasp_gt_paths = data.sample_info['grasps']
+        # print(target.shape, len(grasp_gt_paths))
+        target = [target[i * 1000 : i * 1000 + num_points] for i in range(len(target)//1000)]
+        target = np.concatenate(target, axis=0)
+        success = check_batch_grasp_success_all_grasps(target, grasp_gt_paths, 0.03, np.deg2rad(30), data.sample_info['mean'])
+        # success = check_batch_grasp_success(target, target, 0.03, np.deg2rad(30))
         total_success += success
 
-        approach_acc += count_correct_approach_scores(data.approach_scores, data.approach_scores)
+        # approach_acc += count_correct_approach_scores(data.approach_scores, data.approach_scores)
 
-
+    print(f"Time: {time.time() - start_t}")
 
 
     print(f"Approach accuracy: {approach_acc / (len(train_dataset) * 1000)}")
-    print(f"Total success rate: {total_success / (len(train_dataset) * 1000)}")
+    print(f"Total success rate: {total_success / (len(train_dataset) * num_points)}")

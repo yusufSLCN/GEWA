@@ -53,7 +53,8 @@ print("Transform params: ", transfom_params)
 
 # Save the split samples
 train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh)
-train_dataset = GewaDataset(train_dirs)
+max_grasp_per_point = 20
+train_dataset = GewaDataset(train_dirs, max_grasp_perpoint=max_grasp_per_point)
 val_dataset = GewaDataset(val_dirs)
                    
 # Initialize wandb
@@ -75,6 +76,7 @@ config.normalize = train_dataset.normalize_points
 config.crop_radius = args.crop_radius
 config.grasp_dim = args.grasp_dim
 config.grasp_samples = args.grasp_samples
+config.max_grasp_per_point = max_grasp_per_point
 
 # Analyze the dataset class stats
 num_epochs = args.epochs
@@ -116,10 +118,11 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[500, 1000], gamma=0.5)
 
 classification_criterion = nn.BCELoss()
-mse_loss = nn.MSELoss()
+tip_mse_loss = nn.MSELoss()
+grasp_mse_loss = nn.MSELoss(reduction='none')
 
 
-def calculate_loss(approach_score_pred, grasp_pred, approach_score_gt, grasp_target, approach_points):
+def calculate_loss(approach_score_pred, grasp_pred, approach_score_gt, grasp_target, approach_points, num_grasps_of_approach_points):
     approach_score_gt = (approach_score_gt > 0).float().to(approach_score_pred.device)
     grasp_target = grasp_target.to(grasp_pred.device)
     # print(approach_score_gt.shape, grasp_target.shape)
@@ -128,7 +131,7 @@ def calculate_loss(approach_score_pred, grasp_pred, approach_score_gt, grasp_tar
     gripper_height = torch.tensor([0, 0, 1.12169998e-01, 1]).to(grasp_pred.device)
     grasp_pred_mat = grasp_pred.reshape(-1, 4, 4)
     grasp_tip = torch.matmul(grasp_pred_mat, gripper_height)[:, :3]
-    tip_loss = mse_loss(grasp_tip, approach_points)
+    tip_loss = tip_mse_loss(grasp_tip, approach_points)
 
     # grasp_target = grasp_target.reshape(-1, 4, 4)
     # target_tip = torch.matmul(grasp_target, gripper_height)[:, :3]
@@ -136,8 +139,22 @@ def calculate_loss(approach_score_pred, grasp_pred, approach_score_gt, grasp_tar
     # dist_mask = dist < 0.02
     # grasp_pred = grasp_pred[dist_mask].reshape(-1, 16)
     # grasp_target = grasp_target[dist_mask].reshape(-1, 16)
-    grasp_loss = mse_loss(grasp_pred, grasp_target)
+    grasp_pred = grasp_pred.reshape(-1, args.grasp_samples, 1,  16)
+    num_grasps_of_approach_points = num_grasps_of_approach_points.reshape(-1, args.grasp_samples)
+    min_grasp_losses = []
+    for i in range(len(grasp_target)):
+        sample_grasp_target = grasp_target[i]
+        sample_grasp_pred = grasp_pred[i].repeat(1, max_grasp_per_point, 1)
+        grasp_losses = grasp_mse_loss(sample_grasp_pred, sample_grasp_target)
+        grasp_losses = grasp_losses.sum(dim=-1)
 
+        #some of the target grasps are just for padding
+        #extract the valid grasp losses and take the minimum
+        for g_idx in range(args.grasp_samples):
+            a_point_loss = grasp_losses[:num_grasps_of_approach_points[i, g_idx]]
+            min_grasp_losses.append(torch.min(a_point_loss, dim=1).values)
+
+    grasp_loss = torch.cat(min_grasp_losses).mean()
     
     return approach_loss, grasp_loss, tip_loss
 
@@ -162,9 +179,9 @@ for epoch in range(1, num_epochs + 1):
             approach_gt = data.approach_scores
         else:
             approach_gt = torch.cat([s.approach_scores for s in data])
-        approach_score_pred, grasp_pred, approach_points, grasp_gt = model(data)
+        approach_score_pred, grasp_pred, approach_points, grasp_gt, num_grasps_of_approach_points = model(data)
 
-        approach_loss, grasp_loss, tip_loss = calculate_loss(approach_score_pred, grasp_pred, approach_gt, grasp_gt, approach_points)
+        approach_loss, grasp_loss, tip_loss = calculate_loss(approach_score_pred, grasp_pred, approach_gt, grasp_gt, approach_points, num_grasps_of_approach_points)
 
         if multi_gpu:
             grasp_loss = grasp_loss.mean()
@@ -231,8 +248,8 @@ for epoch in range(1, num_epochs + 1):
             else:
                 val_approach_gt = torch.cat([s.approach_scores for s in val_data])
 
-            approach_score_pred, val_grasp_pred, approach_points, val_grasp_gt = model(val_data)
-            val_approach_loss, val_grasp_loss, val_tip_loss = calculate_loss(approach_score_pred, val_grasp_pred, val_approach_gt, val_grasp_gt, approach_points)
+            approach_score_pred, val_grasp_pred, approach_points, val_grasp_gt, num_grasps_of_approach_points = model(val_data)
+            val_approach_loss, val_grasp_loss, val_tip_loss = calculate_loss(approach_score_pred, val_grasp_pred, val_approach_gt, val_grasp_gt, approach_points, num_grasps_of_approach_points)
             
             if multi_gpu:
                 val_grasp_loss = val_grasp_loss.mean()

@@ -71,7 +71,7 @@ def show_knn_grap(sample, k=16):
 
 if __name__ == "__main__":
     train_data, valid_data = save_split_samples('../data', -1)
-    dataset = GewaDataset(train_data)
+    dataset = GewaDataset(valid_data)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i','--index', type=int, default=0)
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     idx = args.index
     # visualize_point_cloud(dataset[idx].pos)
-    # visualize_approach_points(dataset[idx].pos.numpy(), dataset[idx].approach_scores.numpy())
+    visualize_approach_points(dataset[idx].pos.numpy(), dataset[idx].approach_scores.numpy())
     # show_object_graph(dataset[idx], ratio=0.2, r=0.0001)
     show_grasps(dataset, idx, show_contacts=True)
     # show_knn_grap(dataset[idx])

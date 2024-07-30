@@ -48,15 +48,16 @@ class DynANet(nn.Module):
         # Point selection (per point cloud)
         # scaled_logits = classification_logits / temperature
         
-        point_distributions = []
         approach_points = []
         grasp_gt = []
         approach_point_idxs = []
+        num_grasps_of_approach_points = []
         
         for i in range(batch.max() + 1):  # Iterate over each point cloud in the batch
             mask = (batch == i)
             sample_pos = pos[mask]
             sample_grasps = data.y[mask]
+            sample_num_grasps = data.num_grasps[mask]
             
             # Multinomial sampling for point selection
             if self.training:
@@ -78,13 +79,16 @@ class DynANet(nn.Module):
             #FOR TEST
             # dummy_gt = torch.eye(4).reshape(-1).repeat(len(point_index), 1).to(sample_grasps.device)
             # grasp_gt.append(dummy_gt)
+            num_grasps_of_approach_points.append(sample_num_grasps[point_index])
 
-            grasp_gt.append(sample_grasps[point_index].reshape(-1, 16))
+            sample_point_target_poses = sample_grasps[point_index].reshape(point_index.shape[0], -1, 16)
+            grasp_gt.append(sample_point_target_poses)
             approach_point_idxs.append(point_index + i * sample_pos.shape[0])
         
         approach_points = torch.cat(approach_points)
-        grasp_gt = torch.cat(grasp_gt)
+        grasp_gt = torch.stack(grasp_gt)
         approach_point_idxs = torch.cat(approach_point_idxs)
+        num_grasps_of_approach_points = torch.cat(num_grasps_of_approach_points)
         # Grasp prediction for the entire batch
         repeated_global_embedding = global_embedding.repeat(self.num_grasp_sample, 1)
         selected_local_features = x[approach_point_idxs]
@@ -99,7 +103,7 @@ class DynANet(nn.Module):
             grasp_outputs[:, :3, 3] + approach_points
             grasp_outputs = grasp_outputs.view(-1, 16)
         
-        return classification_output, grasp_outputs, approach_points, grasp_gt
+        return classification_output, grasp_outputs, approach_points, grasp_gt, num_grasps_of_approach_points
     
     def calculateTransformationMatrix(self, grasp, approach_points):
         translation = grasp[:, :3] + approach_points
