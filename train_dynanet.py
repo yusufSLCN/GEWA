@@ -10,7 +10,7 @@ from tqdm import tqdm
 from gewa_dataset import GewaDataset
 from DynANet import DynANet
 from create_gewa_dataset import save_split_samples
-from metrics import check_batch_grasp_success, count_correct_approach_scores
+from metrics import check_batch_grasp_success_rate_per_point, count_correct_approach_scores
 import os
 import numpy as np
 import torch.optim as optim
@@ -200,9 +200,11 @@ for epoch in range(1, num_epochs + 1):
         if epoch % 20 == 0:
             with torch.no_grad():
                 # Calculate the grasp success rate
-                pred = grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
-                gt = grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
-                train_grasp_success += check_batch_grasp_success(pred, gt,  0.05, np.deg2rad(45)) / len(pred)
+                pred = grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
+                gt = grasp_gt.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_point, 4, 4).numpy()
+                num_grasps_of_approach_points = num_grasps_of_approach_points.cpu().detach().reshape(-1, args.grasp_samples).numpy()
+                train_grasp_success += check_batch_grasp_success_rate_per_point(pred, gt,  0.05, 
+                                                                                np.deg2rad(45), num_grasps_of_approach_points)
 
                 # Calculate the approach accuracy
                 if multi_gpu:
@@ -258,9 +260,11 @@ for epoch in range(1, num_epochs + 1):
 
             if epoch % 20 == 0:
                 # Calculate the grasp success rate
-                pred = val_grasp_pred.cpu().detach().reshape(-1, 4, 4).numpy()
-                gt = val_grasp_gt.cpu().detach().reshape(-1, 4, 4).numpy()
-                valid_grasp_success += check_batch_grasp_success(pred, gt,  0.05, np.deg2rad(45)) / len(pred)
+                pred = val_grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
+                gt = val_grasp_gt.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_point, 4, 4).numpy()
+                num_grasps_of_approach_points = num_grasps_of_approach_points.cpu().detach().reshape(-1, args.grasp_samples).numpy()
+                valid_grasp_success += check_batch_grasp_success_rate_per_point(pred, gt,  0.05, np.deg2rad(45), num_grasps_of_approach_points)
+                
                 # Calculate the approach accuracy
                 if multi_gpu:
                     approach_scores_gt = torch.cat([s.approach_scores for s in val_data], dim=0).to(approach_score_pred.device)

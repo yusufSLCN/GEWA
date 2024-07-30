@@ -31,6 +31,7 @@ class GewaDataset(Dataset):
         # contact_points = np.array([[point_grasps[i][1], point_grasps[i][2]]  for i in range(len(point_grasps))])
         # contact_points = torch.tensor(contact_points, dtype=torch.float32)
         num_grasps = torch.tensor([len(point_grasps[i]) for i in range(len(point_grasps))])
+        num_grasps[num_grasps > self.max_grasp_perpoint] = self.max_grasp_perpoint
         grasps = np.zeros((len(point_grasps), self.max_grasp_perpoint, 4, 4))
         for i in range(len(point_grasps)):
             for j in range(self.max_grasp_perpoint):

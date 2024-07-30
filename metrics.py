@@ -13,14 +13,39 @@ def is_grasp_success(grasp, target, trans_thresh, rotat_thresh):
     else:
         return False
     
-def check_batch_grasp_success(grasp_pred, grasp_gt, trans_thresh, rotat_thresh):
+def check_batch_grasp_success(grasp_pred, grasp_gt, trans_thresh, rotat_thresh, grasp_per_point, num_grasps_of_approach_points):
     trans_diff = np.linalg.norm(grasp_pred[:, :3, 3] - grasp_gt[:, :3, 3], axis=1)
     h = (np.trace(np.matmul(grasp_pred[:, :3, :3].transpose(0, 2, 1), grasp_gt[:, :3, :3]), axis1=1, axis2=2) - 1) / 2
     h = np.clip(h, -1, 1)
     rotat_diff = np.arccos(h)
     success = np.logical_and(rotat_diff < rotat_thresh, trans_diff < trans_thresh)
     num_success = np.sum(success)
-    return num_success 
+    return num_success
+
+def check_batch_grasp_success_rate_per_point(grasp_pred, grasp_gt, trans_thresh, rotat_thresh, num_grasps_of_approach_points):
+    num_success = 0
+    num_valid_points = np.sum(num_grasps_of_approach_points > 0)
+    # print(grasp_pred.shape, grasp_gt.shape)
+    # print(num_grasps_of_approach_points.shape)
+    for mesh_i in range(grasp_pred.shape[0]):
+        for point_i in range(grasp_pred.shape[1]):
+            num_grasp_of_point_i = num_grasps_of_approach_points[mesh_i, point_i]
+            if num_grasp_of_point_i == 0:
+                continue
+            repeated_pred = np.repeat(grasp_pred[mesh_i, point_i], num_grasp_of_point_i, axis=0)
+            grasp_target = grasp_gt[mesh_i, point_i, :num_grasp_of_point_i]
+            # print(f"{repeated_pred.shape=}, {grasp_target.shape=}")
+            trans_diff = np.linalg.norm(repeated_pred[:, :3, 3] - grasp_target[:, :3, 3], axis=1)
+            h = (np.trace(np.matmul(repeated_pred[:, :3, :3].transpose(0, 2, 1), grasp_target[:, :3, :3]), axis1=1, axis2=2) - 1) / 2
+            h = np.clip(h, -1, 1)
+            rotat_diff = np.arccos(h)
+            success = np.logical_and(rotat_diff < rotat_thresh, trans_diff < trans_thresh)
+            num_good_grasp_preds = np.sum(success)
+            if num_good_grasp_preds > 0:
+                num_success += 1
+    
+    success_rate = num_success / num_valid_points
+    return success_rate
 
 def check_batch_grasp_success_all_grasps(grasps, grasp_gt_paths, trans_thresh, rotat_thresh, means=None):
     success_count = 0
@@ -117,7 +142,7 @@ if __name__ == "__main__":
     import time
 
 
-    train_paths, val_paths = save_split_samples('../data', -1)
+    train_paths, val_paths = save_split_samples('../data', 100)
     rotation_range = [-180, 180]
 
     # transform = RandomRotationTransform(rotation_range)
@@ -127,17 +152,20 @@ if __name__ == "__main__":
     approach_acc = 0
 
     start_t = time.time()
-    num_points = 500
+    num_points = 1000
     for i, data in enumerate(train_loader):
         print(f"Batch: {i}/{len(train_loader)}")
-        target = data.y.reshape(-1, 4, 4).detach().numpy()
+        target = data.y.reshape(-1, 1000, 20, 4, 4).detach().numpy()
         # success = check_batch_grasp_success(target, target,  0.03, np.deg2rad(30))
-        grasp_gt_paths = data.sample_info['grasps']
+        # grasp_gt_paths = data.sample_info['grasps']
         # print(target.shape, len(grasp_gt_paths))
-        target = [target[i * 1000 : i * 1000 + num_points] for i in range(len(target)//1000)]
-        target = np.concatenate(target, axis=0)
-        success = check_batch_grasp_success_all_grasps(target, grasp_gt_paths, 0.03, np.deg2rad(30), data.sample_info['mean'])
-        # success = check_batch_grasp_success(target, target, 0.03, np.deg2rad(30))
+        # target = [target[i * 1000 : i * 1000 + num_points] for i in range(len(target)//1000)]
+        # target = np.concatenate(target, axis=0)
+        pred = np.expand_dims(target[:, :, 0], axis=2)
+        # success = check_batch_grasp_success_all_grasps(target, grasp_gt_paths, 0.03, np.deg2rad(30), data.sample_info['mean'])
+        num_grasp_of_approach_points = data.num_grasps.detach().numpy()
+        num_grasp_of_approach_points = num_grasp_of_approach_points.reshape(-1, 1000)
+        success = check_batch_grasp_success_rate_per_point(pred, target, 0.03, np.deg2rad(30), num_grasp_of_approach_points)
         total_success += success
 
         # approach_acc += count_correct_approach_scores(data.approach_scores, data.approach_scores)
@@ -146,4 +174,4 @@ if __name__ == "__main__":
 
 
     print(f"Approach accuracy: {approach_acc / (len(train_dataset) * 1000)}")
-    print(f"Total success rate: {total_success / (len(train_dataset) * num_points)}")
+    print(f"Total success rate: {total_success / len(train_loader)}")
