@@ -188,7 +188,7 @@ for epoch in range(1, num_epochs + 1):
             approach_loss = approach_loss.mean()
             tip_loss = tip_loss.mean()
 
-        loss = approach_loss + 50 * tip_loss + grasp_loss
+        loss = approach_loss + 100 * tip_loss + grasp_loss
         loss.backward()
         # # Update the weights
         optimizer.step()
@@ -203,8 +203,8 @@ for epoch in range(1, num_epochs + 1):
                 pred = grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
                 gt = grasp_gt.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_point, 4, 4).numpy()
                 num_grasps_of_approach_points = num_grasps_of_approach_points.cpu().detach().reshape(-1, args.grasp_samples).numpy()
-                train_grasp_success += check_batch_grasp_success_rate_per_point(pred, gt,  0.05, 
-                                                                                np.deg2rad(45), num_grasps_of_approach_points)
+                train_grasp_success += check_batch_grasp_success_rate_per_point(pred, gt,  0.03, 
+                                                                                np.deg2rad(30), num_grasps_of_approach_points)
 
                 # Calculate the approach accuracy
                 if multi_gpu:
@@ -256,14 +256,15 @@ for epoch in range(1, num_epochs + 1):
             if multi_gpu:
                 val_grasp_loss = val_grasp_loss.mean()
                 val_approach_loss = val_approach_loss.mean()
-            val_loss = val_approach_loss + val_grasp_loss
+                val_tip_loss = val_tip_loss.mean()
+            val_loss = val_approach_loss + 100 * val_tip_loss + val_grasp_loss
 
             if epoch % 20 == 0:
                 # Calculate the grasp success rate
                 pred = val_grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
                 gt = val_grasp_gt.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_point, 4, 4).numpy()
                 num_grasps_of_approach_points = num_grasps_of_approach_points.cpu().detach().reshape(-1, args.grasp_samples).numpy()
-                valid_grasp_success += check_batch_grasp_success_rate_per_point(pred, gt,  0.05, np.deg2rad(45), num_grasps_of_approach_points)
+                valid_grasp_success += check_batch_grasp_success_rate_per_point(pred, gt,  0.03, np.deg2rad(30), num_grasps_of_approach_points)
                 
                 # Calculate the approach accuracy
                 if multi_gpu:

@@ -38,7 +38,8 @@ class GewaDataset(Dataset):
                 if j < len(point_grasps[i]):
                     grasps[i, j] = point_grasps[i][j]
                 else:
-                    grasps[i, j] = np.eye(4)
+                    break
+
         # grasps = np.array([point_grasps[i][0] for i in range(len(point_grasps))])
         point_grasps = torch.tensor(grasps, dtype=torch.float32)
 
