@@ -276,12 +276,12 @@ def create_point_close_grasp_list_and_approach_scores(vertices, grasp_poses, rad
     point_grasp_list = []
     approach_score_target = np.zeros((vertices.shape[0]), dtype=np.int16)
 
+    gripper_tip_vector = np.array([0, 0, 1.12169998e-01, 1])
+    grasp_tip_pos = np.matmul(grasp_poses, gripper_tip_vector)[:, :3]
+
     for i in range(vertices.shape[0]):
         point = vertices[i].astype(np.float32)
 
-        gripper_tip_vector = np.array([0, 0, 1.12169998e-01, 1])
-    
-        grasp_tip_pos = np.matmul(grasp_poses, gripper_tip_vector)[:, :3]
         distances = np.linalg.norm(point - grasp_tip_pos, axis=1)
 
         approach_score = np.sum(distances < radius)

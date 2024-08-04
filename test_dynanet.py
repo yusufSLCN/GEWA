@@ -25,20 +25,20 @@ if __name__ == "__main__":
 
 
     # Access and download model. Returns path to downloaded artifact
-    # downloaded_model_path = run.use_model(name="DynANet_nm_1000__bs_80_epoch_3500.pth:v4")
-    # downloaded_model_path = run.use_model(name="DynANet_nm_1000__bs_80_epoch_140.pth:v7")
-    downloaded_model_path = run.use_model(name="DynANet_nm_100__bs_80_epoch_4560.pth:v0")
+    # downloaded_model_path = run.use_model(name="DynANet_nm_1000__bs_64_epoch_820.pth:v0")
+    # downloaded_model_path = run.use_model(name="DynANet_nm_1000__bs_128_epoch_900.pth:v0")
+    downloaded_model_path = run.use_model(name="DynANet_nm_4000__bs_128_epoch_400.pth:v0")
     print(downloaded_model_path)
 
     model_path = downloaded_model_path
 
     # load the GraspNet model and run inference then display the gripper pose
-    model = DynANet(grasp_dim=9, num_grasp_sample=500)
+    model = DynANet(grasp_dim=9, num_grasp_sample=400)
     model = nn.DataParallel(model)
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
     train_paths, val_paths = save_split_samples('../data', -1)
-    dataset = GewaDataset(train_paths)
+    dataset = GewaDataset(val_paths)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
 
     samlpe_idx = args.sample_idx
@@ -65,5 +65,5 @@ if __name__ == "__main__":
     approach_score_gt = (data[0].approach_scores > 0).float().numpy()
     num_grasps_of_approach_points = num_grasps_of_approach_points[:num_of_grasps].detach().numpy()
     print(grasp_gt.shape, grasp_pred.shape, approach_points.shape, approach_score_pred.shape)
-    visualize_gt_and_pred_gasps(data[0].pos.numpy(), grasp_gt, grasp_pred, approach_points, approach_score_gt, num_grasps_of_approach_points)
-    # visualize_gt_and_pred_gasps(data[0].pos.numpy(), grasp_gt, grasp_pred, approach_points, approach_score_pred)
+    # visualize_gt_and_pred_gasps(data[0].pos.numpy(), grasp_gt, grasp_pred, approach_points, approach_score_gt, num_grasps_of_approach_points)
+    visualize_gt_and_pred_gasps(data[0].pos.numpy(), grasp_gt, grasp_pred, approach_points, approach_score_pred, num_grasps_of_approach_points)

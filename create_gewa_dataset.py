@@ -15,7 +15,7 @@ def save_split_samples(data_dir, num_mesh, train_ratio=0.8):
         samples = np.load(paths_dir, allow_pickle=True)
 
     else:
-        samples = get_point_cloud_samples(data_dir, num_mesh=-1)
+        samples = get_point_cloud_samples(data_dir, num_mesh=-1, min_num_grasps=100)
         #sort by name 
         samples = sorted(samples, key=lambda x: x.simplified_mesh_path)
         np.random.seed(0)
@@ -43,7 +43,7 @@ def save_split_samples(data_dir, num_mesh, train_ratio=0.8):
     return train_samples, valid_samples
 
 
-def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_points=1000, min_num_grasps=10):
+def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_points=1000, min_num_grasps=100):
     simplified_mesh_directory = os.path.join(data_dir, 'simplified_obj')
     grasp_directory =  os.path.join(data_dir, 'acronym/grasps')
     model_root = '../data/ShapeNetSem-backup/models-OBJ/models'

@@ -30,7 +30,7 @@ parser.add_argument('-di', '--device_id', type=int, default=0)
 parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 parser.add_argument('-cr', '--crop_radius', type=float, default=-1)
 parser.add_argument('-gd','--grasp_dim', type=int, default=16)
-parser.add_argument('-gs', '--grasp_samples', type=int, default=500)
+parser.add_argument('-gs', '--grasp_samples', type=int, default=100)
 
 args = parser.parse_args()
 
@@ -290,7 +290,7 @@ for epoch in range(1, num_epochs + 1):
 
             # Save the model if the validation loss is low
             if grasp_success_rate > 0.001:
-                model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}"
+                model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}__gd_{args.grasp_dim}__gs_{args.grasp_samples}.pth"
                 model_folder = f"models/{model_name}"
                 if not os.path.exists(model_folder):
                     os.makedirs(model_folder)

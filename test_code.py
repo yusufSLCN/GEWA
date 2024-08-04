@@ -10,12 +10,15 @@ import numpy as np
 # print(t_arr)
 # t_arr = t_arr.reshape(-1, 16)
 # print(t_arr)
-a = np.zeros((8, 500, 1, 4, 4))
-rep_count = np.arange(5)
 
-rep = np.repeat(a, rep_count, axis=2)
-# rep = np.repeat(a, 16, axis=2)
-print(rep.shape)
+pair1 = set((1,3))
+pair2 = set((3,1))
+print(pair1 == pair2)
+vertices = np.random.rand(3, 3)
+upper_tri_idx = np.triu_indices(vertices.shape[0], k=1)
+pairs = vertices[upper_tri_idx]
+print(upper_tri_idx)
+print(pairs.shape)
 # gt = torch.ones(2, 16) * torch.range(0, 15)
 # pred = torch.zeros(2, 16)
 # import torch.nn as nn

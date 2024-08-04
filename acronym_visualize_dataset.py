@@ -94,22 +94,28 @@ def visualize_grasp(vertices, grasp, query_point_idx):
     scene.add_geometry(sphare)
     scene.show()
 
-def visualize_grasps(vertices, grasps, query_point_idxs, contact_points_idx=None):
+
+def visualize_grasps(vertices, grasps, query_point_idxs=None, contact_points_idx=None):
     scene = create_scene_with_reference(vertices)
-    if contact_points_idx is not None:
-        zipped = zip(grasps, query_point_idxs, contact_points_idx)
-    else:
-        zipped = zip(grasps, query_point_idxs, [None]*len(grasps))
+
+    if query_point_idxs is None:
+        query_point_idxs = [None]*len(grasps)
+
+    if contact_points_idx is None:
+        contact_points_idx = [None]*len(grasps)
+
+    zipped = zip(grasps, query_point_idxs, contact_points_idx)
 
     for grasp, query_point_idx, contact_pair_idx in zipped:
         new_gripper = create_gripper_marker()
         point_gripper = new_gripper.apply_transform(grasp)
         scene.add_geometry(point_gripper)
-        sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
-        sphare.visual.face_colors = [0, 255, 0, 255]
-        query_point = vertices[query_point_idx]
-        sphare.apply_translation(query_point)
-        scene.add_geometry(sphare)
+        if query_point_idx is not None:
+            sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
+            sphare.visual.face_colors = [0, 255, 0, 255]
+            query_point = vertices[query_point_idx]
+            sphare.apply_translation(query_point)
+            scene.add_geometry(sphare)
 
 
         if contact_pair_idx is not None:
@@ -173,17 +179,19 @@ def visualize_gt_and_pred_gasps(vertices, gt, pred, query_point, approach_scores
         scene = create_scene_with_reference(vertices)
 
     for i in range(len(gt)):
-        gt_gripper = create_gripper_marker(color=[0, 255, 0, 255])
 
-        gt_gripper = gt_gripper.apply_transform(gt[i])
-        scene.add_geometry(gt_gripper)
-
+        is_valid_approach_point = True
         if query_point is not None:
             sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
             is_valid_approach_point = num_grasps_of_approach_points[i] > 0
             sphare.visual.face_colors = [0, 255, 0, 255] if is_valid_approach_point else [255, 0, 0, 255]
             sphare.apply_translation(query_point[i])
             scene.add_geometry(sphare)
+
+        if is_valid_approach_point:
+            gt_gripper = create_gripper_marker(color=[0, 255, 0, 255])
+            gt_gripper = gt_gripper.apply_transform(gt[i])
+            scene.add_geometry(gt_gripper)
 
             
         pred_gripper = create_gripper_marker(color=[255, 0, 0, 255])
