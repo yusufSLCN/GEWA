@@ -102,17 +102,14 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
                     sample['scale'] = float(sample['scale'])
                     point_cloud = np.asarray(point_cloud.points) * sample['scale']
 
+                    point_grasp_list, approach_point_scores = create_point_close_grasp_list_and_approach_scores(point_cloud, success_grasp_poses, radius=0.01)
+                    if np.sum(approach_point_scores) < min_num_grasps:
+                        continue
+                    point_grasp_array = np.array(point_grasp_list, dtype=object)
+                    np.save(point_grasps_save_path, point_grasp_array)
+                    np.save(approach_points_save_path, approach_point_scores)
 
-                    if not os.path.exists(point_grasps_save_path) or not os.path.exists(approach_points_save_path):
-                        point_grasp_list, approach_point_scores = create_point_close_grasp_list_and_approach_scores(point_cloud, success_grasp_poses, radius=0.01)
-                        if np.sum(approach_point_scores) < 10:
-                            continue
-                        point_grasp_array = np.array(point_grasp_list, dtype=object)
-                        np.save(point_grasps_save_path, point_grasp_array)
-                        np.save(approach_points_save_path, approach_point_scores)
-
-                    if not os.path.exists(point_cloud_save_path):
-                        np.save(point_cloud_save_path, point_cloud)
+                    np.save(point_cloud_save_path, point_cloud)
                 
                 point_cloud_sample = Sample(simplified_mesh_path, point_cloud_save_path, approach_points_save_path, point_grasps_save_path, grasps_file_name, sample)
                 point_cloud_samples.append(point_cloud_sample)

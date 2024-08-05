@@ -22,20 +22,27 @@ if __name__ == "__main__":
         pos = sample.pos.numpy()
         approach_scores = sample.approach_scores.numpy()
         sample_grasps = sample.y.numpy()
+        num_grasps = sample.num_grasps.numpy()
         point_average = []
         for j in range(len(pos)):
+            if num_grasps[j] > 0:
+                point = pos[j]
+                grasps = sample_grasps[j, :num_grasps[j]]
+                gripper_tip_vector = np.array([0, 0, 1.12169998e-01, 1])
+                grasp_tip_pos = np.matmul(grasps, gripper_tip_vector)[:, :3]
+                #calculate the distance between the point and grasp tip
+                distances = np.linalg.norm(grasp_tip_pos - point, axis=1)
 
-            if approach_scores[j] == 0:
-                continue
-
-            point = pos[j]
-            grasps = sample_grasps[j]
-            gripper_tip_vector = np.array([0, 0, 1.12169998e-01, 1])
-            grasp_tip_pos = np.matmul(grasps, gripper_tip_vector)[:, :3]
-            #calculate the distance between the point and grasp tip
-            distances = np.linalg.norm(grasp_tip_pos - point, axis=1)
-            # print(distances.shape)
-            point_average.append(np.mean(distances))
+                mean_point_distance = np.mean(distances)
+                if mean_point_distance > 0.01:
+                    print(distances)
+                    print(approach_scores[j])
+                    print(f"{sample.sample_info}")
+                    print(f"Object {i}, point {j}")
+                    print(f"Mean point distance: {mean_point_distance}")
+                    #stop code execution
+                    # exit()
+                point_average.append(mean_point_distance)
 
         dataset_average_distance.append(np.array(point_average).mean())
 

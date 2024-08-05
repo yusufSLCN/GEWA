@@ -291,10 +291,6 @@ def create_point_close_grasp_list_and_approach_scores(vertices, grasp_poses, rad
             sorted_grasp_poses = grasp_poses[sorted_indices]
             sorted_distances = distances[sorted_indices]
             sorted_close_grasps = sorted_grasp_poses[sorted_distances < radius]
-
-            # #check the distances again
-            # close_grasp_tip_pos = np.matmul(sorted_close_grasps, gripper_tip_vector)[:, :3]
-            # sorted_close_distances = np.linalg.norm(point - close_grasp_tip_pos, axis=1)
         else:
             sorted_close_grasps = []
         

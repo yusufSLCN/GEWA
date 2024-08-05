@@ -10,7 +10,8 @@ def show_grasps(dataset, idx, show_contacts=False):
     point_idxs = np.random.choice(good_approach_score_idxs, 5)
     print(point_idxs)
     # point_idxs = np.random.randint(len(dataset[idx].pos), size=5)
-    grasps = dataset[idx].y[point_idxs, 0].numpy()
+    point_idxs = [0] * 10
+    grasps = dataset[idx].y[point_idxs, :10].numpy().reshape(-1, 4, 4)
     print(grasps.shape)
     if show_contacts:
         contact_points_idx = dataset[idx].contact_points[point_idxs].numpy().astype(int)
