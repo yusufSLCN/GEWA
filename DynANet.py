@@ -52,6 +52,7 @@ class DynANet(nn.Module):
         grasp_gt = []
         approach_point_idxs = []
         num_grasps_of_approach_points = []
+        selected_approach_scores = []
         
         for i in range(batch.max() + 1):  # Iterate over each point cloud in the batch
             mask = (batch == i)
@@ -70,8 +71,9 @@ class DynANet(nn.Module):
                 with_replacement = torch.sum(sample_appraoch_prob > 0.5) < self.num_grasp_sample
                 point_index = torch.multinomial(sample_appraoch_prob, num_samples=self.num_grasp_sample, 
                                                 replacement=with_replacement.item())
- 
-
+                
+            
+            selected_approach_scores.append(classification_output[mask][point_index])
             # point_index = torch.multinomial(da, num_samples=self.num_grasp_sample)
             # point_index = torch.arange(len(sample_pos))
             selected_point = sample_pos[point_index].squeeze(0)
@@ -89,6 +91,7 @@ class DynANet(nn.Module):
         grasp_gt = torch.stack(grasp_gt)
         approach_point_idxs = torch.cat(approach_point_idxs)
         num_grasps_of_approach_points = torch.cat(num_grasps_of_approach_points)
+        selected_approach_scores = torch.cat(selected_approach_scores)
         # Grasp prediction for the entire batch
         repeated_global_embedding = global_embedding.repeat(self.num_grasp_sample, 1)
         selected_local_features = x[approach_point_idxs]
@@ -103,7 +106,7 @@ class DynANet(nn.Module):
             grasp_outputs[:, :3, 3] + approach_points
             grasp_outputs = grasp_outputs.view(-1, 16)
         
-        return classification_output, grasp_outputs, approach_points, grasp_gt, num_grasps_of_approach_points
+        return classification_output, grasp_outputs, approach_points, grasp_gt, num_grasps_of_approach_points, selected_approach_scores
     
     def calculateTransformationMatrix(self, grasp, approach_points):
         translation = grasp[:, :3] + approach_points

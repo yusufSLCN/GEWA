@@ -22,6 +22,31 @@ def check_batch_grasp_success(grasp_pred, grasp_gt, trans_thresh, rotat_thresh, 
     num_success = np.sum(success)
     return num_success
 
+def check_batch_topk_success_rate(grasp_pred, grasp_gt, trans_thresh, rotat_thresh, num_grasps_of_approach_points, approach_scores, top_k=10):
+    num_success = 0
+    # print(grasp_pred.shape, grasp_gt.shape)
+    # print(num_grasps_of_approach_points.shape)
+    for mesh_i in range(grasp_pred.shape[0]):
+        top_k_idx = np.argsort(approach_scores[mesh_i])[::-1][:top_k]
+        for point_i in top_k_idx:
+            num_grasp_of_point_i = num_grasps_of_approach_points[mesh_i, point_i]
+            if num_grasp_of_point_i == 0:
+                continue
+            repeated_pred = np.repeat(grasp_pred[mesh_i, point_i], num_grasp_of_point_i, axis=0)
+            grasp_target = grasp_gt[mesh_i, point_i, :num_grasp_of_point_i]
+            # print(f"{repeated_pred.shape=}, {grasp_target.shape=}")
+            trans_diff = np.linalg.norm(repeated_pred[:, :3, 3] - grasp_target[:, :3, 3], axis=1)
+            h = (np.trace(np.matmul(repeated_pred[:, :3, :3].transpose(0, 2, 1), grasp_target[:, :3, :3]), axis1=1, axis2=2) - 1) / 2
+            h = np.clip(h, -1, 1)
+            rotat_diff = np.arccos(h)
+            success = np.logical_and(rotat_diff < rotat_thresh, trans_diff < trans_thresh)
+            num_good_grasp_preds = np.sum(success)
+            if num_good_grasp_preds > 0:
+                num_success += 1
+    
+    success_rate = num_success / (grasp_pred.shape[0] * top_k)
+    return success_rate
+
 def check_batch_grasp_success_rate_per_point(grasp_pred, grasp_gt, trans_thresh, rotat_thresh, num_grasps_of_approach_points):
     num_success = 0
     num_valid_points = np.sum(num_grasps_of_approach_points > 0)
