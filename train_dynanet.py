@@ -54,8 +54,8 @@ print("Transform params: ", transfom_params)
 # Save the split samples
 train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh)
 max_grasp_per_point = 20
-train_dataset = GewaDataset(train_dirs, max_grasp_perpoint=max_grasp_per_point)
-val_dataset = GewaDataset(val_dirs)
+train_dataset = GewaDataset(train_dirs, transform=transform, max_grasp_perpoint=max_grasp_per_point)
+val_dataset = GewaDataset(val_dirs, max_grasp_perpoint=max_grasp_per_point)
                    
 # Initialize wandb
 wandb.init(project="Grasp", notes=args.notes)

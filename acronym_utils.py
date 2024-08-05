@@ -291,6 +291,10 @@ def create_point_close_grasp_list_and_approach_scores(vertices, grasp_poses, rad
             sorted_grasp_poses = grasp_poses[sorted_indices]
             sorted_distances = distances[sorted_indices]
             sorted_close_grasps = sorted_grasp_poses[sorted_distances < radius]
+
+            # #check the distances again
+            # close_grasp_tip_pos = np.matmul(sorted_close_grasps, gripper_tip_vector)[:, :3]
+            # sorted_close_distances = np.linalg.norm(point - close_grasp_tip_pos, axis=1)
         else:
             sorted_close_grasps = []
         
@@ -365,20 +369,20 @@ def analyze_dataset_stats(dataset):
 
     return train_class_stats
 
-if __name__ == "__main__":
-    grasp_directory = '/Users/yusufsalcan/Documents/CS_Semester_2/Grasp_Everything_with_Anything/grasps'
-    model_root = '/Users/yusufsalcan/Documents/CS_Semester_2/Grasp_Everything_with_Anything/data/ShapeNetSem-backup/models-OBJ/models'
+# if __name__ == "__main__":
+#     grasp_directory = '/Users/yusufsalcan/Documents/CS_Semester_2/Grasp_Everything_with_Anything/grasps'
+#     model_root = '/Users/yusufsalcan/Documents/CS_Semester_2/Grasp_Everything_with_Anything/data/ShapeNetSem-backup/models-OBJ/models'
 
-    grasp_file_names = load_file_names(grasp_directory)
-    sample_paths = extract_sample_info(grasp_file_names, model_root=model_root)
-    start_time = time.time()
+#     grasp_file_names = load_file_names(grasp_directory)
+#     sample_paths = extract_sample_info(grasp_file_names, model_root=model_root)
+#     start_time = time.time()
 
-    # Loop code here
-    T, success, mesh = load_sample(sample_paths[0])
-    # print(T)
-    mesh, A = convert2graph(mesh, N=1000)
-    end_time = time.time()
-    execution_time = end_time - start_time
-    print("Execution time:", execution_time)
+#     # Loop code here
+#     T, success, mesh = load_sample(sample_paths[0])
+#     # print(T)
+#     mesh, A = convert2graph(mesh, N=1000)
+#     end_time = time.time()
+#     execution_time = end_time - start_time
+#     print("Execution time:", execution_time)
 
 

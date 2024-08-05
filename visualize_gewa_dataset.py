@@ -10,24 +10,15 @@ def show_grasps(dataset, idx, show_contacts=False):
     point_idxs = np.random.choice(good_approach_score_idxs, 5)
     print(point_idxs)
     # point_idxs = np.random.randint(len(dataset[idx].pos), size=5)
-    grasps = dataset[idx].y[point_idxs].numpy()
+    grasps = dataset[idx].y[point_idxs, 0].numpy()
+    print(grasps.shape)
     if show_contacts:
         contact_points_idx = dataset[idx].contact_points[point_idxs].numpy().astype(int)
     else:
         contact_points_idx = None
 
-    visualize_grasps(dataset[idx].pos.numpy(), grasps, point_idxs, contact_points_idx)
+    visualize_grasps(dataset[idx].pos.numpy(), grasps, point_idxs, contact_points_idx, show_tip=True)
 
-    # from DynANet import DynANet
-    # import torch    
-    # grasps = dataset[idx].y[point_idxs]
-    # r1 = grasps[:, :3, 0]
-    # r2 = grasps[:, :3, 1]
-    # t = grasps[:, :3, 3]
-    # artifical_output = torch.cat([t, r1, r2], axis=1)
-    # m = DynANet()
-    # artifical_output = m.calculateTransformationMatrix(artifical_output, 0).numpy()
-    # visualize_grasps(dataset[idx].pos.numpy(), artifical_output, point_idxs, contact_points_idx)
 
 def show_object_graph(sample, ratio, r):
     from torch_geometric.nn import fps, radius
@@ -69,6 +60,7 @@ def show_knn_grap(sample, k=16):
 
 
 
+
 if __name__ == "__main__":
     train_data, valid_data = save_split_samples('../data', -1)
     dataset = GewaDataset(valid_data)
@@ -79,7 +71,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     idx = args.index
     # visualize_point_cloud(dataset[idx].pos)
-    visualize_approach_points(dataset[idx].pos.numpy(), dataset[idx].approach_scores.numpy())
+    # visualize_approach_points(dataset[idx].pos.numpy(), dataset[idx].approach_scores.numpy())
     # show_object_graph(dataset[idx], ratio=0.2, r=0.0001)
-    show_grasps(dataset, idx, show_contacts=True)
+    show_grasps(dataset, idx, show_contacts=False)
     # show_knn_grap(dataset[idx])

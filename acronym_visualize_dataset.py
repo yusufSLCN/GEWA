@@ -95,7 +95,7 @@ def visualize_grasp(vertices, grasp, query_point_idx):
     scene.show()
 
 
-def visualize_grasps(vertices, grasps, query_point_idxs=None, contact_points_idx=None):
+def visualize_grasps(vertices, grasps, query_point_idxs=None, contact_points_idx=None, show_tip=False):
     scene = create_scene_with_reference(vertices)
 
     if query_point_idxs is None:
@@ -110,6 +110,15 @@ def visualize_grasps(vertices, grasps, query_point_idxs=None, contact_points_idx
         new_gripper = create_gripper_marker()
         point_gripper = new_gripper.apply_transform(grasp)
         scene.add_geometry(point_gripper)
+
+        if show_tip:
+            gripper_tip_vector = np.array([0, 0, 1.12169998e-01, 1])
+            grasp_tip_pos = np.matmul(grasp, gripper_tip_vector)[:3]
+            tip = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
+            tip.visual.face_colors = [0, 0, 255, 255]
+            tip.apply_translation(grasp_tip_pos)
+            scene.add_geometry(tip)
+
         if query_point_idx is not None:
             sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
             sphare.visual.face_colors = [0, 255, 0, 255]
@@ -120,13 +129,13 @@ def visualize_grasps(vertices, grasps, query_point_idxs=None, contact_points_idx
 
         if contact_pair_idx is not None:
             contact1_sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
-            contact1_sphare.visual.face_colors = [255, 255, 0, 255]
+            contact1_sphare.visual.face_colors = [136, 0, 255, 255]
             contact_point1 = vertices[contact_pair_idx[0]]
             contact1_sphare.apply_translation(contact_point1)
             scene.add_geometry(contact1_sphare)
 
             contact2_sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
-            contact2_sphare.visual.face_colors = [255, 255, 0, 255]
+            contact2_sphare.visual.face_colors = [51, 255, 204, 255]
             contact_point2 = vertices[contact_pair_idx[1]]
             contact2_sphare.apply_translation(contact_point2)
             scene.add_geometry(contact2_sphare)

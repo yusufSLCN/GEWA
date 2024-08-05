@@ -131,7 +131,7 @@ def create_touch_point_pair_scores_and_grasps(vertices, grasp_poses, cylinder_ra
 
     point_pair_score_matrix = np.zeros((vertices.shape[0], vertices.shape[0]), dtype=int)
     upper_tri_idx = np.triu_indices(vertices.shape[0], k=1)
-    tpp_grasps_matrix = np.zeros((vertices.shape[0], vertices.shape[0], max_grasps_per_pair, 4, 4))
+    # tpp_grasps_matrix = np.zeros((vertices.shape[0], vertices.shape[0], max_grasps_per_pair, 4, 4))
     # grasp_counts = np.zeros((len(upper_tri_idx[0])))
 
     tpp_grasp_dict = {}
@@ -161,7 +161,7 @@ def create_touch_point_pair_scores_and_grasps(vertices, grasp_poses, cylinder_ra
                 point_pair_score_matrix[j, i] += 1
                 tpp_grasp_dict[frozenset((i, j))].append(pose)
 
-    print(point_pair_score_matrix)
+    # print(point_pair_score_matrix)
     pair_scores = point_pair_score_matrix[upper_tri_idx]
     # tpp_grasps = tpp_grasps_matrix[upper_tri_idx]
     return pair_scores, tpp_grasp_dict
@@ -196,25 +196,64 @@ def is_point_inside_cylinder(points, cylinder_top, cylinder_bottom, cylinder_rad
 
 
 
+def create_point_cloud_and_grasps(N, num_grasps):
+    gripper_right_tip_vector = np.array([-5.100000e-02, 0, 1.12169998e-01, 1])
+    gripper_left_tip_vector = np.array([5.10000000e-02, 0, 1.12169998e-01, 1])
+    cube_size = 0.08
+    mid_point = (gripper_right_tip_vector[:3] + gripper_left_tip_vector[:3]) / 2
+    points = np.random.uniform(-cube_size/2, cube_size/2, size=(N, 3)) + mid_point
+    dummy_grasp_poses = np.eye(4).reshape(1, 4, 4).repeat(num_grasps, axis=0)
+    for i in range(1, num_grasps):
+        dummy_grasp_poses[i, :3, :3] = o3d.geometry.get_rotation_matrix_from_xyz([0, 0, i * np.pi/num_grasps])
+    return points, dummy_grasp_poses
+
 if __name__ == "__main__":
-    train_samples, val_samples = save_split_samples('../data', 100)
-    print(f"Number of train samples: {len(train_samples)}")
-    print(f"Number of validation samples: {len(val_samples)}")
-    print("Done!")
+    # train_samples, val_samples = save_split_samples('../data', 100)
+    # print(f"Number of train samples: {len(train_samples)}")
+    # print(f"Number of validation samples: {len(val_samples)}")
+    # print("Done!")
 
-    samp = train_samples[0]
-    print(samp)
+    # samp = train_samples[0]
+    # print(samp)
+    from gewa_dataset import GewaDataset
+    import create_gewa_dataset
 
+    # train_paths, val_paths = create_gewa_dataset.save_split_samples('../data', 100)
+    # dataset = GewaDataset(train_paths, normalize_points=True)
 
-    # gripper_right_tip_vector = np.array([-4.100000e-02, -7.27595772e-12, 1.12169998e-01, 1])
-    # gripper_left_tip_vector = np.array([4.10000000e-02, -7.27595772e-12, 1.12169998e-01, 1])
+    # sample = dataset[1]
+    # points = sample.x.detach().numpy()
+    # grasps = sample.y.detach().numpy()
+    # num_grasps = sample.num_grasps.detach().numpy()
+    # valid_grasps = grasps[num_grasps > 0]
+    # p_idxs = np.random.randint(0, valid_grasps.shape[0], 2)
+    # dummy_grasp_poses = valid_grasps[:10, 0]
 
-    # # Generate 20 points between the two vectors
-    # points = np.linspace(gripper_right_tip_vector, gripper_left_tip_vector, num=20)[:,:3] 
-    # # print(points)
-    # dummy_grasp_poses = np.eye(4).reshape(1, 4, 4).repeat(2, axis=0)
-    # pair_scores, tpp_grasp_dict = create_touch_point_pair_scores_and_grasps(points, dummy_grasp_poses, cylinder_radius=0.02, cylinder_height=0.04)
-    # print(pair_scores)
-    # print(tpp_grasp_dict)
+    N = 1000
+
+    num_grasps = 2
+    points, dummy_grasp_poses = create_point_cloud_and_grasps(N, num_grasps)
+
+    pair_scores, tpp_grasp_dict = create_touch_point_pair_scores_and_grasps(points, dummy_grasp_poses, cylinder_radius=0.01, cylinder_height=0.04)
+    
+    from acronym_visualize_dataset import visualize_grasps
+    pair_idx = np.where(pair_scores > 0)[0]
+    print(pair_idx)
+    triu_indices = np.triu_indices(N, k=1)
+    grasps = []
+    contact_idxs = []
+    for i, j in zip(triu_indices[0][pair_idx], triu_indices[1][pair_idx]):
+        # print(len(tpp_grasp_dict[frozenset((i, j))]))
+        # for grasp in tpp_grasp_dict[frozenset((i, j))]:
+        #     grasps.append(grasp.reshape(4, 4))
+        #     contact_idxs.append([i, j])
+        # break
+        grasps.append(tpp_grasp_dict[frozenset((i, j))][0].reshape(4, 4))
+        contact_idxs.append([i, j])
+
+    grasps = np.array(grasps)
+    # print(grasps.shape)
+    visualize_grasps(points, grasps, None, contact_idxs)
+    visualize_grasps(points, dummy_grasp_poses, None, None)
 
     
