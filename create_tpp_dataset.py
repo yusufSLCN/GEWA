@@ -46,9 +46,9 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
     simplified_mesh_directory = os.path.join(data_dir, 'simplified_obj')
     grasp_directory =  os.path.join(data_dir, 'acronym/grasps')
     model_root = '../data/ShapeNetSem-backup/models-OBJ/models'
-    pair_grasp_folder = os.path.join(data_dir, f'pair_grasps_{num_points}')
-    point_cloud_folder = os.path.join(data_dir, f'point_cloud_{num_points}')
-    touch_pair_score_folder = os.path.join(data_dir, f'touch_pair_scores_{num_points}')
+    pair_grasp_folder = os.path.join(data_dir, f'tpp_grasps_{num_points}')
+    point_cloud_folder = os.path.join(data_dir, f'tpp_point_cloud_{num_points}')
+    touch_pair_score_folder = os.path.join(data_dir, f'tpp_scores_{num_points}')
 
 
     if not os.path.exists(touch_pair_score_folder):
@@ -103,16 +103,13 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
                     sample['scale'] = float(sample['scale'])
                     point_cloud = np.asarray(point_cloud.points) * sample['scale']
 
+                    pair_score_matrix, tpp_grasp_dict, _ = create_touch_point_pair_scores_and_grasps(point_cloud, success_grasp_poses, cylinder_radius=0.01, cylinder_height=0.041)
+                    if np.sum(pair_score_matrix) < min_num_grasps:
+                        continue
+                    np.save(touch_pair_scores_path, pair_score_matrix)
+                    np.save(pair_grasps_save_path, tpp_grasp_dict)
 
-                    if not os.path.exists(touch_pair_scores_path) or not os.path.exists(pair_grasps_save_path):
-                        pair_scores, tpp_grasp_dict = create_touch_point_pair_scores_and_grasps(point_cloud, success_grasp_poses, cylinder_radius=1, cylinder_height=1)
-                        if np.sum(pair_scores) < min_num_grasps:
-                            continue
-                        np.save(touch_pair_scores_path, pair_scores)
-                        np.save(pair_grasps_save_path, tpp_grasp_dict)
-
-                    if not os.path.exists(point_cloud_save_path):
-                        np.save(point_cloud_save_path, point_cloud)
+                    np.save(point_cloud_save_path, point_cloud)
                 
                 point_cloud_sample = TPPSample(simplified_mesh_path, point_cloud_save_path, touch_pair_scores_path, pair_grasps_save_path, grasps_file_name, sample)
                 point_cloud_samples.append(point_cloud_sample)
@@ -125,7 +122,7 @@ def create_touch_point_pair_scores_and_grasps(vertices, grasp_poses, cylinder_ra
     right_tip_pos = np.matmul(grasp_poses, gripper_right_tip_vector)[:, :3]
     left_tip_pos = np.matmul(grasp_poses, gripper_left_tip_vector)[:, :3]
     tip_axis =  right_tip_pos - left_tip_pos
-    tip_axis = tip_axis / np.linalg.norm(tip_axis)
+    tip_axis = tip_axis / np.linalg.norm(tip_axis, axis=1).reshape(-1, 1)
     left_cylinder_bottom = left_tip_pos + tip_axis * cylinder_height
     right_cylinder_bottom = right_tip_pos - tip_axis * cylinder_height
 
@@ -155,16 +152,15 @@ def create_touch_point_pair_scores_and_grasps(vertices, grasp_poses, cylinder_ra
                 if point_pair_score_matrix[i, j] >= max_grasps_per_pair:
                     continue
  
-                # tpp_grasps_matrix[i, j, point_pair_score_matrix[i, j]] = pose
-                # tpp_grasps_matrix[j, i, point_pair_score_matrix[i, j]] = pose
                 point_pair_score_matrix[i, j] += 1
-                point_pair_score_matrix[j, i] += 1
+                # point_pair_score_matrix[j, i] += 1
                 tpp_grasp_dict[frozenset((i, j))].append(pose)
 
     # print(point_pair_score_matrix)
-    pair_scores = point_pair_score_matrix[upper_tri_idx]
+    # pair_scores = point_pair_score_matrix[upper_tri_idx]
     # tpp_grasps = tpp_grasps_matrix[upper_tri_idx]
-    return pair_scores, tpp_grasp_dict
+    cylinder_edges = (right_tip_pos, right_cylinder_bottom, left_tip_pos, left_cylinder_bottom)
+    return point_pair_score_matrix, tpp_grasp_dict, cylinder_edges
 
         
 
@@ -208,52 +204,54 @@ def create_point_cloud_and_grasps(N, num_grasps):
     return points, dummy_grasp_poses
 
 if __name__ == "__main__":
-    # train_samples, val_samples = save_split_samples('../data', 100)
-    # print(f"Number of train samples: {len(train_samples)}")
-    # print(f"Number of validation samples: {len(val_samples)}")
-    # print("Done!")
+    train_samples, val_samples = save_split_samples('../data', -1)
+    print(f"Number of train samples: {len(train_samples)}")
+    print(f"Number of validation samples: {len(val_samples)}")
+    print("Done!")
 
-    # samp = train_samples[0]
-    # print(samp)
-    from gewa_dataset import GewaDataset
-    import create_gewa_dataset
+    samp = train_samples[0]
+    print(samp)
+    # from gewa_dataset import GewaDataset
+    # import create_gewa_dataset
 
     # train_paths, val_paths = create_gewa_dataset.save_split_samples('../data', 100)
     # dataset = GewaDataset(train_paths, normalize_points=True)
+    # num_grasp_samples = 3
 
     # sample = dataset[1]
     # points = sample.x.detach().numpy()
     # grasps = sample.y.detach().numpy()
     # num_grasps = sample.num_grasps.detach().numpy()
     # valid_grasps = grasps[num_grasps > 0]
-    # p_idxs = np.random.randint(0, valid_grasps.shape[0], 2)
-    # dummy_grasp_poses = valid_grasps[:10, 0]
-
-    N = 1000
-
-    num_grasps = 2
-    points, dummy_grasp_poses = create_point_cloud_and_grasps(N, num_grasps)
-
-    pair_scores, tpp_grasp_dict = create_touch_point_pair_scores_and_grasps(points, dummy_grasp_poses, cylinder_radius=0.01, cylinder_height=0.04)
     
-    from acronym_visualize_dataset import visualize_grasps
-    pair_idx = np.where(pair_scores > 0)[0]
-    print(pair_idx)
-    triu_indices = np.triu_indices(N, k=1)
-    grasps = []
-    contact_idxs = []
-    for i, j in zip(triu_indices[0][pair_idx], triu_indices[1][pair_idx]):
-        # print(len(tpp_grasp_dict[frozenset((i, j))]))
-        # for grasp in tpp_grasp_dict[frozenset((i, j))]:
-        #     grasps.append(grasp.reshape(4, 4))
-        #     contact_idxs.append([i, j])
-        # break
-        grasps.append(tpp_grasp_dict[frozenset((i, j))][0].reshape(4, 4))
-        contact_idxs.append([i, j])
+    # p_idxs = np.random.randint(0, valid_grasps.shape[0], num_grasp_samples)
+    # dummy_grasp_poses = valid_grasps[p_idxs, 0]
 
-    grasps = np.array(grasps)
-    # print(grasps.shape)
-    visualize_grasps(points, grasps, None, contact_idxs)
-    visualize_grasps(points, dummy_grasp_poses, None, None)
+    # N = 1000
+
+    # # num_grasp_samples = 2
+    # # points, dummy_grasp_poses = create_point_cloud_and_grasps(N, num_grasp_samples)
+
+    # point_pair_score_matrix, tpp_grasp_dict, cylinder_edges = create_touch_point_pair_scores_and_grasps(points, dummy_grasp_poses, cylinder_radius=0.01, cylinder_height=0.041)
+    
+    # from acronym_visualize_dataset import visualize_grasps
+    # pair_idxs = np.where(point_pair_score_matrix > 0)
+    # print(pair_idxs)
+    # print("_"*100)
+    # grasps = []
+    # contact_idxs = []
+    # for i, j in zip(pair_idxs[0], pair_idxs[1]):
+    #     grasps.append(tpp_grasp_dict[frozenset((i, j))][0].reshape(4, 4))
+    #     contact_idxs.append([i, j])
+
+    # grasps = np.array(grasps)
+    # edges = []
+    # for cylinder in zip(*cylinder_edges):
+    #     edges.append(cylinder)
+    
+
+    # # print(contact_idxs)
+    # # visualize_grasps(points, grasps, None, contact_idxs, cylinder_edges=edges)
+    # visualize_grasps(points, dummy_grasp_poses, None, contact_idxs, cylinder_edges=edges)
 
     

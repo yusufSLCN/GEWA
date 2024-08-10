@@ -95,18 +95,27 @@ def visualize_grasp(vertices, grasp, query_point_idx):
     scene.show()
 
 
-def visualize_grasps(vertices, grasps, query_point_idxs=None, contact_points_idx=None, show_tip=False):
+def visualize_grasps(vertices, grasps, query_point_idxs=None, contact_points_idx=None, cylinder_edges=None, show_tip=False):
     scene = create_scene_with_reference(vertices)
 
     if query_point_idxs is None:
         query_point_idxs = [None]*len(grasps)
 
-    if contact_points_idx is None:
-        contact_points_idx = [None]*len(grasps)
+    if cylinder_edges is None:
+        for cylinder_edge in cylinder_edges:
+            edge_sphare1 = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
+            edge_sphare1.visual.face_colors = [0, 0, 0, 255]
+            edge_sphare1.apply_translation(cylinder_edge[1])
+            scene.add_geometry(edge_sphare1)
 
-    zipped = zip(grasps, query_point_idxs, contact_points_idx)
+            edge_sphare2 = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
+            edge_sphare2.visual.face_colors = [0, 0, 0, 255]
+            edge_sphare2.apply_translation(cylinder_edge[3])
+            scene.add_geometry(edge_sphare2)
 
-    for grasp, query_point_idx, contact_pair_idx in zipped:
+            
+    zipped = zip(grasps, query_point_idxs)    
+    for grasp, query_point_idx in zipped:
         new_gripper = create_gripper_marker()
         point_gripper = new_gripper.apply_transform(grasp)
         scene.add_geometry(point_gripper)
@@ -127,18 +136,20 @@ def visualize_grasps(vertices, grasps, query_point_idxs=None, contact_points_idx
             scene.add_geometry(sphare)
 
 
-        if contact_pair_idx is not None:
+    if contact_points_idx is not None:
+        for contact_pair in contact_points_idx:
             contact1_sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
             contact1_sphare.visual.face_colors = [136, 0, 255, 255]
-            contact_point1 = vertices[contact_pair_idx[0]]
+            contact_point1 = vertices[contact_pair[0]]
             contact1_sphare.apply_translation(contact_point1)
             scene.add_geometry(contact1_sphare)
 
             contact2_sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
             contact2_sphare.visual.face_colors = [51, 255, 204, 255]
-            contact_point2 = vertices[contact_pair_idx[1]]
+            contact_point2 = vertices[contact_pair[1]]
             contact2_sphare.apply_translation(contact_point2)
             scene.add_geometry(contact2_sphare)
+
     scene.show()
 
 def visualize_gt_and_pred_gasp(vertices, gt, pred, query_point, approach_scores=None):

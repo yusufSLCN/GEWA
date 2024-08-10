@@ -14,7 +14,7 @@ import numpy as np
 pair1 = set((1,3))
 pair2 = set((3,1))
 print(pair1 == pair2)
-vertices = np.random.rand(3, 3)
+vertices = np.random.rand(5, 5)
 upper_tri_idx = np.triu_indices(vertices.shape[0], k=1)
 pairs = vertices[upper_tri_idx]
 print(upper_tri_idx)
