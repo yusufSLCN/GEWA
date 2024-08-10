@@ -10,7 +10,7 @@ from tqdm import tqdm
 from gewa_dataset import GewaDataset
 from DynANet import DynANet
 from create_gewa_dataset import save_split_samples
-from metrics import check_batch_topk_success_rate, count_correct_approach_scores
+from metrics import check_batch_topk_success_rate, count_correct_approach_scores, check_batch_grasp_success_rate_per_point
 import os
 import numpy as np
 import torch.optim as optim
@@ -24,7 +24,7 @@ parser.add_argument('-d', '--device', type=str, default='cuda')
 parser.add_argument('-nw', '--num_workers', type=int, default=0)
 parser.add_argument('-nm', '--num_mesh', type=int, default=10)
 parser.add_argument('-dd', '--data_dir', type=str, default='../data')
-parser.add_argument('-na', '--no_augment', dest='augment', action='store_false')
+parser.add_argument('-a', '--augment', dest='augment', action='store_true')
 parser.add_argument('-n', '--notes', type=str, default='')
 parser.add_argument('-di', '--device_id', type=int, default=0)
 parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
@@ -204,9 +204,10 @@ for epoch in range(1, num_epochs + 1):
                 gt = grasp_gt.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_point, 4, 4).numpy()
                 num_grasps_of_approach_points = num_grasps_of_approach_points.cpu().detach().reshape(-1, args.grasp_samples).numpy()
                 selected_approach_scores = selected_approach_scores.cpu().detach().numpy()
-                train_grasp_success += check_batch_topk_success_rate(pred, gt,  0.03, 
-                                                                    np.deg2rad(30), num_grasps_of_approach_points, selected_approach_scores)
-
+                # train_grasp_success += check_batch_topk_success_rate(pred, gt,  0.03, 
+                #                                                     np.deg2rad(30), num_grasps_of_approach_points, selected_approach_scores)
+                train_grasp_success += check_batch_grasp_success_rate_per_point(pred, gt, 0.03,
+                                                                                np.deg2rad(30), num_grasps_of_approach_points)
                 # Calculate the approach accuracy
                 if multi_gpu:
                     approach_scores_gt = torch.cat([s.approach_scores for s in data], dim=0).to(approach_score_pred.device)
@@ -266,9 +267,10 @@ for epoch in range(1, num_epochs + 1):
                 gt = val_grasp_gt.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_point, 4, 4).numpy()
                 num_grasps_of_approach_points = num_grasps_of_approach_points.cpu().detach().reshape(-1, args.grasp_samples).numpy()
                 selected_approach_scores = selected_approach_scores.cpu().detach().reshape(-1, args.grasp_samples).numpy()
-                valid_grasp_success += check_batch_topk_success_rate(pred, gt,  0.03, np.deg2rad(30), 
-                                                                                num_grasps_of_approach_points, selected_approach_scores)
-                
+                # valid_grasp_success += check_batch_topk_success_rate(pred, gt,  0.03, np.deg2rad(30), 
+                #                                                                 num_grasps_of_approach_points, selected_approach_scores)
+                valid_grasp_success += check_batch_grasp_success_rate_per_point(pred, gt, 0.03,
+                                                                np.deg2rad(30), num_grasps_of_approach_points)
                 # Calculate the approach accuracy
                 if multi_gpu:
                     approach_scores_gt = torch.cat([s.approach_scores for s in val_data], dim=0).to(approach_score_pred.device)
@@ -292,7 +294,7 @@ for epoch in range(1, num_epochs + 1):
             wandb.log({"Valid Approach Accuracy": approach_accuracy}, step=epoch)
 
             # Save the model if the validation loss is low
-            if grasp_success_rate > 0.001:
+            if grasp_success_rate > 0.1:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}__gd_{args.grasp_dim}__gs_{args.grasp_samples}.pth"
                 model_folder = f"models/{model_name}"
                 if not os.path.exists(model_folder):

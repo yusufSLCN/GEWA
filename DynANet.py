@@ -66,14 +66,13 @@ class DynANet(nn.Module):
                 with_replacement = torch.sum(approach_scores > 0.5) < self.num_grasp_sample
                 point_index = torch.multinomial(approach_scores, num_samples=self.num_grasp_sample,
                                                 replacement=with_replacement.item())
+                selected_approach_scores.append(approach_scores[point_index])
             else:
                 sample_appraoch_prob = classification_output[mask]
                 with_replacement = torch.sum(sample_appraoch_prob > 0.5) < self.num_grasp_sample
                 point_index = torch.multinomial(sample_appraoch_prob, num_samples=self.num_grasp_sample, 
                                                 replacement=with_replacement.item())
-                
-            
-            selected_approach_scores.append(classification_output[mask][point_index])
+                selected_approach_scores.append(sample_appraoch_prob[point_index])
             # point_index = torch.multinomial(da, num_samples=self.num_grasp_sample)
             # point_index = torch.arange(len(sample_pos))
             selected_point = sample_pos[point_index].squeeze(0)
