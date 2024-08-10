@@ -204,18 +204,49 @@ def create_point_cloud_and_grasps(N, num_grasps):
     return points, dummy_grasp_poses
 
 if __name__ == "__main__":
+    
     train_samples, val_samples = save_split_samples('../data', -1)
     print(f"Number of train samples: {len(train_samples)}")
     print(f"Number of validation samples: {len(val_samples)}")
     print("Done!")
 
-    samp = train_samples[0]
-    print(samp)
+    exit()
+    from tpp_dataset import TPPDataset
+    from acronym_visualize_dataset import visualize_grasps
+
+    dataset = TPPDataset(train_samples)
+    # samp = train_samples[0]
+    # print(samp)
+    sample = dataset[0]
+    pos =sample.pos.numpy()
+    grasps = sample.y.numpy()
+    pair_scores = sample.pair_scores.numpy()
+
+    pair_idxs = np.where(pair_scores > 0)[0]
+    random_idxs = np.random.randint(0, pair_idxs.shape[0], 5)
+    selected_pair_idxs = pair_idxs[random_idxs]
+    print(selected_pair_idxs)
+    selected_pairs = [[i, j] for i, j in zip(dataset.triu_indices[0][selected_pair_idxs], dataset.triu_indices[1][selected_pair_idxs])]
+    selected_grasps = []
+    contact_idxs = []
+    print(selected_pairs)
+    # for pair in selected_pairs:
+    #     i, j = pair
+    #     key = frozenset((i, j))
+    #     selected_grasps.append(grasps[key][0].reshape(4, 4))
+    #     contact_idxs.append([i, j])
+
+    for pair_idx in selected_pair_idxs:
+        i, j = dataset.triu_indices[0][pair_idx], dataset.triu_indices[1][pair_idx]
+        selected_grasps.append(grasps[pair_idx, 0].reshape(4, 4))
+        contact_idxs.append([i, j])
+
+    visualize_grasps(pos, selected_grasps, None, contact_idxs)
     # from gewa_dataset import GewaDataset
     # import create_gewa_dataset
 
     # train_paths, val_paths = create_gewa_dataset.save_split_samples('../data', 100)
-    # dataset = GewaDataset(train_paths, normalize_points=True)
+    # dataset = GewaDataset(train_samples, normalize_points=True)
     # num_grasp_samples = 3
 
     # sample = dataset[1]
@@ -234,7 +265,6 @@ if __name__ == "__main__":
 
     # point_pair_score_matrix, tpp_grasp_dict, cylinder_edges = create_touch_point_pair_scores_and_grasps(points, dummy_grasp_poses, cylinder_radius=0.01, cylinder_height=0.041)
     
-    # from acronym_visualize_dataset import visualize_grasps
     # pair_idxs = np.where(point_pair_score_matrix > 0)
     # print(pair_idxs)
     # print("_"*100)

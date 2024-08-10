@@ -101,7 +101,7 @@ def visualize_grasps(vertices, grasps, query_point_idxs=None, contact_points_idx
     if query_point_idxs is None:
         query_point_idxs = [None]*len(grasps)
 
-    if cylinder_edges is None:
+    if cylinder_edges is not None:
         for cylinder_edge in cylinder_edges:
             edge_sphare1 = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
             edge_sphare1.visual.face_colors = [0, 0, 0, 255]

@@ -22,16 +22,21 @@ class TPPDataset(Dataset):
         sample = self.data[idx]
         # Process the sample if needed
         point_cloud = sample.point_cloud
-        touch_pair_scores = sample.touch_pair_scores
+        touch_pair_score_matrix = sample.touch_pair_scores
         pair_grasps_dict = sample.pair_grasps 
         sample_info = sample.info
   
         # convert to torch tensors
         point_cloud = torch.tensor(point_cloud, dtype=torch.float32)
-        pair_scores = torch.tensor(touch_pair_scores, dtype=torch.int16)
+        pair_scores = torch.zeros((len(self.triu_indices[0])), dtype=torch.int16)
 
         pair_grasps = torch.zeros((len(self.triu_indices[0]), self.max_grasp_perpoint, 4, 4), dtype=torch.float32)
         for i in range(len(self.triu_indices[0])):
+            num_pair_grasps = 0
+            num_pair_grasps = touch_pair_score_matrix[self.triu_indices[0][i], self.triu_indices[1][i]]
+            num_pair_grasps += touch_pair_score_matrix[self.triu_indices[1][i], self.triu_indices[0][i]]
+            pair_scores[i] = num_pair_grasps
+
             key = frozenset((self.triu_indices[0][i], self.triu_indices[1][i]))
             if key in pair_grasps_dict:
                 grasps = np.array(pair_grasps_dict[key])
