@@ -5,6 +5,7 @@ import tqdm
 from acronym_utils import load_file_names, extract_sample_info
 import h5py
 import open3d as o3d
+import torch
 
 
 def save_split_samples(data_dir, num_mesh, train_ratio=0.8):
@@ -49,7 +50,11 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
     pair_grasp_folder = os.path.join(data_dir, f'tpp_grasps_{num_points}')
     point_cloud_folder = os.path.join(data_dir, f'tpp_point_cloud_{num_points}')
     touch_pair_score_folder = os.path.join(data_dir, f'tpp_scores_{num_points}')
+    touch_pair_score_matrix_folder = os.path.join(data_dir, f'tpp_score_matrix_{num_points}')
 
+    if not os.path.exists(touch_pair_score_matrix_folder):
+        print(f"Creating directory {touch_pair_score_matrix_folder}")
+        os.makedirs(touch_pair_score_matrix_folder)
 
     if not os.path.exists(touch_pair_score_folder):
         print(f"Creating directory {touch_pair_score_folder}")
@@ -78,9 +83,10 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
     print("Extracting simplified meshes with closest grasps")
     for i, sample in tqdm.tqdm(enumerate(sample_info), total=len(sample_info)):
         simplified_mesh_path = f'{simplified_mesh_directory}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.obj'
-        touch_pair_scores_path = f'{touch_pair_score_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
-        point_cloud_save_path = f'{point_cloud_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
-        pair_grasps_save_path = f'{pair_grasp_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
+        pair_scores_path = f'{touch_pair_score_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
+        pair_score_matrix_path = f'{touch_pair_score_matrix_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
+        point_cloud_path = f'{point_cloud_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
+        pair_grasps_path = f'{pair_grasp_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
 
         # Check if the simplified mesh exists because not all samples have been simplified
         if os.path.exists(simplified_mesh_path):
@@ -97,21 +103,27 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
                 success_grasp_mask = grasp_success > success_threshold
                 success_grasp_poses = grasp_poses[success_grasp_mask]
 
-                if not (os.path.exists(point_cloud_save_path) and os.path.exists(touch_pair_scores_path) and os.path.exists(pair_grasps_save_path)):
+                if not (os.path.exists(point_cloud_path) and os.path.exists(pair_scores_path) and os.path.exists(pair_grasps_path) and os.path.exists(pair_score_matrix_path)):
                     mesh_data = o3d.io.read_triangle_mesh(simplified_mesh_path)
                     point_cloud = mesh_data.sample_points_poisson_disk(num_points)
                     sample['scale'] = float(sample['scale'])
                     point_cloud = np.asarray(point_cloud.points) * sample['scale']
 
-                    pair_score_matrix, tpp_grasp_dict, _ = create_touch_point_pair_scores_and_grasps(point_cloud, success_grasp_poses, cylinder_radius=0.01, cylinder_height=0.041)
+                    #normalize point cloud
+                    mean = np.mean(point_cloud, axis=0)
+                    point_cloud = point_cloud - mean
+                    success_grasp_poses[:, :3, 3] = success_grasp_poses[:, :3, 3] - mean
+
+                    pair_score_matrix, pair_scores, tpp_grasp_dict, _ = create_touch_point_pair_scores_and_grasps(point_cloud, success_grasp_poses, cylinder_radius=0.01, cylinder_height=0.041)
                     if np.sum(pair_score_matrix) < min_num_grasps:
                         continue
-                    np.save(touch_pair_scores_path, pair_score_matrix)
-                    np.save(pair_grasps_save_path, tpp_grasp_dict)
-
-                    np.save(point_cloud_save_path, point_cloud)
+                    np.save(pair_score_matrix_path, pair_score_matrix)
+                    np.save(pair_scores_path, pair_scores)
+                    np.save(pair_grasps_path, tpp_grasp_dict)
+                    np.save(point_cloud_path, point_cloud)
                 
-                point_cloud_sample = TPPSample(simplified_mesh_path, point_cloud_save_path, touch_pair_scores_path, pair_grasps_save_path, grasps_file_name, sample)
+                point_cloud_sample = TPPSample(simplified_mesh_path, point_cloud_path, pair_scores_path, pair_score_matrix_path,
+                                               pair_grasps_path, grasps_file_name, sample)
                 point_cloud_samples.append(point_cloud_sample)
     return point_cloud_samples
 
@@ -156,11 +168,22 @@ def create_touch_point_pair_scores_and_grasps(vertices, grasp_poses, cylinder_ra
                 # point_pair_score_matrix[j, i] += 1
                 tpp_grasp_dict[frozenset((i, j))].append(pose)
 
+    #convert dictionary lists to torch tensors
+    for key in tpp_grasp_dict:
+        tpp_grasp_dict[key] = np.array(tpp_grasp_dict[key])
+
+    pair_scores = torch.zeros((len(upper_tri_idx[0])), dtype=torch.int16)
+    for i in range(pair_scores.shape[0]):
+        num_pair_grasps = 0
+        num_pair_grasps = point_pair_score_matrix[upper_tri_idx[0][i], upper_tri_idx[1][i]]
+        num_pair_grasps += point_pair_score_matrix[upper_tri_idx[1][i], upper_tri_idx[0][i]]
+        pair_scores[i] = num_pair_grasps
+
     # print(point_pair_score_matrix)
     # pair_scores = point_pair_score_matrix[upper_tri_idx]
     # tpp_grasps = tpp_grasps_matrix[upper_tri_idx]
     cylinder_edges = (right_tip_pos, right_cylinder_bottom, left_tip_pos, left_cylinder_bottom)
-    return point_pair_score_matrix, tpp_grasp_dict, cylinder_edges
+    return point_pair_score_matrix, pair_scores, tpp_grasp_dict, cylinder_edges
 
         
 

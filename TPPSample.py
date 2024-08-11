@@ -6,7 +6,8 @@ import h5py
 class TPPSample:
     simplified_mesh_path: str
     point_cloud_path: str
-    touch_pair_scores_path: str
+    pair_scores_path: str
+    pair_score_matrix_path: str
     pair_grasps_save_path: str
     grasps_path: str
     info: dict = None
@@ -16,9 +17,13 @@ class TPPSample:
         return np.load(self.point_cloud_path)
     
     @property
-    def touch_pair_scores(self):
-        return np.load(self.touch_pair_scores_path)
+    def pair_scores(self):
+        return np.load(self.pair_scores_path)
     
+    @property
+    def pair_score_matrix(self):
+        return np.load(self.pair_score_matrix_path)
+
     @property
     def pair_grasps(self):
         return np.load(self.pair_grasps_save_path, allow_pickle=True).item()
