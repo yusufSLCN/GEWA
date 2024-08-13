@@ -6,12 +6,10 @@ import numpy as np
 import time
     
 class TPPDataset(Dataset):
-    def __init__(self, data, transform=None, normalize_points=True, return_pair_matrix=False, max_grasp_perpoint=20):
+    def __init__(self, data, transform=None, return_pair_matrix=False):
         self.data = data
         self.transform = transform
-        self.normalize_points = normalize_points
         self.device = "cpu"
-        self.max_grasp_perpoint = max_grasp_perpoint
         self.triu_indices = np.triu_indices(1000, k=1)
         self.return_pair_matrix = return_pair_matrix
 
