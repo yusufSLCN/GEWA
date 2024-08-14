@@ -6,12 +6,13 @@ import numpy as np
 import time
     
 class TPPDataset(Dataset):
-    def __init__(self, data, transform=None, return_pair_matrix=False):
+    def __init__(self, data, transform=None, return_pair_matrix=False, return_pair_dict=False):
         self.data = data
         self.transform = transform
         self.device = "cpu"
         self.triu_indices = np.triu_indices(1000, k=1)
         self.return_pair_matrix = return_pair_matrix
+        self.return_pair_dict = return_pair_dict
 
 
     def __len__(self):
@@ -22,7 +23,10 @@ class TPPDataset(Dataset):
         # Process the sample if needed
         point_cloud = sample.point_cloud
         pair_scores = sample.pair_scores
-        pair_grasps_dict = sample.pair_grasps 
+        if self.return_pair_dict:
+            pair_grasps_dict = sample.pair_grasps
+        else:
+            pair_grasps_dict = None
         sample_info = sample.info
 
         if self.return_pair_matrix:

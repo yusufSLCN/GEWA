@@ -8,14 +8,14 @@ import open3d as o3d
 import torch
 
 
-def save_split_samples(data_dir, num_mesh, train_ratio=0.8):
+def save_split_samples(data_dir, num_mesh, radius=0.005, train_ratio=0.8):
     if not os.path.exists('sample_dirs'):
         os.makedirs('sample_dirs')
-    paths_dir = os.path.join('sample_dirs', 'success_tpp_samples.npy')
+    paths_dir = os.path.join('sample_dirs', f'success_tpp_{radius}_samples.npy')
     if os.path.exists(paths_dir):
         samples = np.load(paths_dir, allow_pickle=True)
     else:
-        samples = get_point_cloud_samples(data_dir, num_mesh=num_mesh, min_num_grasps=100)
+        samples = get_point_cloud_samples(data_dir, num_mesh=num_mesh, min_num_grasps=100, radius=radius)
         #sort by name 
         samples = sorted(samples, key=lambda x: x.simplified_mesh_path)
         np.random.seed(0)
@@ -43,14 +43,14 @@ def save_split_samples(data_dir, num_mesh, train_ratio=0.8):
     return train_samples, valid_samples
 
 
-def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_points=1000, min_num_grasps=100):
+def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_points=1000, min_num_grasps=100, radius=0.005):
     simplified_mesh_directory = os.path.join(data_dir, 'simplified_obj')
     grasp_directory =  os.path.join(data_dir, 'acronym/grasps')
     model_root = '../data/ShapeNetSem-backup/models-OBJ/models'
-    pair_grasp_folder = os.path.join(data_dir, f'tpp_grasps_{num_points}')
-    point_cloud_folder = os.path.join(data_dir, f'tpp_point_cloud_{num_points}')
-    touch_pair_score_folder = os.path.join(data_dir, f'tpp_scores_{num_points}')
-    touch_pair_score_matrix_folder = os.path.join(data_dir, f'tpp_score_matrix_{num_points}')
+    pair_grasp_folder = os.path.join(data_dir, f'tpp_grasps_{num_points}_{radius}')
+    point_cloud_folder = os.path.join(data_dir, f'tpp_point_cloud_{num_points}_{radius}')
+    touch_pair_score_folder = os.path.join(data_dir, f'tpp_scores_{num_points}_{radius}')
+    touch_pair_score_matrix_folder = os.path.join(data_dir, f'tpp_score_matrix_{num_points}_{radius}')
 
     if not os.path.exists(touch_pair_score_matrix_folder):
         print(f"Creating directory {touch_pair_score_matrix_folder}")
@@ -114,7 +114,7 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
                     point_cloud = point_cloud - mean
                     success_grasp_poses[:, :3, 3] = success_grasp_poses[:, :3, 3] - mean
 
-                    pair_score_matrix, pair_scores, tpp_grasp_dict, _ = create_touch_point_pair_scores_and_grasps(point_cloud, success_grasp_poses, cylinder_radius=0.01, cylinder_height=0.041)
+                    pair_score_matrix, pair_scores, tpp_grasp_dict, _ = create_touch_point_pair_scores_and_grasps(point_cloud, success_grasp_poses, cylinder_radius=radius, cylinder_height=0.041)
                     if np.sum(pair_score_matrix) < min_num_grasps:
                         continue
                     np.save(pair_score_matrix_path, pair_score_matrix)
@@ -228,7 +228,7 @@ def create_point_cloud_and_grasps(N, num_grasps):
 
 if __name__ == "__main__":
     
-    train_samples, val_samples = save_split_samples('../data', 100)
+    train_samples, val_samples = save_split_samples('../data', -1)
     print(f"Number of train samples: {len(train_samples)}")
     print(f"Number of validation samples: {len(val_samples)}")
     print("Done!")

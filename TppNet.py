@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool
 
 class TppNet(nn.Module):
-    def __init__(self, grasp_dim=16, k=16, num_grasp_sample=500, num_points=1000):
+    def __init__(self, grasp_dim=16, k=8, num_grasp_sample=500, num_points=1000):
         super(TppNet, self).__init__()
         
         self.num_grasp_sample = num_grasp_sample
@@ -15,12 +15,15 @@ class TppNet(nn.Module):
 
         self.num_pairs = self.triu.shape[1]
         
-        self.conv1 = DynamicEdgeConv(MLP([6, 16, 16, 32]), k=self.k, aggr='max')
-        self.conv2 = DynamicEdgeConv(MLP([64, 64, 64, 128]), k=self.k, aggr='max')
-        self.conv3 = DynamicEdgeConv(MLP([256, 256, 256, 512]), k=self.k, aggr='max')
+        self.conv1 = DynamicEdgeConv(MLP([6, 16, 32]), k=self.k, aggr='max')
+        self.conv2 = DynamicEdgeConv(MLP([64, 64, 128]), k=self.k, aggr='max')
+        self.conv3 = DynamicEdgeConv(MLP([256, 256, 512]), k=self.k, aggr='max')
+        # self.conv4 = DynamicEdgeConv(MLP([1024, 1024, 2048]), k=self.k, aggr='max')
+        # self.conv5 = DynamicEdgeConv(MLP([256, 256, 512]), k=self.k, aggr='max')
         
-        self.shared_mlp = MLP([512 + 128 + 32, 256, 128])
+        self.shared_mlp = MLP([512 + 128 + 32, 128, 64])
         
+        # self.feature_merger = MLP([128, 64])
         # Classification head (per-pair)
         # self.classification_head = nn.Sequential(
         #     nn.Linear(512 + 128 + 32 + 128, 64),  # 512 + 128 + 32  local features,  128 from global embedding
@@ -40,13 +43,24 @@ class TppNet(nn.Module):
         x1 = self.conv1(pos, batch)
         x2 = self.conv2(x1, batch)
         x3 = self.conv3(x2, batch)
+        # x4 = self.conv4(x3, batch)
         
         x = torch.cat([x1, x2, x3], dim=-1)
         
         shared_features = self.shared_mlp(x)
+        global_embedding = global_max_pool(shared_features, batch)
+        # print(shared_features.shape)
+        # print(global_embedding.shape)
+        # repeated_global_embedding = global_embedding.repeat(1000, 1)
+        # global_local_features = torch.cat([shared_features, repeated_global_embedding], dim=-1)
+        # combined_feaures = self.feature_merger(global_local_features)
+        batched_combined_features = shared_features.reshape(-1, 1000, 64)
+        
+        # global_embedding = global_embedding.reshape(-1, 1, 128)
+        # repeated_global_embedding = global_embedding.repeat(1, 1000, 1)
+        # batched_shared_features = torch.cat([batched_shared_features, repeated_global_embedding], dim=-1)
 
-        batched_shared_features = shared_features.reshape(-1, 1000, 128)
-        dot_product = torch.matmul(batched_shared_features, batched_shared_features.transpose(1, 2))
+        dot_product = torch.matmul(batched_combined_features, batched_combined_features.transpose(1, 2))
         pair_dot_product = dot_product[:, self.triu[0], self.triu[1]]
         pair_classification_out = torch.sigmoid(pair_dot_product)
 

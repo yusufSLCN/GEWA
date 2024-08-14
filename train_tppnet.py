@@ -14,6 +14,7 @@ from metrics import check_batch_topk_success_rate, count_correct_approach_scores
 import os
 import numpy as np
 import torch.optim as optim
+import time
 
 # Parse the arguments
 parser = argparse.ArgumentParser()
@@ -91,6 +92,7 @@ print(device)
 # model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
 # model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
 model = TppNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples).to(device)
+num_pairs = model.num_pairs
 config.model_name = model.__class__.__name__
 
 multi_gpu = False
@@ -111,7 +113,7 @@ else:
 # Define the optimizer
 optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
-scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[1000, 2000], gamma=0.5)
+scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 100], gamma=0.5)
 
 classification_criterion = nn.BCELoss()
 # tip_mse_loss = nn.MSELoss()
@@ -169,19 +171,26 @@ for epoch in range(1, num_epochs + 1):
     train_pair_accuracy = 0
     for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
-
+        t1 = time.time()
         if not multi_gpu:
-            data = data.to(device)
+            # data = data.to(device)
+            data.pos = data.pos.to(device)
+            data.batch = data.batch.to(device)
             pair_scores_gt = data.pair_scores
-        # else:
-        #     pair_scores_gt = torch.cat([s.pair_scores for s in data])
- 
+        else:
+            pair_scores_gt = torch.cat([s.pair_scores for s in data])
+
+        t2 = time.time()
+        # print(f"Data prep takes {t2 - t1}s")
         pair_classification_pred, pair_dot_product = model(data)
 
-        pair_scores_gt = data.pair_scores.reshape(-1, model.num_pairs)
-        binary_pair_scores_gt = (pair_scores_gt > 0).float()
+        t3 = time.time()
+        # print(f"Model takes {t3 - t2}s")
+        pair_scores_gt = pair_scores_gt.reshape(-1, num_pairs)
+        binary_pair_scores_gt = (pair_scores_gt > 0).float().to(pair_classification_pred.device)
         pair_loss = classification_criterion(pair_classification_pred, binary_pair_scores_gt)
-
+        t4 = time.time()
+        # print(f"Loss takes {t4 - t3}s")
         if multi_gpu:
             pair_loss = pair_loss.mean()
 
@@ -197,15 +206,14 @@ for epoch in range(1, num_epochs + 1):
         if epoch % 5 == 0:
             with torch.no_grad():
                 # Calculate the pair accuracy
-                if multi_gpu:
-                    pair_classification_pred = pair_classification_pred.to(pair_scores_gt.device)
+                pair_classification_pred = pair_classification_pred.to(pair_scores_gt.device)
 
                 train_pair_accuracy += count_correct_approach_scores(pair_classification_pred, pair_scores_gt)
     scheduler.step()
     if epoch % 5 == 0:
         # train_success_rate = train_grasp_success / len(train_data_loader)
         # wandb.log({"Train Grasp Success Rate": train_success_rate}, step=epoch)
-        train_pair_accuracy = train_pair_accuracy / (len(train_dataset) *  model.num_pairs)
+        train_pair_accuracy = train_pair_accuracy / (len(train_dataset) *  num_pairs)
         wandb.log({"Train Pair Accuracy": train_pair_accuracy}, step=epoch)
     # average_loss = total_loss / len(train_data_loader)
     # average_grasp_loss = total_grasp_loss / len(train_data_loader)
@@ -227,14 +235,16 @@ for epoch in range(1, num_epochs + 1):
 
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             if not multi_gpu:
-                val_data = val_data.to(device)
-                val_pair_scores_gt = val_data.pair_scores
-            # else:
-            #     pair_scores = torch.cat([s.pair_scores for s in data])
+                # val_data = val_data.to(device)
+                val_data.pos = val_data.pos.to(device)
+                val_data.batch = val_data.batch.to(device)
+                val_pair_scores_gt = val_data.pair_scores.to(device)
+            else:
+                val_pair_scores_gt = torch.cat([s.pair_scores for s in val_data])
             val_pair_pred, val_pair_dot_product = model(val_data)
         
-            val_pair_scores_gt = val_pair_scores_gt.reshape(-1, model.num_pairs)
-            val_binary_pair_scores_gt = (val_pair_scores_gt > 0).float()
+            val_pair_scores_gt = val_pair_scores_gt.reshape(-1, num_pairs)
+            val_binary_pair_scores_gt = (val_pair_scores_gt > 0).float().to(val_pair_pred.device)
             val_pair_loss = classification_criterion(val_pair_pred, val_binary_pair_scores_gt)
 
             if multi_gpu:
@@ -244,8 +254,7 @@ for epoch in range(1, num_epochs + 1):
 
             if epoch % 5 == 0:
                 # Calculate the approach accuracy
-                if multi_gpu:
-                    val_pair_pred = val_pair_pred.to(val_binary_pair_scores_gt.device)
+                val_pair_pred = val_pair_pred.to(val_pair_scores_gt.device)
                 valid_pair_accuracy += count_correct_approach_scores(val_pair_pred, val_pair_scores_gt)
 
             total_val_loss += val_loss.item()
@@ -256,7 +265,7 @@ for epoch in range(1, num_epochs + 1):
         if epoch % 5 == 0:
             # grasp_success_rate = valid_grasp_success / len(val_data_loader)
             # wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
-            valid_pair_accuracy = valid_pair_accuracy / (len(val_dataset) * model.num_pairs)
+            valid_pair_accuracy = valid_pair_accuracy / (len(val_dataset) * num_pairs)
             wandb.log({"Valid pair Accuracy": valid_pair_accuracy}, step=epoch)
             print(f"Train Pair Acc: {train_pair_accuracy} - Valid Pair Accuracy: {valid_pair_accuracy}")
             # Save the model if the validation loss is low
