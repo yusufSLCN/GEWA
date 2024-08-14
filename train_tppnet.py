@@ -269,18 +269,18 @@ for epoch in range(1, num_epochs + 1):
             wandb.log({"Valid pair Accuracy": valid_pair_accuracy}, step=epoch)
             print(f"Train Pair Acc: {train_pair_accuracy} - Valid Pair Accuracy: {valid_pair_accuracy}")
             # Save the model if the validation loss is low
-            # if grasp_success_rate > 0.1:
-            #     model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}__gd_{args.grasp_dim}__gs_{args.grasp_samples}.pth"
-            #     model_folder = f"models/{model_name}"
-            #     if not os.path.exists(model_folder):
-            #         os.makedirs(model_folder)
+            if valid_pair_accuracy > 0.6:
+                model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}.pth"
+                model_folder = f"models/{model_name}"
+                if not os.path.exists(model_folder):
+                    os.makedirs(model_folder)
 
-            #     model_file = f"{model_name}_epoch_{epoch}.pth"
-            #     model_path = os.path.join(model_folder, model_file)
-            #     torch.save(model.state_dict(), model_path)
-            #     artifact = wandb.Artifact(model_file, type='model')
-            #     artifact.add_file(model_path)
-            #     wandb.log_artifact(artifact)
+                model_file = f"{model_name}_epoch_{epoch}.pth"
+                model_path = os.path.join(model_folder, model_file)
+                torch.save(model.state_dict(), model_path)
+                artifact = wandb.Artifact(model_file, type='model')
+                artifact.add_file(model_path)
+                wandb.log_artifact(artifact)
 
     wandb.log({"Val Pair Loss": average_val_pair_loss}, step=epoch)
     print(f"Train Pair Loss: {average_pair_loss:.4f} - Val Pair Loss: {average_val_pair_loss:.4f}")

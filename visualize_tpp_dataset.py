@@ -24,14 +24,14 @@ def show_tpp_grasps(args, dataset, pos, grasps_dict, pair_scores):
 
     visualize_grasps(pos, selected_grasps, None, contact_idxs)
 
-def show_all_tpps_of_grasp(points, grasps_dict, pair_scores, dataset, args):
+def show_all_tpps_of_grasp(points, grasps_dict, pair_scores, triu_indices, args):
     pair_idxs = np.where(pair_scores > 0)[0]
     random_idxs = np.random.randint(0, pair_idxs.shape[0], args.num_grasps)
     selected_pair_idxs = pair_idxs[random_idxs]
     selected_grasps = []
 
     for pair_idx in selected_pair_idxs:
-        i, j = dataset.triu_indices[0][pair_idx], dataset.triu_indices[1][pair_idx]
+        i, j = triu_indices[0][pair_idx], triu_indices[1][pair_idx]
         key = frozenset((i, j))
         selected_grasps.append(grasps_dict[key][0].reshape(4, 4))
     
@@ -55,6 +55,26 @@ def show_all_tpps_of_grasp(points, grasps_dict, pair_scores, dataset, args):
     print("contact_idxs", len(contact_idxs))
     visualize_grasps(points, grasps, None, contact_idxs, cylinder_edges=edges)
 
+def show_pair_edges(points, pair_scores, triu_indices):
+    pair_idxs = np.where(pair_scores > 0)[0]
+    good_pair_scores = pair_scores[pair_idxs]
+    edge_index = np.stack((triu_indices[0][pair_idxs], triu_indices[1][pair_idxs]), axis=1) 
+    import open3d as o3d
+    from matplotlib import colormaps
+    import matplotlib.pyplot as plt
+    cmap_name = 'viridis'  # You can change this to any other colormap name
+    cmap = colormaps[cmap_name]
+    norm = plt.Normalize(good_pair_scores.min(), good_pair_scores.max())
+    colors = cmap(norm(good_pair_scores))[:, :3]
+    print(good_pair_scores.min(), good_pair_scores.max())
+
+    line_set = o3d.geometry.LineSet(
+    points=o3d.utility.Vector3dVector(points),
+    lines=o3d.utility.Vector2iVector(edge_index))
+    line_set.colors = o3d.utility.Vector3dVector(colors)
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+    o3d.visualization.draw_geometries([line_set, pcd])
 
 if __name__ == "__main__":
 
@@ -67,7 +87,7 @@ if __name__ == "__main__":
     print(f"Number of validation samples: {len(val_samples)}")
     print("Done!")
 
-    dataset = TPPDataset(train_samples)
+    dataset = TPPDataset(train_samples, return_pair_dict=True)
     t = time.time()
     sample = dataset[args.index]
     print(f"Time taken: {time.time() - t}")
@@ -76,4 +96,5 @@ if __name__ == "__main__":
     pair_scores = sample.pair_scores.numpy()
 
     # show_tpp_grasps(args, dataset, pos, grasps_dict, pair_scores)
-    show_all_tpps_of_grasp(pos, grasps_dict, pair_scores, dataset, args)
+    # show_all_tpps_of_grasp(pos, grasps_dict, pair_scores, dataset.triu_indices, args)
+    show_pair_edges(pos, pair_scores, dataset.triu_indices)
