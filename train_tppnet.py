@@ -113,7 +113,7 @@ else:
 # Define the optimizer
 optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
-scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100, 200], gamma=0.5)
+scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[40, 80], gamma=0.5)
 
 classification_criterion = nn.BCELoss()
 # tip_mse_loss = nn.MSELoss()
@@ -269,7 +269,7 @@ for epoch in range(1, num_epochs + 1):
             wandb.log({"Valid pair Accuracy": valid_pair_accuracy}, step=epoch)
             print(f"Train Pair Acc: {train_pair_accuracy} - Valid Pair Accuracy: {valid_pair_accuracy}")
             # Save the model if the validation loss is low
-            if valid_pair_accuracy > 0.58:
+            if valid_pair_accuracy > 0.80:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}.pth"
                 model_folder = f"models/{model_name}"
                 if not os.path.exists(model_folder):

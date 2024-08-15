@@ -21,14 +21,16 @@ class TppNet(nn.Module):
         # self.conv4 = DynamicEdgeConv(MLP([1024, 1024, 2048]), k=self.k, aggr='max')
         # self.conv5 = DynamicEdgeConv(MLP([256, 256, 512]), k=self.k, aggr='max')
         
-        self.shared_mlp = MLP([512 + 128 + 32, 128, 64])
+        self.point_feat_dim = 128
+        self.shared_mlp = MLP([512 + 128 + 32, 256, self.point_feat_dim])
         
-        # self.feature_merger = MLP([128, 64])
+        # self.pair_mapper = MLP([64, self.num_pairs])
         # Classification head (per-pair)
-        # self.classification_head = nn.Sequential(
-        #     nn.Linear(512 + 128 + 32 + 128, 64),  # 512 + 128 + 32  local features,  128 from global embedding
-        #     nn.Linear(64, self.num_pairs)
-        # )
+        self.classification_head = nn.Sequential(
+            nn.Linear(self.point_feat_dim , 64),  # 512 + 128 + 32  local features,  128 from global embedding
+            nn.ReLU(),
+            nn.Linear(64, self.num_pairs)
+        )
 
         
         # Grasp prediction head
@@ -49,12 +51,23 @@ class TppNet(nn.Module):
         
         shared_features = self.shared_mlp(x)
         global_embedding = global_max_pool(shared_features, batch)
+
+        # repeated_global_embedding = global_embedding.repeat(1000, 1)
+        # global_local_features = torch.cat([shared_features, repeated_global_embedding], dim=-1)
+        # pair_scores = self.pair_mapper(global_embedding)
+        # print(global_local_features.shape)
+        # global_local_features = global_local_features.reshape(-1, 1000, self.point_feat_dim * 2)
+        pair_scores = self.classification_head(global_embedding)
+        pair_classification_out = torch.sigmoid(pair_scores)
+
+        return pair_classification_out, pair_scores
+
         # print(shared_features.shape)
         # print(global_embedding.shape)
         # repeated_global_embedding = global_embedding.repeat(1000, 1)
         # global_local_features = torch.cat([shared_features, repeated_global_embedding], dim=-1)
         # combined_feaures = self.feature_merger(global_local_features)
-        batched_combined_features = shared_features.reshape(-1, 1000, 64)
+        batched_combined_features = shared_features.reshape(-1, 1000, 16)
         
         # global_embedding = global_embedding.reshape(-1, 1, 128)
         # repeated_global_embedding = global_embedding.repeat(1, 1000, 1)
