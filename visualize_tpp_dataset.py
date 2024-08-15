@@ -56,7 +56,7 @@ def show_all_tpps_of_grasp(points, grasps_dict, pair_scores, triu_indices, args)
     visualize_grasps(points, grasps, None, contact_idxs, cylinder_edges=edges)
 
 def show_pair_edges(points, pair_scores, triu_indices):
-    pair_idxs = np.where(pair_scores > 0)[0]
+    pair_idxs = np.where(pair_scores > 0.5)[0]
     good_pair_scores = pair_scores[pair_idxs]
     edge_index = np.stack((triu_indices[0][pair_idxs], triu_indices[1][pair_idxs]), axis=1) 
     import open3d as o3d

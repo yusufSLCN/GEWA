@@ -15,6 +15,7 @@ import os
 import numpy as np
 import torch.optim as optim
 import time
+from sklearn.metrics import recall_score
 
 # Parse the arguments
 parser = argparse.ArgumentParser()
@@ -169,6 +170,7 @@ for epoch in range(1, num_epochs + 1):
     total_tip_loss = 0
     train_grasp_success = 0
     train_pair_accuracy = 0
+    train_recall = 0
     for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         t1 = time.time()
@@ -209,12 +211,15 @@ for epoch in range(1, num_epochs + 1):
                 pair_classification_pred = pair_classification_pred.to(pair_scores_gt.device)
 
                 train_pair_accuracy += count_correct_approach_scores(pair_classification_pred, pair_scores_gt)
+                train_recall += recall_score(binary_pair_scores_gt.cpu().numpy(), pair_classification_pred.cpu().numpy() > 0.5, average='micro')
     scheduler.step()
     if epoch % 5 == 0:
         # train_success_rate = train_grasp_success / len(train_data_loader)
         # wandb.log({"Train Grasp Success Rate": train_success_rate}, step=epoch)
         train_pair_accuracy = train_pair_accuracy / (len(train_dataset) *  num_pairs)
         wandb.log({"Train Pair Accuracy": train_pair_accuracy}, step=epoch)
+        train_recall = train_recall / len(train_data_loader)
+        wandb.log({"Train Recall": train_recall}, step=epoch)
     # average_loss = total_loss / len(train_data_loader)
     # average_grasp_loss = total_grasp_loss / len(train_data_loader)
     average_pair_loss = total_pair_loss / len(train_data_loader)
@@ -232,7 +237,7 @@ for epoch in range(1, num_epochs + 1):
         total_val_tip_loss = 0
         valid_grasp_success = 0
         valid_pair_accuracy = 0
-
+        val_recall = 0
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             if not multi_gpu:
                 # val_data = val_data.to(device)
@@ -256,6 +261,9 @@ for epoch in range(1, num_epochs + 1):
                 # Calculate the approach accuracy
                 val_pair_pred = val_pair_pred.to(val_pair_scores_gt.device)
                 valid_pair_accuracy += count_correct_approach_scores(val_pair_pred, val_pair_scores_gt)
+                #sklearn to get other metrics
+                val_recall += recall_score(val_binary_pair_scores_gt.cpu().numpy(), val_pair_pred.cpu().numpy() > 0.5, average='micro')
+
 
             total_val_loss += val_loss.item()
             total_val_pair_loss += val_pair_loss.item()
@@ -268,8 +276,11 @@ for epoch in range(1, num_epochs + 1):
             valid_pair_accuracy = valid_pair_accuracy / (len(val_dataset) * num_pairs)
             wandb.log({"Valid pair Accuracy": valid_pair_accuracy}, step=epoch)
             print(f"Train Pair Acc: {train_pair_accuracy} - Valid Pair Accuracy: {valid_pair_accuracy}")
+
+            val_recall = val_recall / len(val_data_loader)
+            wandb.log({"Valid Recall": val_recall}, step=epoch)
             # Save the model if the validation loss is low
-            if valid_pair_accuracy > 0.80:
+            if val_recall > 0.80:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}.pth"
                 model_folder = f"models/{model_name}"
                 if not os.path.exists(model_folder):
