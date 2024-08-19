@@ -15,13 +15,13 @@ class TppNet(nn.Module):
 
         self.num_pairs = self.triu.shape[1]
         
-        self.conv1 = DynamicEdgeConv(MLP([6, 16, 16, 32]), k=self.k, aggr='max')
-        self.conv2 = DynamicEdgeConv(MLP([64, 64, 64, 128]), k=self.k, aggr='max')
-        self.conv3 = DynamicEdgeConv(MLP([256, 256, 256, 512]), k=self.k, aggr='max')
+        self.conv1 = DynamicEdgeConv(MLP([6, 16, 32]), k=self.k, aggr='max')
+        self.conv2 = DynamicEdgeConv(MLP([64, 64, 128]), k=self.k, aggr='max')
+        self.conv3 = DynamicEdgeConv(MLP([256, 256, 512]), k=self.k, aggr='max')
         # self.conv4 = DynamicEdgeConv(MLP([1024, 1024, 2048]), k=self.k, aggr='max')
         # self.conv5 = DynamicEdgeConv(MLP([256, 256, 512]), k=self.k, aggr='max')
         
-        self.point_feat_dim = 64
+        self.point_feat_dim = 32
         self.shared_mlp = nn.Sequential(
             MLP([512 + 128 + 32, 256, self.point_feat_dim]),
             # nn.Linear(128, self.point_feat_dim)
@@ -29,9 +29,9 @@ class TppNet(nn.Module):
 
         # Classification head (per-pair)
         self.classification_head = nn.Sequential(
-            nn.Linear(self.point_feat_dim , 64),
+            nn.Linear(self.point_feat_dim , 16),
             nn.ReLU(),
-            nn.Linear(64, self.num_pairs)
+            nn.Linear(16, self.num_pairs)
         )
 
         # self.dot_product_head = nn.Sequential(

@@ -11,7 +11,7 @@ import torch
 def save_split_samples(data_dir, num_mesh, radius=0.005, train_ratio=0.8):
     if not os.path.exists('sample_dirs'):
         os.makedirs('sample_dirs')
-    paths_dir = os.path.join('sample_dirs', f'success_tpp_{radius}_samples.npy')
+    paths_dir = os.path.join('sample_dirs', f'tpp_seed_{radius}_samples.npy')
     if os.path.exists(paths_dir):
         samples = np.load(paths_dir, allow_pickle=True)
     else:
@@ -47,10 +47,10 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
     simplified_mesh_directory = os.path.join(data_dir, 'simplified_obj')
     grasp_directory =  os.path.join(data_dir, 'acronym/grasps')
     model_root = '../data/ShapeNetSem-backup/models-OBJ/models'
-    pair_grasp_folder = os.path.join(data_dir, f'tpp_grasps_{num_points}_{radius}')
-    point_cloud_folder = os.path.join(data_dir, f'tpp_point_cloud_{num_points}_{radius}')
-    touch_pair_score_folder = os.path.join(data_dir, f'tpp_scores_{num_points}_{radius}')
-    touch_pair_score_matrix_folder = os.path.join(data_dir, f'tpp_score_matrix_{num_points}_{radius}')
+    pair_grasp_folder = os.path.join(data_dir, f'tpp_seed_grasps_{num_points}_{radius}')
+    point_cloud_folder = os.path.join(data_dir, f'tpp_seed_point_cloud_{num_points}_{radius}')
+    touch_pair_score_folder = os.path.join(data_dir, f'tpp_seed_scores_{num_points}_{radius}')
+    touch_pair_score_matrix_folder = os.path.join(data_dir, f'tpp_seed_score_matrix_{num_points}_{radius}')
 
     if not os.path.exists(touch_pair_score_matrix_folder):
         print(f"Creating directory {touch_pair_score_matrix_folder}")
@@ -105,6 +105,7 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
 
                 if not (os.path.exists(point_cloud_path) and os.path.exists(pair_scores_path) and os.path.exists(pair_grasps_path) and os.path.exists(pair_score_matrix_path)):
                     mesh_data = o3d.io.read_triangle_mesh(simplified_mesh_path)
+                    o3d.utility.random.seed(0)
                     point_cloud = mesh_data.sample_points_poisson_disk(num_points)
                     sample['scale'] = float(sample['scale'])
                     point_cloud = np.asarray(point_cloud.points) * sample['scale']

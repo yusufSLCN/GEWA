@@ -195,7 +195,7 @@ for epoch in range(1, num_epochs + 1):
 
         pos_pair_count = torch.sum(binary_pair_scores_gt)
         pos_weight = (binary_pair_scores_gt.numel() - pos_pair_count) / pos_pair_count
-        classification_criterion = nn.BCEWithLogitsLoss(pos_weight= 0.8 * pos_weight)
+        classification_criterion = nn.BCEWithLogitsLoss(pos_weight= 0.5 * pos_weight)
         pair_loss = classification_criterion(pair_dot_product, binary_pair_scores_gt)
         t4 = time.time()
         # print(f"Loss takes {t4 - t3}s")
@@ -261,7 +261,7 @@ for epoch in range(1, num_epochs + 1):
 
             pos_pair_count = torch.sum(val_binary_pair_scores_gt)
             pos_weight = (val_binary_pair_scores_gt.numel() - pos_pair_count) / pos_pair_count 
-            classification_criterion = nn.BCEWithLogitsLoss(pos_weight= 0.8 * pos_weight)
+            classification_criterion = nn.BCEWithLogitsLoss(pos_weight= 0.5 * pos_weight)
             val_pair_loss = classification_criterion(val_pair_dot_product, val_binary_pair_scores_gt)
 
             if multi_gpu:
@@ -294,7 +294,7 @@ for epoch in range(1, num_epochs + 1):
             wandb.log({"Valid Recall": val_recall}, step=epoch)
             print(f"Train Pair Recall: {train_recall} - Valid Pair Recall: {val_recall}")
             # Save the model if the validation loss is low
-            if val_recall > 0.70:
+            if val_recall > 0.65:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}.pth"
                 model_folder = f"models/{model_name}"
                 if not os.path.exists(model_folder):
