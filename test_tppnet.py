@@ -4,13 +4,14 @@ from torch_geometric.data import Data
 # from GraspNet import GraspNet
 from TppNet import TppNet
 from tpp_dataset import TPPDataset
-from create_tpp_dataset import save_split_samples
 from visualize_tpp_dataset import show_pair_edges
 import argparse
 import wandb
 from torch_geometric.loader import DataListLoader, DataLoader
 import numpy as np
-
+from torcheval.metrics.functional.classification import binary_recall
+# from sklearn.metrics import recall_score
+from metrics import count_correct_approach_scores
 
 if __name__ == "__main__":
 
@@ -27,19 +28,23 @@ if __name__ == "__main__":
     # idx 17
     # Access and download model. Returns path to downloaded artifact
     # downloaded_model_path = run.use_model(name="DynANet_nm_1000__bs_64_epoch_820.pth:v0")
-    # downloaded_model_path = run.use_model(name="DynANet_nm_1000__bs_128_epoch_900.pth:v0")
-    downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_32.pth_epoch_15.pth:v0")
+    downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_128.pth_epoch_110_acc_0.82_recall_0.78.pth:v0")
+    # downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_128.pth_epoch_150_acc_0.86_recall_0.70.pth:v0")
     print(downloaded_model_path)
 
     model_path = downloaded_model_path
 
     # load the GraspNet model and run inference then display the gripper pose
     model = TppNet()
-    # model = nn.DataParallel(model)
+    model = nn.DataParallel(model)
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
-    train_paths, val_paths = save_split_samples('../data', 100)
-    dataset = TPPDataset(val_paths)
+    from create_tpp_dataset import save_split_samples
+    train_paths, val_paths = save_split_samples('../data', 50)
+    # from load_tpp_samples import save_split_samples
+    # train_paths, val_paths = save_split_samples('../data', 5)
+
+    dataset = TPPDataset(train_paths)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
 
     samlpe_idx = args.sample_idx
@@ -53,11 +58,21 @@ if __name__ == "__main__":
         data = d
         if i == samlpe_idx:
             break
-
+    print(data.sample_info)
     pair_classification_pred, pair_dot_product = model(data)
+
+    test_pair_accuracy = count_correct_approach_scores(pair_dot_product, data.pair_scores)
+    test_pair_accuracy = test_pair_accuracy / len(data.pair_scores)
+    print(f"Test pair accuracy: {test_pair_accuracy}")
+
+    pair_classification_pred = torch.flatten(pair_classification_pred)
+    binary_pair_scores_gt = torch.flatten(data.pair_scores).int()
+    test_recall = binary_recall(pair_classification_pred, binary_pair_scores_gt)
+    print(f"Test pair recall: {test_recall}")
+
+    # Display the result
     pair_scores = data.pair_scores.numpy()
     pos = data.pos.numpy()  
-    print(pair_classification_pred)
     pred_pair_scores = pair_classification_pred.squeeze().detach().numpy()
 
     print(f"min: {np.min(pred_pair_scores)}, max: {np.max(pred_pair_scores)}")
@@ -66,6 +81,6 @@ if __name__ == "__main__":
 
     num_gt_pairs = np.sum(pair_scores > 0)
     print(f"Number of ground truth pairs: {num_gt_pairs}/{len(pair_scores)}")
-    # print(pair_dot_product.shape)
+
     show_pair_edges(pos, pred_pair_scores, dataset.triu_indices)
     show_pair_edges(pos, pair_scores, dataset.triu_indices)

@@ -11,7 +11,7 @@ import torch
 def save_split_samples(data_dir, num_mesh, radius=0.005, train_ratio=0.8):
     if not os.path.exists('sample_dirs'):
         os.makedirs('sample_dirs')
-    paths_dir = os.path.join('sample_dirs', f'tpp_seed_{radius}_samples.npy')
+    paths_dir = os.path.join('sample_dirs', f'tpp_seed_samples.npy')
     if os.path.exists(paths_dir):
         samples = np.load(paths_dir, allow_pickle=True)
     else:
@@ -47,10 +47,10 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
     simplified_mesh_directory = os.path.join(data_dir, 'simplified_obj')
     grasp_directory =  os.path.join(data_dir, 'acronym/grasps')
     model_root = '../data/ShapeNetSem-backup/models-OBJ/models'
-    pair_grasp_folder = os.path.join(data_dir, f'tpp_seed_grasps_{num_points}_{radius}')
-    point_cloud_folder = os.path.join(data_dir, f'tpp_seed_point_cloud_{num_points}_{radius}')
-    touch_pair_score_folder = os.path.join(data_dir, f'tpp_seed_scores_{num_points}_{radius}')
-    touch_pair_score_matrix_folder = os.path.join(data_dir, f'tpp_seed_score_matrix_{num_points}_{radius}')
+    pair_grasp_folder = os.path.join(data_dir, f'tpp_seed_grasps')
+    point_cloud_folder = os.path.join(data_dir, f'tpp_seed_point_cloud')
+    touch_pair_score_folder = os.path.join(data_dir, f'tpp_seed_scores')
+    touch_pair_score_matrix_folder = os.path.join(data_dir, f'tpp_seed_score_matrix')
 
     if not os.path.exists(touch_pair_score_matrix_folder):
         print(f"Creating directory {touch_pair_score_matrix_folder}")
@@ -90,7 +90,6 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
 
         # Check if the simplified mesh exists because not all samples have been simplified
         if os.path.exists(simplified_mesh_path):
-            # print(f"Processing {simplified_mesh_count}/{num_mesh}")
             if num_mesh > 0 and simplified_mesh_count >= num_mesh:
                 return point_cloud_samples
             
@@ -103,34 +102,34 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
                 success_grasp_mask = grasp_success > success_threshold
                 success_grasp_poses = grasp_poses[success_grasp_mask]
 
-                if not (os.path.exists(point_cloud_path) and os.path.exists(pair_scores_path) and os.path.exists(pair_grasps_path) and os.path.exists(pair_score_matrix_path)):
-                    mesh_data = o3d.io.read_triangle_mesh(simplified_mesh_path)
-                    o3d.utility.random.seed(0)
-                    point_cloud = mesh_data.sample_points_poisson_disk(num_points)
-                    sample['scale'] = float(sample['scale'])
-                    point_cloud = np.asarray(point_cloud.points) * sample['scale']
+                if (os.path.exists(point_cloud_path) and os.path.exists(pair_scores_path) and os.path.exists(pair_grasps_path) and os.path.exists(pair_score_matrix_path)):
+                    # mesh_data = o3d.io.read_triangle_mesh(simplified_mesh_path)
+                    # o3d.utility.random.seed(0)
+                    # point_cloud = mesh_data.sample_points_poisson_disk(num_points)
+                    # sample['scale'] = float(sample['scale'])
+                    # point_cloud = np.asarray(point_cloud.points) * sample['scale']
 
-                    #normalize point cloud
-                    mean = np.mean(point_cloud, axis=0)
-                    point_cloud = point_cloud - mean
-                    success_grasp_poses[:, :3, 3] = success_grasp_poses[:, :3, 3] - mean
+                    # #normalize point cloud
+                    # mean = np.mean(point_cloud, axis=0)
+                    # point_cloud = point_cloud - mean
+                    # success_grasp_poses[:, :3, 3] = success_grasp_poses[:, :3, 3] - mean
 
-                    pair_score_matrix, pair_scores, tpp_grasp_dict, _ = create_touch_point_pair_scores_and_grasps(point_cloud, success_grasp_poses, cylinder_radius=radius, cylinder_height=0.041)
-                    if np.sum(pair_score_matrix) < min_num_grasps:
-                        continue
-                    np.save(pair_score_matrix_path, pair_score_matrix)
-                    np.save(pair_scores_path, pair_scores)
-                    np.save(pair_grasps_path, tpp_grasp_dict)
-                    np.save(point_cloud_path, point_cloud)
+                    # pair_score_matrix, pair_scores, tpp_grasp_dict, _ = create_touch_point_pair_scores_and_grasps(point_cloud, success_grasp_poses, cylinder_radius=radius, cylinder_height=0.041)
+                    # if np.sum(pair_score_matrix) < min_num_grasps:
+                    #     continue
+                    # simplified_mesh_count += 1
+                    # np.save(pair_score_matrix_path, pair_score_matrix)
+                    # np.save(pair_scores_path, pair_scores)
+                    # np.save(pair_grasps_path, tpp_grasp_dict)
+                    # np.save(point_cloud_path, point_cloud)
                 
-                point_cloud_sample = TPPSample(simplified_mesh_path, point_cloud_path, pair_scores_path, pair_score_matrix_path,
-                                               pair_grasps_path, grasps_file_name, sample)
-                simplified_mesh_count += 1
-                point_cloud_samples.append(point_cloud_sample)
+                    point_cloud_sample = TPPSample(simplified_mesh_path, point_cloud_path, pair_scores_path, pair_score_matrix_path,
+                                                pair_grasps_path, grasps_file_name, sample)
+                    point_cloud_samples.append(point_cloud_sample)
     return point_cloud_samples
 
 
-def create_touch_point_pair_scores_and_grasps(vertices, grasp_poses, cylinder_radius=0.02, cylinder_height=0.02, max_grasps_per_pair=20, pair_alignment_threshold=0.7):
+def create_touch_point_pair_scores_and_grasps(vertices, grasp_poses, cylinder_radius=0.02, cylinder_height=0.02, max_grasps_per_pair=20):
     gripper_right_tip_vector = np.array([-4.100000e-02, -7.27595772e-12, 1.12169998e-01, 1])
     gripper_left_tip_vector = np.array([4.10000000e-02, -7.27595772e-12, 1.12169998e-01, 1])
     right_tip_pos = np.matmul(grasp_poses, gripper_right_tip_vector)[:, :3]
@@ -155,12 +154,9 @@ def create_touch_point_pair_scores_and_grasps(vertices, grasp_poses, cylinder_ra
         inside_right_cylinder = is_point_inside_cylinder(vertices, right_tip, right_bottom, cylinder_radius)
         inside_left_cylinder = is_point_inside_cylinder(vertices, left_tip, left_bottom, cylinder_radius)
 
-        # print(inside_right_cylinder.shape, inside_left_cylinder.shape)
         right_tip_touch_points_idxs = inside_right_cylinder.nonzero()[0]
         left_tip_touch_points_idxs = inside_left_cylinder.nonzero()[0]
 
-        cylinder_axis = left_tip - right_tip
-        cylinder_axis = cylinder_axis / np.linalg.norm(cylinder_axis)
 
         for i in left_tip_touch_points_idxs:
             for j in right_tip_touch_points_idxs:
@@ -168,15 +164,7 @@ def create_touch_point_pair_scores_and_grasps(vertices, grasp_poses, cylinder_ra
                     continue
                 if point_pair_score_matrix[i, j] >= max_grasps_per_pair:
                     continue
-                
-
-                pair_vector = vertices[j] - vertices[i]
-                pair_vector = pair_vector / np.linalg.norm(pair_vector)
-                dot_product = np.abs(np.dot(cylinder_axis, pair_vector))
-                # check if any of the larger than 0.7
-                if dot_product < pair_alignment_threshold:
-                    continue
-
+ 
                 point_pair_score_matrix[i, j] += 1
                 # point_pair_score_matrix[j, i] += 1
                 tpp_grasp_dict[frozenset((i, j))].append(pose)
@@ -241,7 +229,7 @@ def create_point_cloud_and_grasps(N, num_grasps):
 
 if __name__ == "__main__":
     
-    train_samples, val_samples = save_split_samples('../data', 5)
+    train_samples, val_samples = save_split_samples('../data', 100)
     print(f"Number of train samples: {len(train_samples)}")
     print(f"Number of validation samples: {len(val_samples)}")
     print("Done!")
