@@ -16,7 +16,7 @@ import numpy as np
 import torch.optim as optim
 import time
 # from sklearn.metrics import recall_score
-from torcheval.metrics.functional.classification import binary_recall
+from torcheval.metrics.functional.classification import binary_recall, binary_precision, binary_f1_score
 
 # Parse the arguments
 parser = argparse.ArgumentParser()
@@ -34,6 +34,7 @@ parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 parser.add_argument('-cr', '--crop_radius', type=float, default=-1)
 parser.add_argument('-gd','--grasp_dim', type=int, default=9)
 parser.add_argument('-gs', '--grasp_samples', type=int, default=100)
+parser.add_argument('-li', '--log_interval', type=int, default=10)
 
 args = parser.parse_args()
 
@@ -56,7 +57,7 @@ print("Transform params: ", transfom_params)
 
 # Save the split samples
 train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh)
-train_dataset = TPPDataset(train_dirs)
+train_dataset = TPPDataset(train_dirs, transform=transform)
 val_dataset = TPPDataset(val_dirs)
                    
 # Initialize wandb
@@ -115,7 +116,7 @@ else:
 # Define the optimizer
 optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
-scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[40, 80], gamma=0.5)
+scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[args.epochs // 2, 3 * args.epochs // 4], gamma=0.5)
 
 # classification_criterion = nn.BCELoss()
 # classification_criterion = nn.BCEWithLogitsLoss(pos_weight=500)
@@ -173,6 +174,8 @@ for epoch in range(1, num_epochs + 1):
     train_grasp_success = 0
     train_pair_accuracy = 0
     train_recall = 0
+    train_precision = 0
+    train_f1 = 0
     for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         t1 = time.time()
@@ -211,7 +214,7 @@ for epoch in range(1, num_epochs + 1):
         # total_approach_loss += approach_loss.item()
         # total_tip_loss += tip_loss.item()
 
-        if epoch % 10 == 0:
+        if epoch % args.log_interval == 0:
             with torch.no_grad():
                 # Calculate the pair accuracy
                 pair_classification_pred = pair_classification_pred.to(binary_pair_scores_gt.device)
@@ -220,14 +223,18 @@ for epoch in range(1, num_epochs + 1):
                 pair_classification_pred = torch.flatten(pair_classification_pred)
                 binary_pair_scores_gt = torch.flatten(binary_pair_scores_gt).int()
                 train_recall += binary_recall(pair_classification_pred, binary_pair_scores_gt)
+                train_precision += binary_precision(pair_classification_pred, binary_pair_scores_gt)
+                train_f1 += binary_f1_score(pair_classification_pred, binary_pair_scores_gt)
     scheduler.step()
-    if epoch % 10 == 0:
+    if epoch % args.log_interval == 0:
         # train_success_rate = train_grasp_success / len(train_data_loader)
         # wandb.log({"Train Grasp Success Rate": train_success_rate}, step=epoch)
         train_pair_accuracy = train_pair_accuracy / (len(train_dataset) *  num_pairs)
-        wandb.log({"Train Pair Accuracy": train_pair_accuracy}, step=epoch)
+        train_f1 = train_f1 / len(train_data_loader)
+        train_precision = train_precision / len(train_data_loader)
         train_recall = train_recall / len(train_data_loader)
-        wandb.log({"Train Recall": train_recall}, step=epoch)
+        wandb.log({"Train Recall": train_recall, "Train Accuracy":train_pair_accuracy,
+                    "Train Precision":train_precision, "Train_F1":train_f1}, step=epoch)
     # average_loss = total_loss / len(train_data_loader)
     # average_grasp_loss = total_grasp_loss / len(train_data_loader)
     average_pair_loss = total_pair_loss / len(train_data_loader)
@@ -246,6 +253,8 @@ for epoch in range(1, num_epochs + 1):
         valid_grasp_success = 0
         valid_pair_accuracy = 0
         val_recall = 0
+        val_precision = 0
+        val_f1 = 0
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             if not multi_gpu:
                 # val_data = val_data.to(device)
@@ -269,7 +278,7 @@ for epoch in range(1, num_epochs + 1):
 
             val_loss = val_pair_loss
 
-            if epoch % 10 == 0:
+            if epoch % args.log_interval == 0:
                 # Calculate the approach accuracy
                 val_pair_pred = val_pair_pred.to(val_binary_pair_scores_gt.device)
                 valid_pair_accuracy += count_correct_approach_scores(val_pair_pred, val_binary_pair_scores_gt)
@@ -277,6 +286,8 @@ for epoch in range(1, num_epochs + 1):
                 val_pair_pred = torch.flatten(val_pair_pred)
                 val_binary_pair_scores_gt = torch.flatten(val_binary_pair_scores_gt).int()
                 val_recall += binary_recall(val_pair_pred, val_binary_pair_scores_gt)
+                val_precision += binary_precision(val_pair_pred, val_binary_pair_scores_gt)
+                val_f1 += binary_f1_score(val_pair_pred, val_binary_pair_scores_gt)
 
 
             total_val_loss += val_loss.item()
@@ -284,15 +295,19 @@ for epoch in range(1, num_epochs + 1):
 
         # average_val_loss = total_val_loss / len(val_data_loader)
         average_val_pair_loss = total_val_pair_loss / len(val_data_loader)
-        if epoch % 10 == 0:
+        if epoch % args.log_interval == 0:
             # grasp_success_rate = valid_grasp_success / len(val_data_loader)
             # wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
             valid_pair_accuracy = valid_pair_accuracy / (len(val_dataset) * num_pairs)
-            wandb.log({"Valid pair Accuracy": valid_pair_accuracy}, step=epoch)
-            print(f"Train Pair Acc: {train_pair_accuracy} - Valid Pair Accuracy: {valid_pair_accuracy}")
             val_recall = val_recall / len(val_data_loader)
-            wandb.log({"Valid Recall": val_recall}, step=epoch)
+            val_precision = val_precision / len(val_data_loader)
+            val_f1 = val_f1 / len(val_data_loader)
+            wandb.log({"Val Recall": val_recall, "Val Accuracy":valid_pair_accuracy, 
+                       "Val Precision":val_precision, "Val_F1":val_f1}, step=epoch)
+            print(f"Train Pair Acc: {train_pair_accuracy} - Valid Pair Accuracy: {valid_pair_accuracy}")
             print(f"Train Pair Recall: {train_recall} - Valid Pair Recall: {val_recall}")
+            print(f"Train Pair Precision: {train_precision} - Valid Pair Precision: {val_precision}")
+            print(f"Train Pair F1: {train_f1} - Valid Pair F1: {val_f1}")
             # Save the model if the validation loss is low
             if val_recall > 0.65:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}.pth"

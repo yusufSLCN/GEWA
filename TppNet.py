@@ -57,22 +57,22 @@ class TppNet(nn.Module):
         
         shared_features = self.shared_mlp(x)
 
-        # global_embedding = global_max_pool(shared_features, batch)
-        # pair_scores = self.classification_head(global_embedding)
-        # pair_classification_out = torch.sigmoid(pair_scores)
+        global_embedding = global_max_pool(shared_features, batch)
+        pair_scores = self.classification_head(global_embedding)
+        pair_classification_out = torch.sigmoid(pair_scores)
 
-        # return pair_classification_out, pair_scores
+        return pair_classification_out, pair_scores
         #------------------------------------------------------
 
 
-        shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)
-        dot_product = torch.matmul(shared_features, shared_features.transpose(1, 2))
-        pair_dot_product = dot_product[:, self.triu[0], self.triu[1]]
-        # print(pair_dot_product.shape)
-        # out_features = self.dot_product_head(pair_dot_product)
-        pair_classification_out = torch.sigmoid(pair_dot_product)
+        # shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)
+        # dot_product = torch.matmul(shared_features, shared_features.transpose(1, 2))
+        # pair_dot_product = dot_product[:, self.triu[0], self.triu[1]]
+        # # print(pair_dot_product.shape)
+        # # out_features = self.dot_product_head(pair_dot_product)
+        # pair_classification_out = torch.sigmoid(pair_dot_product)
 
-        return pair_classification_out, pair_dot_product
+        # return pair_classification_out, pair_dot_product
 
 
         
