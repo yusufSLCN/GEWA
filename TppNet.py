@@ -57,11 +57,11 @@ class TppNet(nn.Module):
         
         shared_features = self.shared_mlp(x)
 
-        global_embedding = global_max_pool(shared_features, batch)
-        pair_scores = self.classification_head(global_embedding)
-        pair_classification_out = torch.sigmoid(pair_scores)
+        # global_embedding = global_max_pool(shared_features, batch)
+        # pair_scores = self.classification_head(global_embedding)
+        # pair_classification_out = torch.sigmoid(pair_scores)
 
-        return pair_classification_out, pair_scores
+        # return pair_classification_out, pair_scores
         #------------------------------------------------------
 
 
@@ -73,6 +73,22 @@ class TppNet(nn.Module):
         # pair_classification_out = torch.sigmoid(pair_dot_product)
 
         # return pair_classification_out, pair_dot_product
+    
+        #------------------------------------------------------
+
+        global_features = global_max_pool(shared_features, batch)
+        global_features = global_features.reshape(-1, 1, self.point_feat_dim)
+        global_features = global_features.repeat(1, 1000, 1)
+        shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)
+
+        combined_features = torch.cat([shared_features, global_features], dim=2)
+        dot_product = torch.matmul(combined_features, combined_features.transpose(1, 2))
+        pair_dot_product = dot_product[:, self.triu[0], self.triu[1]]
+        # print(pair_dot_product.shape)
+        # out_features = self.dot_product_head(pair_dot_product)
+        pair_classification_out = torch.sigmoid(pair_dot_product)
+
+        return pair_classification_out, pair_dot_product
 
 
         
@@ -181,13 +197,8 @@ if __name__ == "__main__":
     num_success= 0
     for i, data in enumerate(train_loader):
         print(f"Batch: {i}/{len(train_loader)}")
-        pair_classification_out = model(data)
+        pair_classification_out, pair_dot_product = model(data)
 
-        pair_scores_gt = data.pair_scores.reshape(-1, model.num_pairs)
-        print(pair_scores_gt.shape)
-        binary_pair_scores_gt = (pair_scores_gt > 0).float()
-        print(pair_classification_out.shape)
-        loss = classification_criterion(pair_classification_out, binary_pair_scores_gt)
         break
 
         # classification_loss = classification_criterion(classification_output, approach_score_gt)

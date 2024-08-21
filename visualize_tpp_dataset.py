@@ -55,7 +55,7 @@ def show_all_tpps_of_grasp(points, grasps_dict, pair_scores, triu_indices, args)
     print("contact_idxs", len(contact_idxs))
     visualize_grasps(points, grasps, None, contact_idxs, cylinder_edges=edges)
 
-def show_pair_edges(points, pair_scores, triu_indices):
+def show_pair_edges(points, pair_scores, triu_indices, sample_info=None):
     pair_idxs = np.where(pair_scores > 0.5)[0]
     good_pair_scores = pair_scores[pair_idxs]
     edge_index = np.stack((triu_indices[0][pair_idxs], triu_indices[1][pair_idxs]), axis=1) 
@@ -74,7 +74,16 @@ def show_pair_edges(points, pair_scores, triu_indices):
     line_set.colors = o3d.utility.Vector3dVector(colors)
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(points)
-    o3d.visualization.draw_geometries([line_set, pcd])
+    if sample_info is not None:
+        obj_path = sample_info['model_path']
+        scale = float(sample_info['scale'])
+        mesh = o3d.io.read_triangle_mesh(obj_path)
+        #scale the mesh
+        mesh.scale(scale, center=mesh.get_center())
+        mesh.translate([0, 0, -0.1], relative=False)
+        o3d.visualization.draw_geometries([mesh, line_set, pcd])
+    else:
+        o3d.visualization.draw_geometries([line_set, pcd])
 
 if __name__ == "__main__":
 
@@ -90,11 +99,11 @@ if __name__ == "__main__":
     dataset = TPPDataset(train_samples, return_pair_dict=True)
     t = time.time()
     sample = dataset[args.index]
-    print(f"Time taken: {time.time() - t}")
+    print(sample.sample_info)
     pos =sample.pos.numpy()
     grasps_dict = sample.y
     pair_scores = sample.pair_scores.numpy()
 
     # show_tpp_grasps(args, dataset, pos, grasps_dict, pair_scores)
     # show_all_tpps_of_grasp(pos, grasps_dict, pair_scores, dataset.triu_indices, args)
-    show_pair_edges(pos, pair_scores, dataset.triu_indices)
+    show_pair_edges(pos, pair_scores, dataset.triu_indices, sample.sample_info)
