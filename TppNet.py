@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool
+from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool, global_mean_pool
 
 class TppNet(nn.Module):
     def __init__(self, grasp_dim=16, k=8, num_grasp_sample=500, num_points=1000):
@@ -76,7 +76,7 @@ class TppNet(nn.Module):
     
         #------------------------------------------------------
 
-        global_features = global_max_pool(shared_features, batch)
+        global_features = global_mean_pool(shared_features, batch)
         global_features = global_features.reshape(-1, 1, self.point_feat_dim)
         global_features = global_features.repeat(1, 1000, 1)
         shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)

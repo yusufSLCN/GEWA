@@ -80,7 +80,7 @@ def show_pair_edges(points, pair_scores, triu_indices, sample_info=None):
         mesh = o3d.io.read_triangle_mesh(obj_path)
         #scale the mesh
         mesh.scale(scale, center=mesh.get_center())
-        mesh.translate([0, 0, -0.1], relative=False)
+        mesh.translate([-0.1, 0, -0.1], relative=False)
         o3d.visualization.draw_geometries([mesh, line_set, pcd])
     else:
         o3d.visualization.draw_geometries([line_set, pcd])
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     parser.add_argument('-i','--index', type=int, default=0)
     parser.add_argument('-n','--num_grasps', type=int, default=5)
     args = parser.parse_args()
-    train_samples, val_samples = save_split_samples('../data', 20)
+    train_samples, val_samples = save_split_samples('../data', 100)
     print(f"Number of train samples: {len(train_samples)}")
     print(f"Number of validation samples: {len(val_samples)}")
     print("Done!")

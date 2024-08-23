@@ -82,16 +82,18 @@ def visualize_grasps_of_point(vertices, point_idx, point_key, point_grasp_dict, 
         # scene.add_geometry(contact2_point)
     scene.show()
 
-def visualize_grasp(vertices, grasp, query_point_idx):
+def visualize_grasp(vertices, grasp, query_point_idx=None):
     scene = create_scene_with_reference(vertices)
     new_gripper = create_gripper_marker()
     point_gripper = new_gripper.apply_transform(grasp)
     scene.add_geometry(point_gripper)
-    sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.005)
-    sphare.visual.face_colors = [0, 255, 0, 255]
-    query_point = vertices[query_point_idx]
-    sphare.apply_translation(query_point)
-    scene.add_geometry(sphare)
+
+    if query_point_idx is not None:
+        sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.005)
+        sphare.visual.face_colors = [0, 255, 0, 255]
+        query_point = vertices[query_point_idx]
+        sphare.apply_translation(query_point)
+        scene.add_geometry(sphare)
     scene.show()
 
 
