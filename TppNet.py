@@ -11,6 +11,7 @@ class TppNet(nn.Module):
         self.grap_dim = grasp_dim
         self.k = k
         self.multi_gpu = False
+        self.num_points = num_points
         self.triu = torch.triu_indices(num_points, num_points, offset=1)
 
         self.num_pairs = self.triu.shape[1]
@@ -27,12 +28,22 @@ class TppNet(nn.Module):
             # nn.Linear(128, self.point_feat_dim)
         ) 
 
+        self.point_feat_merger = DynamicEdgeConv(MLP([self.point_feat_dim * 2, self.point_feat_dim, 1]), k=self.k, aggr='max')
+
+        self.edge_classifier = nn.Sequential(
+            nn.Linear(self.point_feat_dim * 2, self.point_feat_dim),
+            nn.ReLU(),
+            nn.Linear(self.point_feat_dim, 1)
+        )
+
         # Classification head (per-pair)
         self.classification_head = nn.Sequential(
             nn.Linear(self.point_feat_dim , 16),
             nn.ReLU(),
             nn.Linear(16, self.num_pairs)
         )
+
+        # self.class_conv_head = DynamicEdgeConv(MLP([self.point_feat_dim, 16, 16]), k=self.k, aggr='max')
 
         # self.dot_product_head = nn.Sequential(
         #     nn.Linear(self.num_pairs , self.num_pairs)
@@ -63,32 +74,44 @@ class TppNet(nn.Module):
 
         # return pair_classification_out, pair_scores
         #------------------------------------------------------
-
-
+        shared_features = shared_features.reshape(-1, self.num_points, self.point_feat_dim)
+        # mlp_out = torch.zeros((shared_features.shape[0], self.num_pairs, 1)).to(shared_features.device)
+        # for i, j in zip(self.triu[0], self.triu[1]):
+            # print(i, j)
+        feat_i = shared_features[:, self.triu[0], :]
+        feat_j = shared_features[:, self.triu[1], :]
+        edge_feature_ij = torch.cat([feat_i, feat_j], dim=-1)
+        # edge_feature_ji = torch.cat([feat_j, feat_i], dim=-1)
+        mlp_out = self.edge_classifier(edge_feature_ij)
+        
+        pair_classification_out = torch.sigmoid(mlp_out)
+        return pair_classification_out, mlp_out
+        #------------------------------------------------------
         # shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)
         # dot_product = torch.matmul(shared_features, shared_features.transpose(1, 2))
         # pair_dot_product = dot_product[:, self.triu[0], self.triu[1]]
         # # print(pair_dot_product.shape)
         # # out_features = self.dot_product_head(pair_dot_product)
+
         # pair_classification_out = torch.sigmoid(pair_dot_product)
 
         # return pair_classification_out, pair_dot_product
     
         #------------------------------------------------------
 
-        global_features = global_mean_pool(shared_features, batch)
-        global_features = global_features.reshape(-1, 1, self.point_feat_dim)
-        global_features = global_features.repeat(1, 1000, 1)
-        shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)
+        # global_features = global_mean_pool(shared_features, batch)
+        # global_features = global_features.reshape(-1, 1, self.point_feat_dim)
+        # global_features = global_features.repeat(1, 1000, 1)
+        # shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)
 
-        combined_features = torch.cat([shared_features, global_features], dim=2)
-        dot_product = torch.matmul(combined_features, combined_features.transpose(1, 2))
-        pair_dot_product = dot_product[:, self.triu[0], self.triu[1]]
-        # print(pair_dot_product.shape)
-        # out_features = self.dot_product_head(pair_dot_product)
-        pair_classification_out = torch.sigmoid(pair_dot_product)
+        # combined_features = torch.cat([shared_features, global_features], dim=2)
+        # dot_product = torch.matmul(combined_features, combined_features.transpose(1, 2))
+        # pair_dot_product = dot_product[:, self.triu[0], self.triu[1]]
+        # # print(pair_dot_product.shape)
+        # # out_features = self.dot_product_head(pair_dot_product)
+        # pair_classification_out = torch.sigmoid(pair_dot_product)
 
-        return pair_classification_out, pair_dot_product
+        # return pair_classification_out, pair_dot_product
 
 
         
