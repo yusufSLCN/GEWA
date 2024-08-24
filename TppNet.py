@@ -81,11 +81,16 @@ class TppNet(nn.Module):
         feat_i = shared_features[:, self.triu[0], :]
         feat_j = shared_features[:, self.triu[1], :]
         edge_feature_ij = torch.cat([feat_i, feat_j], dim=-1)
-        # edge_feature_ji = torch.cat([feat_j, feat_i], dim=-1)
-        mlp_out = self.edge_classifier(edge_feature_ij)
-        
-        pair_classification_out = torch.sigmoid(mlp_out)
-        return pair_classification_out, mlp_out
+        mlp_out_ij = self.edge_classifier(edge_feature_ij)
+        mlp_out_ij = mlp_out_ij.squeeze(-1)
+        pair_classification_out_ij = torch.sigmoid(mlp_out_ij)
+
+        edge_feature_ji = torch.cat([feat_j, feat_i], dim=-1)
+        mlp_out_ji = self.edge_classifier(edge_feature_ji)
+        mlp_out_ji = mlp_out_ji.squeeze(-1)
+        pair_classification_out_ji = torch.sigmoid(mlp_out_ji)
+
+        return pair_classification_out_ij, mlp_out_ij, pair_classification_out_ji, mlp_out_ji
         #------------------------------------------------------
         # shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)
         # dot_product = torch.matmul(shared_features, shared_features.transpose(1, 2))
@@ -220,7 +225,8 @@ if __name__ == "__main__":
     num_success= 0
     for i, data in enumerate(train_loader):
         print(f"Batch: {i}/{len(train_loader)}")
-        pair_classification_out, pair_dot_product = model(data)
+        # pair_classification_out, pair_dot_product = model(data)
+        pair_classification_out_ij, mlp_out_ij, pair_classification_out_ji, mlp_out_ji  = model(data)
 
         break
 

@@ -29,7 +29,7 @@ if __name__ == "__main__":
     # Access and download model. Returns path to downloaded artifact
     # downloaded_model_path = run.use_model(name="DynANet_nm_1000__bs_64_epoch_820.pth:v0")
     # downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_128.pth_epoch_150_acc_0.81_recall_0.77.pth:v0")
-    downloaded_model_path = run.use_model(name="TppNet_nm_100__bs_64.pth_epoch_200_acc_0.54_recall_0.92.pth:v0")
+    downloaded_model_path = run.use_model(name="TppNet_nm_100__bs_64.pth_epoch_210_acc_0.89_recall_0.66.pth:v0")
     print(downloaded_model_path)
 
     model_path = downloaded_model_path

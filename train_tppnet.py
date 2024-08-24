@@ -189,7 +189,8 @@ for epoch in range(1, num_epochs + 1):
 
         t2 = time.time()
         # print(f"Data prep takes {t2 - t1}s")
-        pair_classification_pred, pair_dot_product = model(data)
+        # pair_classification_pred, pair_dot_product = model(data)
+        pair_classification_out_ij, mlp_out_ij, pair_classification_out_ji, mlp_out_ji = model(data)
 
         t3 = time.time()
         # print(f"Model takes {t3 - t2}s")
@@ -199,13 +200,18 @@ for epoch in range(1, num_epochs + 1):
         pos_pair_count = torch.sum(binary_pair_scores_gt)
         pos_weight = (binary_pair_scores_gt.numel() - pos_pair_count) / pos_pair_count
         classification_criterion = nn.BCEWithLogitsLoss(pos_weight= 0.5 * pos_weight)
-        pair_loss = classification_criterion(pair_dot_product, binary_pair_scores_gt)
+        pair_loss = classification_criterion(mlp_out_ij, binary_pair_scores_gt)
+
+        contrastive_criterion = nn.CrossEntropyLoss()
+        contrastive_loss =  contrastive_criterion(mlp_out_ij, mlp_out_ji)
         t4 = time.time()
         # print(f"Loss takes {t4 - t3}s")
         if multi_gpu:
             pair_loss = pair_loss.mean()
+            contrastive_loss = contrastive_loss.mean()
 
-        loss = pair_loss
+        # loss = pair_loss 
+        loss = pair_loss + contrastive_loss
         loss.backward()
         # # Update the weights
         optimizer.step()
