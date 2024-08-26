@@ -30,18 +30,18 @@ class TppNet(nn.Module):
 
         self.point_feat_merger = DynamicEdgeConv(MLP([self.point_feat_dim * 2, self.point_feat_dim, 1]), k=self.k, aggr='max')
 
+        # self.edge_classifier = nn.Sequential(
+        #     nn.Linear(self.point_feat_dim * 2, self.point_feat_dim),
+        #     nn.ReLU(),
+        #     nn.Linear(self.point_feat_dim, 1)
+        # )
+
         self.edge_classifier = nn.Sequential(
-            nn.Linear(self.point_feat_dim * 2, self.point_feat_dim),
+            nn.Linear(self.point_feat_dim * 3, self.point_feat_dim),
             nn.ReLU(),
             nn.Linear(self.point_feat_dim, 1)
         )
 
-        # Classification head (per-pair)
-        self.classification_head = nn.Sequential(
-            nn.Linear(self.point_feat_dim , 16),
-            nn.ReLU(),
-            nn.Linear(16, self.num_pairs)
-        )
 
         # self.class_conv_head = DynamicEdgeConv(MLP([self.point_feat_dim, 16, 16]), k=self.k, aggr='max')
 
@@ -68,29 +68,39 @@ class TppNet(nn.Module):
         
         shared_features = self.shared_mlp(x)
 
-        # global_embedding = global_max_pool(shared_features, batch)
-        # pair_scores = self.classification_head(global_embedding)
-        # pair_classification_out = torch.sigmoid(pair_scores)
-
-        # return pair_classification_out, pair_scores
-        #------------------------------------------------------
+        global_embedding = global_max_pool(shared_features, batch)
         shared_features = shared_features.reshape(-1, self.num_points, self.point_feat_dim)
-        # mlp_out = torch.zeros((shared_features.shape[0], self.num_pairs, 1)).to(shared_features.device)
-        # for i, j in zip(self.triu[0], self.triu[1]):
-            # print(i, j)
         feat_i = shared_features[:, self.triu[0], :]
         feat_j = shared_features[:, self.triu[1], :]
-        edge_feature_ij = torch.cat([feat_i, feat_j], dim=-1)
+        global_embedding = global_embedding.reshape(-1, 1, self.point_feat_dim)
+        global_embedding = global_embedding.repeat(1, feat_j.shape[1], 1)
+
+        edge_feature_ij = torch.cat([feat_i, feat_j, global_embedding], dim=-1)
         mlp_out_ij = self.edge_classifier(edge_feature_ij)
         mlp_out_ij = mlp_out_ij.squeeze(-1)
         pair_classification_out_ij = torch.sigmoid(mlp_out_ij)
 
-        edge_feature_ji = torch.cat([feat_j, feat_i], dim=-1)
+        edge_feature_ji = torch.cat([feat_j, feat_i, global_embedding], dim=-1)
         mlp_out_ji = self.edge_classifier(edge_feature_ji)
         mlp_out_ji = mlp_out_ji.squeeze(-1)
         pair_classification_out_ji = torch.sigmoid(mlp_out_ji)
 
         return pair_classification_out_ij, mlp_out_ij, pair_classification_out_ji, mlp_out_ji
+        #------------------------------------------------------
+        # shared_features = shared_features.reshape(-1, self.num_points, self.point_feat_dim)
+        # feat_i = shared_features[:, self.triu[0], :]
+        # feat_j = shared_features[:, self.triu[1], :]
+        # edge_feature_ij = torch.cat([feat_i, feat_j], dim=-1)
+        # mlp_out_ij = self.edge_classifier(edge_feature_ij)
+        # mlp_out_ij = mlp_out_ij.squeeze(-1)
+        # pair_classification_out_ij = torch.sigmoid(mlp_out_ij)
+
+        # edge_feature_ji = torch.cat([feat_j, feat_i], dim=-1)
+        # mlp_out_ji = self.edge_classifier(edge_feature_ji)
+        # mlp_out_ji = mlp_out_ji.squeeze(-1)
+        # pair_classification_out_ji = torch.sigmoid(mlp_out_ji)
+
+        # return pair_classification_out_ij, mlp_out_ij, pair_classification_out_ji, mlp_out_ji
         #------------------------------------------------------
         # shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)
         # dot_product = torch.matmul(shared_features, shared_features.transpose(1, 2))

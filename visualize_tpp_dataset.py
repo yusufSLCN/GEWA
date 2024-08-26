@@ -1,4 +1,7 @@
 import numpy as np
+import open3d as o3d
+from matplotlib import colormaps
+import matplotlib.pyplot as plt
 from tpp_dataset import TPPDataset
 from acronym_visualize_dataset import visualize_grasps
 from create_tpp_dataset import save_split_samples
@@ -55,13 +58,10 @@ def show_all_tpps_of_grasp(points, grasps_dict, pair_scores, triu_indices, args)
     print("contact_idxs", len(contact_idxs))
     visualize_grasps(points, grasps, None, contact_idxs, cylinder_edges=edges)
 
-def show_pair_edges(points, pair_scores, triu_indices, sample_info=None):
-    pair_idxs = np.where(pair_scores > 0.5)[0]
+def show_pair_edges(points, pair_scores, triu_indices, sample_info=None, threshold=0.5):
+    pair_idxs = np.where(pair_scores > threshold)[0]
     good_pair_scores = pair_scores[pair_idxs]
     edge_index = np.stack((triu_indices[0][pair_idxs], triu_indices[1][pair_idxs]), axis=1) 
-    import open3d as o3d
-    from matplotlib import colormaps
-    import matplotlib.pyplot as plt
     cmap_name = 'viridis'  # You can change this to any other colormap name
     cmap = colormaps[cmap_name]
     norm = plt.Normalize(good_pair_scores.min(), good_pair_scores.max())
@@ -74,6 +74,9 @@ def show_pair_edges(points, pair_scores, triu_indices, sample_info=None):
     line_set.colors = o3d.utility.Vector3dVector(colors)
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(points)
+    # pcd.estimate_normals()
+    # print(np.asarray(pcd.normals).shape)
+    gripper = create_gripper()
     if sample_info is not None:
         obj_path = sample_info['model_path']
         scale = float(sample_info['scale'])
@@ -81,9 +84,62 @@ def show_pair_edges(points, pair_scores, triu_indices, sample_info=None):
         #scale the mesh
         mesh.scale(scale, center=mesh.get_center())
         mesh.translate([-0.1, 0, -0.1], relative=False)
-        o3d.visualization.draw_geometries([mesh, line_set, pcd])
+        o3d.visualization.draw_geometries([mesh, line_set, pcd, gripper])
+        
     else:
-        o3d.visualization.draw_geometries([line_set, pcd])
+        o3d.visualization.draw_geometries([line_set, pcd, gripper])
+
+
+def create_gripper(color=[0, 0, 255], tube_radius=0.001, resolution=6):
+    """Create a 3D mesh visualizing a parallel yaw gripper. It consists of four cylinders.
+
+    Args:
+        color (list, optional): RGB values of marker. Defaults to [0, 0, 255].
+        tube_radius (float, optional): Radius of cylinders. Defaults to 0.001.
+        resolution (int, optional): Resolution of cylinders. Defaults to 6.
+
+    Returns:
+        open3d.geometry.TriangleMesh: A mesh that represents a simple parallel yaw gripper.
+    """
+    def create_cylinder(p1, p2, radius, resolution):
+        p1 = np.array(p1)
+        p2 = np.array(p2)
+        vector = p2 - p1
+        length = np.linalg.norm(vector)
+        cylinder = o3d.geometry.TriangleMesh.create_cylinder(radius=radius, height=length, resolution=resolution)
+        cylinder.compute_vertex_normals()
+        
+        # Rotate and translate cylinder
+        rotation = o3d.geometry.get_rotation_matrix_from_xyz((0, np.arccos(vector[2] / length), 0))
+        cylinder.rotate(rotation, center=(0, 0, 0))
+        cylinder.translate((p1 + p2) / 2)
+        
+        return cylinder
+
+    cfl = create_cylinder([4.10000000e-02, -7.27595772e-12, 6.59999996e-02],
+                          [4.10000000e-02, -7.27595772e-12, 1.12169998e-01],
+                          tube_radius, resolution)
+    
+    cfr = create_cylinder([-4.100000e-02, -7.27595772e-12, 6.59999996e-02],
+                          [-4.100000e-02, -7.27595772e-12, 1.12169998e-01],
+                          tube_radius, resolution)
+    
+    cb1 = create_cylinder([0, 0, 0], 
+                          [0, 0, 6.59999996e-02],
+                          tube_radius, resolution)
+    
+    cb2 = create_cylinder([-4.100000e-02, 0, 6.59999996e-02],
+                          [4.100000e-02, 0, 6.59999996e-02],
+                          tube_radius, resolution)
+
+    # Combine all cylinders
+    gripper_mesh = cfl + cfr + cb1 + cb2
+
+    # Set color
+    color_array = np.array(color) / 255.0  # Normalize color values to [0, 1]
+    gripper_mesh.paint_uniform_color(color_array)
+
+    return gripper_mesh
 
 if __name__ == "__main__":
 
