@@ -12,6 +12,7 @@ import numpy as np
 from torcheval.metrics.functional.classification import binary_recall
 # from sklearn.metrics import recall_score
 from metrics import count_correct_approach_scores
+import time
 
 if __name__ == "__main__":
 
@@ -25,14 +26,18 @@ if __name__ == "__main__":
 
     run = wandb.init(project="Grasp", job_type="download_model", notes="inference")
 
-    # idx 17
+    # idx 4, 5, 6, 7, 13, 18
     # Access and download model. Returns path to downloaded artifact
     # downloaded_model_path = run.use_model(name="TppNet_nm_500__bs_32.pth_epoch_130_acc_0.962_recall_0.509_prec_0.270.pth:v0")
     #contrastive loss
     # downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_450_acc_0.972_recall_0.517_prec_0.400.pth:v0") 
     # downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_390_acc_0.970_recall_0.574_prec_0.381.pth:v0")
     # wo contrastive loss
-    downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_400_acc_0.972_recall_0.523_prec_0.413.pth:v0")
+    # downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_400_acc_0.972_recall_0.523_prec_0.413.pth:v0")
+    #global embeddings
+    # downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_420_acc_0.972_recall_0.578_prec_0.412.pth:v0")
+    downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_490_acc_0.972_recall_0.576_prec_0.420.pth:v0")
+    
     print(downloaded_model_path)
 
     model_path = downloaded_model_path
@@ -48,7 +53,7 @@ if __name__ == "__main__":
     # train_paths, val_paths = save_split_samples('../data', 5)
 
     dataset = TPPDataset(val_paths, return_pair_dict=True)
-    data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
+    data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)
 
     samlpe_idx = args.sample_idx
     # data = data_loader[samlpe_idx]
@@ -58,7 +63,10 @@ if __name__ == "__main__":
     model.eval()
 
     for i, d in enumerate(data_loader):
+        t = time.time()
         data = d
+        # print(data.sample_info)
+        print(f"Time to load data: {time.time() - t}")
         if i == samlpe_idx:
             break
     print(data.sample_info)

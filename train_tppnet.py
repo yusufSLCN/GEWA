@@ -16,11 +16,11 @@ import numpy as np
 import torch.optim as optim
 import time
 # from sklearn.metrics import recall_score
-from torcheval.metrics.functional.classification import binary_recall, binary_precision, binary_f1_score
+from torcheval.metrics.functional.classification import binary_accuracy, binary_recall, binary_precision, binary_f1_score
 
 # Parse the arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('-bs','--batch_size', type=int, default=64)
+parser.add_argument('-bs','--batch_size', type=int, default=2)
 parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
 parser.add_argument('-e', '--epochs', type=int, default=50)
 parser.add_argument('-d', '--device', type=str, default='cuda')
@@ -57,8 +57,8 @@ print("Transform params: ", transfom_params)
 
 # Save the split samples
 train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh)
-train_dataset = TPPDataset(train_dirs, transform=transform)
-val_dataset = TPPDataset(val_dirs)
+train_dataset = TPPDataset(train_dirs, transform=transform, return_pair_dict=True)
+val_dataset = TPPDataset(val_dirs, return_pair_dict=True)
                    
 # Initialize wandb
 wandb.init(project="Grasp", notes=args.notes)
@@ -94,7 +94,8 @@ print(device)
 # Initialize the model
 # model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
 # model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
-model = TppNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples).to(device)
+max_grasp_per_edge = 10
+model = TppNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples, max_num_grasps=max_grasp_per_edge).to(device)
 num_pairs = model.num_pairs
 config.model_name = model.__class__.__name__
 
@@ -120,45 +121,52 @@ scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[args.epochs //
 
 # classification_criterion = nn.BCELoss()
 # classification_criterion = nn.BCEWithLogitsLoss(pos_weight=500)
-# tip_mse_loss = nn.MSELoss()
-# grasp_mse_loss = nn.MSELoss(reduction='none')
+tip_mse_loss = nn.MSELoss()
+grasp_mse_loss = nn.MSELoss(reduction='none')
 
 
-# def calculate_loss(approach_score_pred, grasp_pred, approach_score_gt, grasp_target, approach_points, num_grasps_of_approach_points):
-#     approach_score_gt = (approach_score_gt > 0).float().to(approach_score_pred.device)
-#     grasp_target = grasp_target.to(grasp_pred.device)
-#     # print(approach_score_gt.shape, grasp_target.shape)
-#     approach_loss = classification_criterion(approach_score_pred, approach_score_gt)
+def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, mlp_out_ij, binary_pair_scores_gt):
+    # Calculate the pair loss
+    pos_pair_count = torch.sum(binary_pair_scores_gt)
+    pos_weight = (binary_pair_scores_gt.numel() - pos_pair_count) / pos_pair_count
+    classification_criterion = nn.BCEWithLogitsLoss(pos_weight= 0.1 * pos_weight)
+    pair_loss = classification_criterion(mlp_out_ij, binary_pair_scores_gt)
 
-#     # gripper_height = torch.tensor([0, 0, 1.12169998e-01, 1]).to(grasp_pred.device)
-#     # grasp_pred_mat = grasp_pred.reshape(-1, 4, 4)
-#     # grasp_tip = torch.matmul(grasp_pred_mat, gripper_height)[:, :3]
-#     # tip_loss = tip_mse_loss(grasp_tip, approach_points)
+    # print(num_valid_grasps.shape)
+    # print(mid_edge_points.shape)
+    valid_grasp_mask = num_valid_grasps > 0
+    valid_grasp_mask = valid_grasp_mask.flatten()
+    # Calculate the tip loss
+    gripper_height = torch.tensor([0, 0, 1.12169998e-01, 1]).to(grasp_pred.device)
+    grasp_pred_mat = grasp_pred.reshape(-1, 4, 4)
+    grasp_tip = torch.matmul(grasp_pred_mat, gripper_height)[:, :3]
+    grasp_tip = grasp_tip[valid_grasp_mask]
+    mid_edge_points = mid_edge_points[valid_grasp_mask]
+    tip_loss = tip_mse_loss(grasp_tip, mid_edge_points)
 
-#     # grasp_target = grasp_target.reshape(-1, 4, 4)
-#     # target_tip = torch.matmul(grasp_target, gripper_height)[:, :3]
-#     # dist = (target_tip - approach_points).pow(2).sum(1).sqrt()
-#     # dist_mask = dist < 0.02
-#     # grasp_pred = grasp_pred[dist_mask].reshape(-1, 16)
-#     # grasp_target = grasp_target[dist_mask].reshape(-1, 16)
-#     grasp_pred = grasp_pred.reshape(-1, args.grasp_samples, 1,  16)
-#     num_grasps_of_approach_points = num_grasps_of_approach_points.reshape(-1, args.grasp_samples)
-#     min_grasp_losses = []
-#     for i in range(len(grasp_target)):
-#         sample_grasp_target = grasp_target[i]
-#         sample_grasp_pred = grasp_pred[i].repeat(1, max_grasp_per_point, 1)
-#         grasp_losses = grasp_mse_loss(sample_grasp_pred, sample_grasp_target)
-#         grasp_losses = grasp_losses.sum(dim=-1)
+    # Calculate the grasp loss
+    grasp_pred = grasp_pred.reshape(-1, args.grasp_samples, 1,  16)
+    min_grasp_losses = []
+    grasp_target = grasp_target.to(grasp_pred.device)
+    grasp_target = grasp_target.reshape(-1, args.grasp_samples, max_grasp_per_edge, 16)
 
-#         #some of the target grasps are just for padding
-#         #extract the valid grasp losses and take the minimum
-#         for g_idx in range(args.grasp_samples):
-#             a_point_loss = grasp_losses[:num_grasps_of_approach_points[i, g_idx]]
-#             min_grasp_losses.append(torch.min(a_point_loss, dim=1).values)
+    for i in range(len(grasp_target)):
+        sample_grasp_target = grasp_target[i]
+        sample_grasp_pred = grasp_pred[i].repeat(1, max_grasp_per_edge, 1)
+        grasp_losses = grasp_mse_loss(sample_grasp_pred, sample_grasp_target)
+        grasp_losses = grasp_losses.sum(dim=-1)
 
-#     grasp_loss = torch.cat(min_grasp_losses).mean()
+        #some of the target grasps are just for padding
+        #extract the valid grasp losses and take the minimum
+        for g_idx in range(args.grasp_samples):
+            if num_valid_grasps[i, g_idx] == 0:
+                continue
+            a_point_loss = grasp_losses[:num_valid_grasps[i, g_idx]]
+            min_grasp_losses.append(torch.min(a_point_loss, dim=1).values)
+
+    grasp_loss = torch.cat(min_grasp_losses).mean()
     
-#     return approach_loss, grasp_loss, tip_loss
+    return pair_loss, grasp_loss, tip_loss
 
 
 print(f"Train data size: {len(train_dataset)}")
@@ -176,6 +184,7 @@ for epoch in range(1, num_epochs + 1):
     train_recall = 0
     train_precision = 0
     train_f1 = 0
+    train_grasp_success = 0
     for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
         t1 = time.time()
@@ -190,64 +199,69 @@ for epoch in range(1, num_epochs + 1):
         t2 = time.time()
         # print(f"Data prep takes {t2 - t1}s")
         # pair_classification_pred, pair_dot_product = model(data)
-        pair_classification_out_ij, mlp_out_ij, pair_classification_out_ji, mlp_out_ji = model(data)
+        grasp_pred, selected_edge_idxs, mid_edge_pos, grasp_target, num_valid_grasps, pair_classification_pred, mlp_out_ij = model(data)
 
         t3 = time.time()
         # print(f"Model takes {t3 - t2}s")
         pair_scores_gt = pair_scores_gt.reshape(-1, num_pairs)
         binary_pair_scores_gt = (pair_scores_gt > 0).float().to(pair_classification_pred.device)
 
-        pos_pair_count = torch.sum(binary_pair_scores_gt)
-        pos_weight = (binary_pair_scores_gt.numel() - pos_pair_count) / pos_pair_count
-        classification_criterion = nn.BCEWithLogitsLoss(pos_weight= 0.5 * pos_weight)
-        pair_loss = classification_criterion(mlp_out_ij, binary_pair_scores_gt)
+        pair_loss, grasp_loss, tip_loss = calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_pos, mlp_out_ij, binary_pair_scores_gt)
 
-        contrastive_criterion = nn.CrossEntropyLoss()
-        contrastive_loss =  contrastive_criterion(mlp_out_ij, mlp_out_ji)
+        # contrastive_criterion = nn.CrossEntropyLoss()
+        # contrastive_loss =  contrastive_criterion(mlp_out_ij, mlp_out_ji)
         t4 = time.time()
         # print(f"Loss takes {t4 - t3}s")
         if multi_gpu:
             pair_loss = pair_loss.mean()
-            contrastive_loss = contrastive_loss.mean()
+            grasp_loss = grasp_loss.mean()
+            tip_loss = tip_loss.mean()
+            # contrastive_loss = contrastive_loss.mean()
 
         # loss = pair_loss 
-        loss = pair_loss + contrastive_loss
+        loss = pair_loss + grasp_loss + tip_loss
         loss.backward()
         # # Update the weights
         optimizer.step()
         total_loss += loss.item()
         total_pair_loss += pair_loss.item()
-        # total_approach_loss += approach_loss.item()
-        # total_tip_loss += tip_loss.item()
+        total_grasp_loss += grasp_loss.item()
+        total_tip_loss += tip_loss.item()
 
         if epoch % args.log_interval == 0:
             with torch.no_grad():
+                grasp_pred = grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
+                grasp_target = grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
+                num_valid_grasps = num_valid_grasps.cpu().detach().numpy()
+                train_grasp_success += check_batch_grasp_success_rate_per_point(grasp_pred, grasp_target, 0.03,
+                                                                                np.deg2rad(30), num_valid_grasps)
+
                 # Calculate the pair accuracy
                 pair_classification_pred = pair_classification_pred.to(binary_pair_scores_gt.device)
-
-                train_pair_accuracy += count_correct_approach_scores(pair_classification_pred, binary_pair_scores_gt)
                 pair_classification_pred = torch.flatten(pair_classification_pred)
                 binary_pair_scores_gt = torch.flatten(binary_pair_scores_gt).int()
+                train_pair_accuracy += binary_accuracy(pair_classification_pred, binary_pair_scores_gt)
                 train_recall += binary_recall(pair_classification_pred, binary_pair_scores_gt)
                 train_precision += binary_precision(pair_classification_pred, binary_pair_scores_gt)
                 train_f1 += binary_f1_score(pair_classification_pred, binary_pair_scores_gt)
     scheduler.step()
     if epoch % args.log_interval == 0:
-        # train_success_rate = train_grasp_success / len(train_data_loader)
-        # wandb.log({"Train Grasp Success Rate": train_success_rate}, step=epoch)
-        train_pair_accuracy = train_pair_accuracy / (len(train_dataset) *  num_pairs)
+        train_success_rate = train_grasp_success / len(train_data_loader)
+        wandb.log({"Train Grasp Success Rate": train_success_rate}, step=epoch)
+
+        train_pair_accuracy = train_pair_accuracy / len(train_data_loader)
         train_f1 = train_f1 / len(train_data_loader)
         train_precision = train_precision / len(train_data_loader)
         train_recall = train_recall / len(train_data_loader)
         wandb.log({"Train Recall": train_recall, "Train Accuracy":train_pair_accuracy,
                     "Train Precision":train_precision, "Train_F1":train_f1}, step=epoch)
     # average_loss = total_loss / len(train_data_loader)
-    # average_grasp_loss = total_grasp_loss / len(train_data_loader)
+    average_grasp_loss = total_grasp_loss / len(train_data_loader)
     average_pair_loss = total_pair_loss / len(train_data_loader)
-    # average_tip_loss = total_tip_loss / len(train_data_loader)
+    average_tip_loss = total_tip_loss / len(train_data_loader)
 
     # wandb.log({"Train Loss": average_loss}, step=epoch)
-    wandb.log({"Train Pair Loss": average_pair_loss}, step=epoch)
+    wandb.log({"Train Pair Loss": average_pair_loss, "Train Tip Loss":average_tip_loss, "Train Grasp Loss":average_grasp_loss}, step=epoch)
 
     # Validation loop
     model.eval()
@@ -261,6 +275,7 @@ for epoch in range(1, num_epochs + 1):
         val_recall = 0
         val_precision = 0
         val_f1 = 0
+        val_grasp_success = 0
         for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
             if not multi_gpu:
                 # val_data = val_data.to(device)
@@ -269,42 +284,55 @@ for epoch in range(1, num_epochs + 1):
                 val_pair_scores_gt = val_data.pair_scores.to(device)
             else:
                 val_pair_scores_gt = torch.cat([s.pair_scores for s in val_data])
-            val_pair_pred, val_pair_dot_product = model(val_data)
-        
+
+            
+            # val_pair_pred, val_pair_dot_product = model(val_data)
+            val_grasp_pred, val_selected_edge_idxs, val_mid_edge_pos, val_grasp_target, val_num_valid_grasps, val_pair_pred, val_mlp_out_ij = model(val_data)
+            
             val_pair_scores_gt = val_pair_scores_gt.reshape(-1, num_pairs)
             val_binary_pair_scores_gt = (val_pair_scores_gt > 0).float().to(val_pair_pred.device)
 
-            pos_pair_count = torch.sum(val_binary_pair_scores_gt)
-            pos_weight = (val_binary_pair_scores_gt.numel() - pos_pair_count) / pos_pair_count 
-            classification_criterion = nn.BCEWithLogitsLoss(pos_weight= 0.5 * pos_weight)
-            val_pair_loss = classification_criterion(val_pair_dot_product, val_binary_pair_scores_gt)
-
+            val_pair_loss, val_grasp_loss, val_tip_loss = calculate_loss(val_grasp_pred, val_grasp_target, val_num_valid_grasps,
+                                                                          val_mid_edge_pos, val_mlp_out_ij, val_binary_pair_scores_gt)
             if multi_gpu:
                 val_pair_loss = val_pair_loss.mean()
+                val_grasp_loss = val_grasp_loss.mean()
+                val_tip_loss = val_tip_loss.mean()
 
-            val_loss = val_pair_loss
+            val_loss = val_pair_loss + val_grasp_loss + val_tip_loss
+
+            # total_val_loss += val_loss.item()
+            total_val_pair_loss += val_pair_loss.item()
+            total_val_grasp_loss += val_grasp_loss.item()
+            total_val_tip_loss += val_tip_loss.item()
 
             if epoch % args.log_interval == 0:
-                # Calculate the approach accuracy
-                val_pair_pred = val_pair_pred.to(val_binary_pair_scores_gt.device)
-                valid_pair_accuracy += count_correct_approach_scores(val_pair_pred, val_binary_pair_scores_gt)
+                val_grasp_pred = val_grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
+                val_grasp_target = val_grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
+                val_num_valid_grasps = val_num_valid_grasps.cpu().detach().numpy()
+                val_grasp_success = check_batch_grasp_success_rate_per_point(val_grasp_pred, val_grasp_target, 0.03,
+                                                                                np.deg2rad(30), val_num_valid_grasps)
                 #sklearn to get other metrics
                 val_pair_pred = torch.flatten(val_pair_pred)
                 val_binary_pair_scores_gt = torch.flatten(val_binary_pair_scores_gt).int()
+                valid_pair_accuracy += binary_accuracy(val_pair_pred, val_binary_pair_scores_gt)
                 val_recall += binary_recall(val_pair_pred, val_binary_pair_scores_gt)
                 val_precision += binary_precision(val_pair_pred, val_binary_pair_scores_gt)
                 val_f1 += binary_f1_score(val_pair_pred, val_binary_pair_scores_gt)
 
 
-            total_val_loss += val_loss.item()
-            total_val_pair_loss += val_pair_loss.item()
+
 
         # average_val_loss = total_val_loss / len(val_data_loader)
         average_val_pair_loss = total_val_pair_loss / len(val_data_loader)
+        average_val_grasp_loss = total_val_grasp_loss / len(val_data_loader)
+        average_val_tip_loss = total_val_tip_loss / len(val_data_loader)
+
         if epoch % args.log_interval == 0:
-            # grasp_success_rate = valid_grasp_success / len(val_data_loader)
-            # wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
-            valid_pair_accuracy = valid_pair_accuracy / (len(val_dataset) * num_pairs)
+            grasp_success_rate = valid_grasp_success / len(val_data_loader)
+            wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
+
+            valid_pair_accuracy = valid_pair_accuracy / len(val_data_loader)
             val_recall = val_recall / len(val_data_loader)
             val_precision = val_precision / len(val_data_loader)
             val_f1 = val_f1 / len(val_data_loader)
@@ -314,6 +342,7 @@ for epoch in range(1, num_epochs + 1):
             print(f"Train Pair Recall: {train_recall} - Valid Pair Recall: {val_recall}")
             print(f"Train Pair Precision: {train_precision} - Valid Pair Precision: {val_precision}")
             print(f"Train Pair F1: {train_f1} - Valid Pair F1: {val_f1}")
+            print(f"Train Grasp Success: {train_grasp_success} - Valid Grasp Success: {valid_grasp_success}")
             # Save the model if the validation loss is low
             if val_recall > 0.65:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}.pth"
@@ -328,8 +357,9 @@ for epoch in range(1, num_epochs + 1):
                 artifact.add_file(model_path)
                 wandb.log_artifact(artifact)
 
-    wandb.log({"Val Pair Loss": average_val_pair_loss}, step=epoch)
+    wandb.log({"Val Pair Loss": average_val_pair_loss, "Val Grasp Loss": average_val_grasp_loss, "Val Tip Loss": average_tip_loss}, step=epoch)
     print(f"Train Pair Loss: {average_pair_loss:.4f} - Val Pair Loss: {average_val_pair_loss:.4f}")
+    print(f"Train Grasp Loss: {average_grasp_loss:.4f} - Val Grasp Loss: {average_val_grasp_loss:.4f}")
 
 # Finish wandb run
 wandb.finish()
