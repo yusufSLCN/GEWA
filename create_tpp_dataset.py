@@ -8,14 +8,14 @@ import open3d as o3d
 import torch
 
 
-def save_split_samples(data_dir, num_mesh, radius=0.005, train_ratio=0.8):
+def save_split_samples(data_dir, num_mesh, dataset_name="tpp_seed", radius=0.005, train_ratio=0.8):
     if not os.path.exists('sample_dirs'):
         os.makedirs('sample_dirs')
-    paths_dir = os.path.join('sample_dirs', f'tpp_seed_{radius}_samples.npy')
+    paths_dir = os.path.join('sample_dirs', f'{dataset_name}_{radius}_samples.npy')
     if os.path.exists(paths_dir):
         samples = np.load(paths_dir, allow_pickle=True)
     else:
-        samples = get_point_cloud_samples(data_dir, num_mesh=num_mesh, min_num_grasps=100, radius=radius)
+        samples = get_point_cloud_samples(data_dir, dataset_name=dataset_name, num_mesh=num_mesh, min_num_grasps=100, radius=radius)
         #sort by name 
         samples = sorted(samples, key=lambda x: x.simplified_mesh_path)
         np.random.seed(0)
@@ -43,14 +43,14 @@ def save_split_samples(data_dir, num_mesh, radius=0.005, train_ratio=0.8):
     return train_samples, valid_samples
 
 
-def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_points=1000, min_num_grasps=100, radius=0.005):
+def get_point_cloud_samples(data_dir, dataset_name, success_threshold=0.5, num_mesh=-1, num_points=1000, min_num_grasps=100, radius=0.005):
     simplified_mesh_directory = os.path.join(data_dir, 'simplified_obj')
     grasp_directory =  os.path.join(data_dir, 'acronym/grasps')
     model_root = '../data/ShapeNetSem-backup/models-OBJ/models'
-    pair_grasp_folder = os.path.join(data_dir, f'tpp_seed_grasps_{num_points}_{radius}')
-    point_cloud_folder = os.path.join(data_dir, f'tpp_seed_point_cloud_{num_points}_{radius}')
-    touch_pair_score_folder = os.path.join(data_dir, f'tpp_seed_scores_{num_points}_{radius}')
-    touch_pair_score_matrix_folder = os.path.join(data_dir, f'tpp_seed_score_matrix_{num_points}_{radius}')
+    pair_grasp_folder = os.path.join(data_dir, f'{dataset_name}_grasps_{num_points}_{radius}')
+    point_cloud_folder = os.path.join(data_dir, f'{dataset_name}_point_cloud_{num_points}_{radius}')
+    touch_pair_score_folder = os.path.join(data_dir, f'{dataset_name}_scores_{num_points}_{radius}')
+    touch_pair_score_matrix_folder = os.path.join(data_dir, f'{dataset_name}_score_matrix_{num_points}_{radius}')
 
     if not os.path.exists(touch_pair_score_matrix_folder):
         print(f"Creating directory {touch_pair_score_matrix_folder}")
@@ -146,8 +146,8 @@ def create_touch_point_pair_scores_and_grasps(vertices, grasp_poses, cylinder_ra
     # grasp_counts = np.zeros((len(upper_tri_idx[0])))
 
     tpp_grasp_dict = {}
-    for (i, j) in zip(upper_tri_idx[0], upper_tri_idx[1]):
-        tpp_grasp_dict[frozenset((i, j))] = []
+    # for (i, j) in zip(upper_tri_idx[0], upper_tri_idx[1]):
+    #     tpp_grasp_dict[frozenset((i, j))] = []
 
     # print(left_tip_pos.shape, left_cylinder_bottom.shape, right_tip_pos.shape, right_cylinder_bottom.shape, grasp_poses.shape)
     for (left_tip, left_bottom, right_tip, right_bottom, pose) in zip(left_tip_pos, left_cylinder_bottom, right_tip_pos, right_cylinder_bottom,  grasp_poses):
@@ -179,7 +179,11 @@ def create_touch_point_pair_scores_and_grasps(vertices, grasp_poses, cylinder_ra
 
                 point_pair_score_matrix[i, j] += 1
                 # point_pair_score_matrix[j, i] += 1
-                tpp_grasp_dict[frozenset((i, j))].append(pose)
+                pair_key = frozenset((i, j))
+                if pair_key in tpp_grasp_dict:
+                    tpp_grasp_dict[pair_key].append(pose)
+                else:
+                    tpp_grasp_dict[pair_key] = [pose]
 
     #convert dictionary lists to np arrays
     for key in tpp_grasp_dict:
@@ -241,7 +245,7 @@ def create_point_cloud_and_grasps(N, num_grasps):
 
 if __name__ == "__main__":
     
-    train_samples, val_samples = save_split_samples('../data', 5)
+    train_samples, val_samples = save_split_samples('../data',  5, dataset_name="tpp_effdict")
     print(f"Number of train samples: {len(train_samples)}")
     print(f"Number of validation samples: {len(val_samples)}")
     print("Done!")

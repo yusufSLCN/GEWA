@@ -5,7 +5,7 @@ from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool, global_mea
 import numpy as np
 
 class TppNet(nn.Module):
-    def __init__(self, grasp_dim=9, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10):
+    def __init__(self, grasp_dim=9, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False):
         super(TppNet, self).__init__()
         
         self.num_grasp_sample = num_grasp_sample
@@ -14,6 +14,7 @@ class TppNet(nn.Module):
         self.multi_gpu = False
         self.num_points = num_points
         self.max_num_grasps = max_num_grasps
+        self.only_classifier = only_classifier
         self.triu = torch.triu_indices(num_points, num_points, offset=1)
 
         self.num_pairs = self.triu.shape[1]
@@ -29,8 +30,6 @@ class TppNet(nn.Module):
             MLP([512 + 128 + 32, 256, self.point_feat_dim]),
             # nn.Linear(128, self.point_feat_dim)
         ) 
-
-        self.point_feat_merger = DynamicEdgeConv(MLP([self.point_feat_dim * 2, self.point_feat_dim, 1]), k=self.k, aggr='max')
 
         # self.edge_classifier = nn.Sequential(
         #     nn.Linear(self.point_feat_dim * 2, self.point_feat_dim),
@@ -74,6 +73,8 @@ class TppNet(nn.Module):
         mlp_out_ij = mlp_out_ij.squeeze(-1)
         pair_classification_out_ij = torch.sigmoid(mlp_out_ij)
 
+        if self.only_classifier:
+            return None, None, None, None, None, pair_classification_out_ij, mlp_out_ij
         # edge_feature_ji = torch.cat([feat_j, feat_i, global_embedding], dim=-1)
         # mlp_out_ji = self.edge_classifier(edge_feature_ji)
         # mlp_out_ji = mlp_out_ji.squeeze(-1)
@@ -138,7 +139,7 @@ class TppNet(nn.Module):
         grasp_gt = np.zeros((pos.shape[0], self.num_grasp_sample, self.max_num_grasps, 4, 4))
         num_valid_grasps = np.zeros((pos.shape[0], self.num_grasp_sample))
         # print(edge_scores.shape)
-
+        # print(data.y)
         for i in range(edge_scores.shape[0]):  # Iterate over each point cloud in the batch
             sample_pos = pos[i]
             # sample_num_grasps = data.num_grasps[mask]
@@ -155,26 +156,33 @@ class TppNet(nn.Module):
                 edge_index = torch.multinomial(sample_edge_prob, num_samples=self.num_grasp_sample, 
                                                 replacement=with_replacement.item())
             
+            # print("find edge indxs")
+            edge_index = edge_index.to("cpu")
             selected_edge_node1 = self.triu[0][edge_index]
             selected_edge_node2 = self.triu[1][edge_index]
             selected_edge_idxs.append(edge_index)
             sample_edge_grasps = []
+            # print(data.y)
+            # print("selection loop start")
             for edge_j, (point1_idx, point2_idx) in enumerate(zip(selected_edge_node1, selected_edge_node2)):
                 point1_idx = point1_idx.item()
                 point2_idx = point2_idx.item()
                 grasp_key = frozenset((point1_idx, point2_idx))
-                edge_grasps = data.y[grasp_key][i]
-                # print(len(edge_grasps))
-                if len(edge_grasps) > self.max_num_grasps:
-                    edge_grasps = edge_grasps[:self.max_num_grasps]
+                if grasp_key in data.y[i][0]:
+                    edge_grasps = data.y[i][0][grasp_key]
+                    # if len(edge_grasps) > 1:
+                    #     print(len(edge_grasps))
+                    # print(len(data.y[grasp_key]))
+                    # print(edge_grasps[0].shape)
+                    if len(edge_grasps) > self.max_num_grasps:
+                        edge_grasps = edge_grasps[:self.max_num_grasps]
 
-                if len(edge_grasps) > 0:
-                    grasp_gt[i, edge_j, :len(edge_grasps)] = edge_grasps
-                num_valid_grasps[i, edge_j] = len(edge_grasps)
+                    if len(edge_grasps) > 0:
+                        grasp_gt[i, edge_j, :len(edge_grasps)] = edge_grasps
+                        num_valid_grasps[i, edge_j] = len(edge_grasps)
 
                 # sample_edge_grasps.append(edge_grasps)
                 mid_edge_pos.append((sample_pos[point1_idx] + sample_pos[point2_idx]) / 2)
-
             
 
             selected_edge_features.append(edge_feature_ij[i, edge_index])
@@ -186,7 +194,7 @@ class TppNet(nn.Module):
         selected_edge_idxs = torch.stack(selected_edge_idxs)
         grasp_gt = torch.tensor(grasp_gt, dtype=torch.float32)
         num_valid_grasps = torch.tensor(num_valid_grasps, dtype=torch.int8)
-
+        # print("calculate grasps matrix")
         # grasp_outputs = self.grasp_head(grasp_features)
         if self.grap_dim != 16:
             grasp_outputs = grasp_outputs.reshape(-1, self.grap_dim)
@@ -196,7 +204,15 @@ class TppNet(nn.Module):
             grasp_outputs = grasp_outputs.reshape(-1, 4, 4)
             grasp_outputs[:, :3, 3] + mid_edge_pos
             grasp_outputs = grasp_outputs.view(-1, 16)
-        
+
+        # print("return")
+        selected_edge_idxs = selected_edge_idxs.to(grasp_outputs.device)
+        grasp_gt = grasp_gt.to(grasp_outputs.device)
+        num_valid_grasps = num_valid_grasps.to(grasp_outputs.device)
+        # print(grasp_outputs.device, selected_edge_idxs.device,
+        #        mid_edge_pos.device, grasp_gt.device, num_valid_grasps.device, pair_classification_out_ij.device, mlp_out_ij.device)
+
+
         return grasp_outputs, selected_edge_idxs, mid_edge_pos, grasp_gt, num_valid_grasps, pair_classification_out_ij, mlp_out_ij
 
     
@@ -220,25 +236,29 @@ if __name__ == "__main__":
 
     from tpp_dataset import TPPDataset
     from create_tpp_dataset import save_split_samples
-    from torch_geometric.loader import DataLoader
+    from torch_geometric.loader import DataLoader, DataListLoader
     from metrics import check_batch_grasp_success
-    
+    from torch_geometric.nn import DataParallel
 
-    model = TppNet() 
-    train_paths, val_paths = save_split_samples('../data', 100)
+    model = TppNet().to("cuda")
+    model = DataParallel(model)
+    # dataset_name = "tpp_seed"
+    dataset_name = "tpp_effdict"
+    train_paths, val_paths = save_split_samples('../data', 100, dataset_name)
     classification_criterion = nn.BCELoss()
     grasp_criterion = nn.MSELoss()
     # transform = RandomRotationTransform(rotation_range)
     
     train_dataset = TPPDataset(train_paths, transform=None, return_pair_dict=True)
-    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=False, num_workers=0)
+    train_loader = DataListLoader(train_dataset, batch_size=8, shuffle=True, num_workers=0)
     num_success= 0
     for i, data in enumerate(train_loader):
+        model.train()
         print(f"Batch: {i}/{len(train_loader)}")
         # pair_classification_out, pair_dot_product = model(data)
         grasp_outputs, selected_edge_idxs, mid_edge_pos, grasp_gt, num_valid_grasps, pair_classification_out_ij, mlp_out_ij = model(data)
-        print(grasp_outputs.shape, grasp_gt.shape, num_valid_grasps.shape, pair_classification_out_ij.shape, mlp_out_ij.shape)
-        break
+        # print(grasp_outputs.shape, grasp_gt.shape, num_valid_grasps.shape, pair_classification_out_ij.shape, mlp_out_ij.shape)
+        
 
         # classification_loss = classification_criterion(classification_output, approach_score_gt)
         # grasp_loss = grasp_criterion(grasp_outputs, grasp_gt)

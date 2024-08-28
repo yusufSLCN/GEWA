@@ -50,6 +50,8 @@ def check_batch_topk_success_rate(grasp_pred, grasp_gt, trans_thresh, rotat_thre
 def check_batch_grasp_success_rate_per_point(grasp_pred, grasp_gt, trans_thresh, rotat_thresh, num_grasps_of_approach_points):
     num_success = 0
     num_valid_points = np.sum(num_grasps_of_approach_points > 0)
+    if num_valid_points == 0:
+        return 0
     # print(grasp_pred.shape, grasp_gt.shape)
     # print(num_grasps_of_approach_points.shape)
     for mesh_i in range(grasp_pred.shape[0]):
