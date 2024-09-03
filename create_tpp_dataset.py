@@ -11,7 +11,7 @@ import torch
 def save_split_samples(data_dir, num_mesh, dataset_name="tpp_seed", radius=0.005, train_ratio=0.8):
     if not os.path.exists('sample_dirs'):
         os.makedirs('sample_dirs')
-    paths_dir = os.path.join('sample_dirs', f'{dataset_name}_{radius}_samples.npy')
+    paths_dir = os.path.join('sample_dirs', f'{dataset_name}_r-{radius}_{num_mesh}_samples.npy')
     if os.path.exists(paths_dir):
         samples = np.load(paths_dir, allow_pickle=True)
     else:
@@ -245,7 +245,7 @@ def create_point_cloud_and_grasps(N, num_grasps):
 
 if __name__ == "__main__":
     
-    train_samples, val_samples = save_split_samples('../data',  5, dataset_name="tpp_effdict")
+    train_samples, val_samples = save_split_samples('../data',  400, dataset_name="tpp_effdict")
     print(f"Number of train samples: {len(train_samples)}")
     print(f"Number of validation samples: {len(val_samples)}")
     print("Done!")
