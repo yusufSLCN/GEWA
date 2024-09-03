@@ -45,7 +45,7 @@ class TppNet(nn.Module):
         
         # Grasp prediction head
         self.grasp_head = nn.Sequential(
-            nn.Linear(self.point_feat_dim * 3, self.point_feat_dim),
+            nn.Linear(self.point_feat_dim * 3 + 6, self.point_feat_dim),
             nn.ReLU(),
             nn.Linear(self.point_feat_dim, self.grap_dim)
         )
@@ -130,6 +130,8 @@ class TppNet(nn.Module):
         selected_edge_features = []
         grasp_gt = np.zeros((self.num_grasp_sample, self.max_num_grasps, 4, 4))
         mid_edge_pos = []
+        grasp_touch_points = []
+
 
         # print(data.y[list(data.y.keys())[0]])
         # print(data.pair_scores.shape)
@@ -142,7 +144,6 @@ class TppNet(nn.Module):
         # print(data.y)
         for i in range(edge_scores.shape[0]):  # Iterate over each point cloud in the batch
             sample_pos = pos[i]
-            # sample_num_grasps = data.num_grasps[mask]
             
             # Multinomial sampling for point selection
             if self.training:
@@ -162,7 +163,6 @@ class TppNet(nn.Module):
             selected_edge_node1 = self.triu[0][edge_index]
             selected_edge_node2 = self.triu[1][edge_index]
             selected_edge_idxs.append(edge_index)
-            sample_edge_grasps = []
             # print(data.y)
             # print("selection loop start")
             for edge_j, (point1_idx, point2_idx) in enumerate(zip(selected_edge_node1, selected_edge_node2)):
@@ -182,13 +182,19 @@ class TppNet(nn.Module):
 
                 # sample_edge_grasps.append(edge_grasps)
                 mid_edge_pos.append((sample_pos[point1_idx] + sample_pos[point2_idx]) / 2)
-            
+                touch_point_pair = torch.hstack([sample_pos[point1_idx], sample_pos[point2_idx]])
+                grasp_touch_points.append(touch_point_pair)
 
             selected_edge_features.append(edge_feature_ij[i, edge_index])
 
+        # prepare grasp features
         selected_edge_features = torch.stack(selected_edge_features)
+        grasp_touch_points = torch.stack(grasp_touch_points)
+        grasp_touch_points = grasp_touch_points.reshape(-1, self.num_grasp_sample, 6)
+        grasp_features = torch.cat([selected_edge_features, grasp_touch_points], dim=-1)
         
-        grasp_outputs = self.grasp_head(selected_edge_features)
+        # predict grasps
+        grasp_outputs = self.grasp_head(grasp_features)
         mid_edge_pos = torch.stack(mid_edge_pos)
         selected_edge_idxs = torch.stack(selected_edge_idxs)
         grasp_gt = torch.tensor(grasp_gt, dtype=torch.float32)
