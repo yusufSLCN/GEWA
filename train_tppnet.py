@@ -102,6 +102,7 @@ model = TppNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples,
                 max_num_grasps=max_grasp_per_edge, only_classifier=args.only_classifier).to(device)
 num_pairs = model.num_pairs
 config.model_name = model.__class__.__name__
+wandb.watch(model, log="all")
 
 multi_gpu = False
 # If we have multiple GPUs, parallelize the model
@@ -127,15 +128,16 @@ scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[args.epochs //
 # classification_criterion = nn.BCEWithLogitsLoss(pos_weight=500)
 tip_mse_loss = nn.MSELoss()
 grasp_mse_loss = nn.MSELoss(reduction='none')
+# grasp_mse_loss = nn.MSELoss()
 neg_pos_ratio = 44.8
-# classification_criterion = nn.BCEWithLogitsLoss(pos_weight= torch.tensor(0.1 * neg_pos_ratio))
+classification_criterion = nn.BCEWithLogitsLoss(pos_weight= torch.tensor( neg_pos_ratio))
 
 
 def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, mlp_out_ij, binary_pair_scores_gt):
     # Calculate the pair loss
-    pos_pair_count = torch.sum(binary_pair_scores_gt)
-    pos_weight = (binary_pair_scores_gt.numel() - pos_pair_count) / pos_pair_count
-    classification_criterion = nn.BCEWithLogitsLoss(pos_weight= 0.1 * pos_weight)
+    # pos_pair_count = torch.sum(binary_pair_scores_gt)
+    # pos_weight = (binary_pair_scores_gt.numel() - pos_pair_count) / pos_pair_count
+    # classification_criterion = nn.BCEWithLogitsLoss(pos_weight= 0.1 * pos_weight)
     pair_loss = classification_criterion(mlp_out_ij, binary_pair_scores_gt)
 
     if args.only_classifier:
@@ -159,6 +161,14 @@ def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, 
     grasp_target = grasp_target.to(grasp_pred.device)
     grasp_target = grasp_target.reshape(-1, args.grasp_samples, max_grasp_per_edge, 16)
 
+    # grasp_target = grasp_target[:, :, 0]
+    # single_target = grasp_target.reshape(-1, 16)
+    # grasp_pred = grasp_pred.repeat(1, 1, max_grasp_per_edge, 1)
+    # single_pred = grasp_pred.reshape(-1, 16)
+
+    # print(single_pred.shape, single_target.shape)
+    # grasp_loss = grasp_mse_loss(single_target, single_pred)
+
     for i in range(len(grasp_target)):
         sample_grasp_target = grasp_target[i]
         sample_grasp_pred = grasp_pred[i].repeat(1, max_grasp_per_edge, 1)
@@ -170,11 +180,12 @@ def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, 
         for g_idx in range(args.grasp_samples):
             if num_valid_grasps[i, g_idx] == 0:
                 continue
-            a_point_loss = grasp_losses[:num_valid_grasps[i, g_idx]]
-            min_grasp_losses.append(torch.min(a_point_loss, dim=1).values)
+            a_point_loss = grasp_losses[g_idx, :num_valid_grasps[i, g_idx]]
+            min_grasp_loss = torch.min(a_point_loss)
+            min_grasp_losses.append(min_grasp_loss)
 
     if len(min_grasp_losses) > 0:
-        grasp_loss = torch.cat(min_grasp_losses).mean()
+        grasp_loss = sum(min_grasp_losses) / len(min_grasp_losses)
     else:
         grasp_loss = torch.tensor([0.0]).to(grasp_pred.device)
     
@@ -183,7 +194,6 @@ def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, 
 
 print(f"Train data size: {len(train_dataset)}")
 print(f"Val data size: {len(val_dataset)}")
-
 # Training loop
 for epoch in range(1, num_epochs + 1):
     model.train()
@@ -233,10 +243,11 @@ for epoch in range(1, num_epochs + 1):
                 tip_loss = tip_loss.mean()
             # contrastive_loss = contrastive_loss.mean()
 
-        if args.only_classifier:
-            loss = pair_loss
-        else:
-            loss = pair_loss + grasp_loss + 100 * tip_loss
+        # if args.only_classifier:
+        #     loss = pair_loss
+        # else:
+            # loss = grasp_loss + 500 * tip_loss + pair_loss
+        loss = grasp_loss + 100 * tip_loss + pair_loss
 
         loss.backward()
         # # Update the weights
@@ -291,7 +302,6 @@ for epoch in range(1, num_epochs + 1):
         total_val_grasp_loss = 0
         total_val_pair_loss = 0
         total_val_tip_loss = 0
-        valid_grasp_success = 0
         valid_pair_accuracy = 0
         val_recall = 0
         val_precision = 0
@@ -337,7 +347,7 @@ for epoch in range(1, num_epochs + 1):
                     val_grasp_pred = val_grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
                     val_grasp_target = val_grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
                     val_num_valid_grasps = val_num_valid_grasps.cpu().detach().numpy()
-                    val_grasp_success = check_batch_grasp_success_rate_per_point(val_grasp_pred, val_grasp_target, 0.03,
+                    val_grasp_success += check_batch_grasp_success_rate_per_point(val_grasp_pred, val_grasp_target, 0.03,
                                                                                     np.deg2rad(30), val_num_valid_grasps)
                 #sklearn to get other metrics
                 val_pair_pred = torch.flatten(val_pair_pred)
@@ -354,7 +364,7 @@ for epoch in range(1, num_epochs + 1):
         average_val_tip_loss = total_val_tip_loss / len(val_data_loader)
 
         if epoch % args.log_interval == 0:
-            val_grasp_success_rate = valid_grasp_success / len(val_data_loader)
+            val_grasp_success_rate = val_grasp_success / len(val_data_loader)
             wandb.log({"Valid Grasp Success Rate": val_grasp_success_rate}, step=epoch)
 
             valid_pair_accuracy = valid_pair_accuracy / len(val_data_loader)
@@ -369,7 +379,7 @@ for epoch in range(1, num_epochs + 1):
             print(f"Train Pair F1: {train_f1} - Valid Pair F1: {val_f1}")
             print(f"Train Grasp Success: {train_success_rate} - Valid Grasp Success: {val_grasp_success_rate}")
             # Save the model if the validation loss is low
-            if val_f1 > 0.2:
+            if val_f1 > 0.1:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}.pth"
                 model_folder = f"models/{model_name}"
                 if not os.path.exists(model_folder):
