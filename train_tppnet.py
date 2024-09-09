@@ -160,7 +160,9 @@ def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, 
     if grasp_axises is not None:
         pred_grasp_axis = grasp_pred_mat[:, :3, 0]
         # pred_grasp_axis = pred_grasp_axis.reshape(-1, 3)
-        grasp_axis_loss = grasp_axis_mse_loss(grasp_axises, pred_grasp_axis)
+        dot_product = torch.sum(pred_grasp_axis * grasp_axises, dim=-1)
+        squared_dot = dot_product ** 2
+        grasp_axis_loss = -torch.sum(squared_dot)
     else:
         grasp_axis_loss = torch.tensor([0.0]).to(grasp_pred.device)
 
