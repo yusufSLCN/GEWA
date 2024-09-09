@@ -8,7 +8,7 @@ from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
 from tpp_dataset import TPPDataset
-from TppNet import TppNet
+from TppAngleNet import TppAngleNet
 from create_tpp_dataset import save_split_samples
 from metrics import check_batch_topk_success_rate, count_correct_approach_scores, check_batch_grasp_success_rate_per_point
 import os
@@ -98,7 +98,7 @@ print(device)
 # model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
 # model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
 max_grasp_per_edge = 10
-model = TppNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples,
+model = TppAngleNet(num_grasp_sample=args.grasp_samples,
                 max_num_grasps=max_grasp_per_edge, only_classifier=args.only_classifier).to(device)
 num_pairs = model.num_pairs
 config.model_name = model.__class__.__name__
@@ -234,14 +234,14 @@ for epoch in range(1, num_epochs + 1):
         # if args.only_classifier:
         #     pair_classification_pred, mlp_out_ij = model(data)
         # else:
-        grasp_pred, selected_edge_idxs, mid_edge_pos, grasp_axises, grasp_target, num_valid_grasps, pair_classification_pred, mlp_out_ij = model(data)
+        grasp_pred, selected_edge_idxs, mid_edge_pos, grasp_target, num_valid_grasps, pair_classification_pred, mlp_out_ij = model(data)
 
         t3 = time.time()
         # print(f"Model takes {t3 - t2}s")
         pair_scores_gt = pair_scores_gt.reshape(-1, num_pairs)
         binary_pair_scores_gt = (pair_scores_gt > 0).float().to(pair_classification_pred.device)
 
-        pair_loss, grasp_loss, tip_loss, grasp_axis_loss = calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_pos, mlp_out_ij, binary_pair_scores_gt, grasp_axises)
+        pair_loss, grasp_loss, tip_loss, grasp_axis_loss = calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_pos, mlp_out_ij, binary_pair_scores_gt)
 
         # contrastive_criterion = nn.CrossEntropyLoss()
         # contrastive_loss =  contrastive_criterion(mlp_out_ij, mlp_out_ji)
@@ -334,13 +334,13 @@ for epoch in range(1, num_epochs + 1):
 
             
             # val_pair_pred, val_pair_dot_product = model(val_data)
-            val_grasp_pred, val_selected_edge_idxs, val_mid_edge_pos, val_grasp_axises, val_grasp_target, val_num_valid_grasps, val_pair_pred, val_mlp_out_ij = model(val_data)
+            val_grasp_pred, val_selected_edge_idxs, val_mid_edge_pos, val_grasp_target, val_num_valid_grasps, val_pair_pred, val_mlp_out_ij = model(val_data)
             
             val_pair_scores_gt = val_pair_scores_gt.reshape(-1, num_pairs)
             val_binary_pair_scores_gt = (val_pair_scores_gt > 0).float().to(val_pair_pred.device)
 
             val_pair_loss, val_grasp_loss, val_tip_loss, val_grasp_axis_loss = calculate_loss(val_grasp_pred, val_grasp_target, val_num_valid_grasps,
-                                                                          val_mid_edge_pos, val_mlp_out_ij, val_binary_pair_scores_gt, val_grasp_axises)
+                                                                          val_mid_edge_pos, val_mlp_out_ij, val_binary_pair_scores_gt)
 
             if args.only_classifier:
                 val_loss = val_pair_loss

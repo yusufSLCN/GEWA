@@ -4,7 +4,7 @@ from torch_geometric.data import Data
 # from GraspNet import GraspNet
 from TppNet import TppNet
 from tpp_dataset import TPPDataset
-from visualize_tpp_dataset import show_pair_edges
+from visualize_tpp_dataset import show_pair_edges, show_grasp_and_edge_predictions
 import argparse
 import wandb
 from torch_geometric.loader import DataListLoader, DataLoader
@@ -36,7 +36,13 @@ if __name__ == "__main__":
     # downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_400_acc_0.972_recall_0.523_prec_0.413.pth:v0")
     #global embeddings
     # downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_420_acc_0.972_recall_0.578_prec_0.412.pth:v0")
-    downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_490_acc_0.972_recall_0.576_prec_0.420.pth:v0")
+    # downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_490_acc_0.972_recall_0.576_prec_0.420.pth:v0")
+    
+    # with grasp head
+    # downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_90_acc_0.93_recall_0.62.pth:v0")
+    
+    #500 * tiploss
+    downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_90_acc_0.93_recall_0.57.pth:v0")
     
     print(downloaded_model_path)
 
@@ -48,9 +54,7 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
     from create_tpp_dataset import save_split_samples
-    train_paths, val_paths = save_split_samples('../data', 200)
-    # from load_tpp_samples import save_split_samples
-    # train_paths, val_paths = save_split_samples('../data', 5)
+    train_paths, val_paths = save_split_samples('../data', 400, dataset_name="tpp_effdict")
 
     dataset = TPPDataset(val_paths, return_pair_dict=True)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)
@@ -70,9 +74,10 @@ if __name__ == "__main__":
         if i == samlpe_idx:
             break
     print(data.sample_info)
-    pair_classification_pred, pair_dot_product, _, _ = model(data)
+    grasp_pred, selected_edge_idxs, mid_edge_pos, grasp_target, num_valid_grasps, pair_classification_pred, pair_dot_product = model(data)
+    # pair_classification_pred, pair_dot_product, _, _ = model(data)
 
-    test_pair_accuracy = count_correct_approach_scores(pair_dot_product, data.pair_scores)
+    test_pair_accuracy = count_correct_approach_scores(pair_classification_pred, data.pair_scores)
     test_pair_accuracy = test_pair_accuracy / len(data.pair_scores)
     print(f"Test pair accuracy: {test_pair_accuracy}")
 
@@ -96,3 +101,15 @@ if __name__ == "__main__":
 
     show_pair_edges(pos, pred_pair_scores, dataset.triu_indices, threshold=threshold)
     show_pair_edges(pos, pair_scores, dataset.triu_indices)
+
+    #display grasps
+    grasp_pred = grasp_pred.detach().numpy()
+    print(selected_edge_idxs.shape)
+    grasp_pred = grasp_pred.reshape(selected_edge_idxs.shape[1], 16)
+
+    grasp_dict = data.y[0][0]
+    sample_info = data.sample_info
+    selected_edge_idxs = selected_edge_idxs.squeeze()
+
+    show_grasp_and_edge_predictions(pos, grasp_dict, selected_edge_idxs, grasp_pred,
+                                    dataset.triu_indices, sample_info)

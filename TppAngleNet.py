@@ -4,12 +4,11 @@ import torch.nn.functional as F
 from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool, global_mean_pool
 import numpy as np
 
-class TppNet(nn.Module):
-    def __init__(self, grasp_dim=9, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False):
-        super(TppNet, self).__init__()
+class TppAngleNet(nn.Module):
+    def __init__(self, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False):
+        super(TppAngleNet, self).__init__()
         
         self.num_grasp_sample = num_grasp_sample
-        self.grap_dim = grasp_dim
         self.k = k
         self.multi_gpu = False
         self.num_points = num_points
@@ -17,6 +16,7 @@ class TppNet(nn.Module):
         self.only_classifier = only_classifier
         self.triu = torch.triu_indices(num_points, num_points, offset=1)
 
+        self.unit_vector = torch.tensor([0, 0, 1], dtype=torch.float32)
         self.num_pairs = self.triu.shape[1]
         
         self.conv1 = DynamicEdgeConv(MLP([6, 16, 32]), k=self.k, aggr='max')
@@ -31,12 +31,6 @@ class TppNet(nn.Module):
             # nn.Linear(128, self.point_feat_dim)
         ) 
 
-        # self.edge_classifier = nn.Sequential(
-        #     nn.Linear(self.point_feat_dim * 2, self.point_feat_dim),
-        #     nn.ReLU(),
-        #     nn.Linear(self.point_feat_dim, 1)
-        # )
-
         self.edge_classifier = nn.Sequential(
             nn.Linear(self.point_feat_dim * 3, self.point_feat_dim),
             nn.ReLU(),
@@ -44,13 +38,14 @@ class TppNet(nn.Module):
             
         )
         
-        # Grasp prediction head
-        self.grasp_head = nn.Sequential(
+        # Grasp angle prediction head
+        self.angle_head = nn.Sequential(
             nn.Linear(self.point_feat_dim * 3, self.point_feat_dim),
             nn.ReLU(),
             nn.Linear(self.point_feat_dim, self.point_feat_dim),
             nn.ReLU(),
-            nn.Linear(self.point_feat_dim, self.grap_dim)
+            nn.Linear(self.point_feat_dim, 1),
+            nn.Sigmoid()
         )
 
     def forward(self, data):
@@ -78,56 +73,7 @@ class TppNet(nn.Module):
 
         if self.only_classifier:
             return None, None, None, None, None, pair_classification_out_ij, mlp_out_ij
-        # edge_feature_ji = torch.cat([feat_j, feat_i, global_embedding], dim=-1)
-        # mlp_out_ji = self.edge_classifier(edge_feature_ji)
-        # mlp_out_ji = mlp_out_ji.squeeze(-1)
-        # pair_classification_out_ji = torch.sigmoid(mlp_out_ji)
 
-        # return pair_classification_out_ij, mlp_out_ij
-        #------------------------------------------------------
-        # shared_features = shared_features.reshape(-1, self.num_points, self.point_feat_dim)
-        # feat_i = shared_features[:, self.triu[0], :]
-        # feat_j = shared_features[:, self.triu[1], :]
-        # edge_feature_ij = torch.cat([feat_i, feat_j], dim=-1)
-        # mlp_out_ij = self.edge_classifier(edge_feature_ij)
-        # mlp_out_ij = mlp_out_ij.squeeze(-1)
-        # pair_classification_out_ij = torch.sigmoid(mlp_out_ij)
-
-        # edge_feature_ji = torch.cat([feat_j, feat_i], dim=-1)
-        # mlp_out_ji = self.edge_classifier(edge_feature_ji)
-        # mlp_out_ji = mlp_out_ji.squeeze(-1)
-        # pair_classification_out_ji = torch.sigmoid(mlp_out_ji)
-
-        # return pair_classification_out_ij, mlp_out_ij, pair_classification_out_ji, mlp_out_ji
-        #------------------------------------------------------
-        # shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)
-        # dot_product = torch.matmul(shared_features, shared_features.transpose(1, 2))
-        # pair_dot_product = dot_product[:, self.triu[0], self.triu[1]]
-        # # print(pair_dot_product.shape)
-        # # out_features = self.dot_product_head(pair_dot_product)
-
-        # pair_classification_out = torch.sigmoid(pair_dot_product)
-
-        # return pair_classification_out, pair_dot_product
-    
-        #------------------------------------------------------
-
-        # global_features = global_mean_pool(shared_features, batch)
-        # global_features = global_features.reshape(-1, 1, self.point_feat_dim)
-        # global_features = global_features.repeat(1, 1000, 1)
-        # shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)
-
-        # combined_features = torch.cat([shared_features, global_features], dim=2)
-        # dot_product = torch.matmul(combined_features, combined_features.transpose(1, 2))
-        # pair_dot_product = dot_product[:, self.triu[0], self.triu[1]]
-        # # print(pair_dot_product.shape)
-        # # out_features = self.dot_product_head(pair_dot_product)
-        # pair_classification_out = torch.sigmoid(pair_dot_product)
-
-        # return pair_classification_out, pair_dot_product
-
-
-        #------------------------------------------------------
         
         selected_edge_idxs = []
         selected_edge_features = []
@@ -136,16 +82,12 @@ class TppNet(nn.Module):
         grasp_touch_points = []
         grasp_axises = []
 
-
-        # print(data.y[list(data.y.keys())[0]])
-        # print(data.pair_scores.shape)
         edge_scores = data.pair_scores
         edge_scores = edge_scores.reshape(-1, self.num_pairs)
         pos = pos.reshape(-1, self.num_points, 3)
         grasp_gt = np.zeros((pos.shape[0], self.num_grasp_sample, self.max_num_grasps, 4, 4))
         num_valid_grasps = np.zeros((pos.shape[0], self.num_grasp_sample))
-        # print(edge_scores.shape)
-        # print(data.y)
+
         for i in range(edge_scores.shape[0]):  # Iterate over each point cloud in the batch
             sample_pos = pos[i]
             
@@ -189,8 +131,10 @@ class TppNet(nn.Module):
                         grasp_gt[i, edge_j, :len(edge_grasps)] = edge_grasps
                         num_valid_grasps[i, edge_j] = len(edge_grasps)
 
+                # sample_edge_grasps.append(edge_grasps)
                 grasp_axis = sample_pos[point2_idx] - sample_pos[point1_idx]
                 grasp_axises.append(grasp_axis)
+                
                 mid_edge_pos.append((sample_pos[point1_idx] + sample_pos[point2_idx]) / 2)
                 touch_point_pair = torch.hstack([sample_pos[point1_idx], sample_pos[point2_idx]])
                 grasp_touch_points.append(touch_point_pair)
@@ -198,57 +142,71 @@ class TppNet(nn.Module):
             selected_edge_features.append(edge_feature_ij[i, edge_index])
 
         # prepare grasp features
-        grasp_axises = torch.stack(grasp_axises)
-        grasp_axises = grasp_axises / torch.norm(grasp_axises, dim=-1, keepdim=True)
         selected_edge_features = torch.stack(selected_edge_features)
         # grasp_touch_points = torch.stack(grasp_touch_points)
         # grasp_touch_points = grasp_touch_points.reshape(-1, self.num_grasp_sample, 6)
         # grasp_features = torch.cat([selected_edge_features, grasp_touch_points], dim=-1)
         
         # predict grasps
-        grasp_outputs = self.grasp_head(selected_edge_features)
+        grasp_angles = self.angle_head(selected_edge_features)
+        grasp_angles = grasp_angles.flatten()
+        grasp_angles = grasp_angles.unsqueeze(-1)
+        grasp_angles = grasp_angles * np.pi * 2
+
+        grasp_axises = torch.stack(grasp_axises)
         mid_edge_pos = torch.stack(mid_edge_pos)
         selected_edge_idxs = torch.stack(selected_edge_idxs)
         grasp_gt = torch.tensor(grasp_gt, dtype=torch.float32)
         num_valid_grasps = torch.tensor(num_valid_grasps, dtype=torch.int8)
-        # print("calculate grasps matrix")
-        # grasp_outputs = self.grasp_head(grasp_features)
-        if self.grap_dim != 16:
-            grasp_outputs = grasp_outputs.reshape(-1, self.grap_dim)
-            grasp_outputs = self.calculateTransformationMatrix(grasp_outputs, mid_edge_pos)
-            grasp_outputs = grasp_outputs.view(-1, 16)
-        # else:
-            # print(grasp_outputs.shape)
-            # print(grasp_gt.shape)
-            # grasp_outputs = grasp_outputs.view(-1, 16)
+        
+        grasp_pred = self.calculateTransformationMatrix(grasp_axises, mid_edge_pos, grasp_angles)
 
         # print("return")
-        selected_edge_idxs = selected_edge_idxs.to(grasp_outputs.device)
-        grasp_gt = grasp_gt.to(grasp_outputs.device)
-        num_valid_grasps = num_valid_grasps.to(grasp_outputs.device)
+        selected_edge_idxs = selected_edge_idxs.to(grasp_angles.device)
+        grasp_gt = grasp_gt.to(grasp_angles.device)
+        num_valid_grasps = num_valid_grasps.to(grasp_angles.device)
+        grasp_pred = grasp_pred.to(grasp_angles.device)
         # print(grasp_outputs.device, selected_edge_idxs.device,
         #        mid_edge_pos.device, grasp_gt.device, num_valid_grasps.device, pair_classification_out_ij.device, mlp_out_ij.device)
 
 
-        return grasp_outputs, selected_edge_idxs, mid_edge_pos, grasp_axises, grasp_gt, num_valid_grasps, pair_classification_out_ij, mlp_out_ij
+        return grasp_pred, selected_edge_idxs, mid_edge_pos, grasp_gt, num_valid_grasps, pair_classification_out_ij, mlp_out_ij
 
+    def rotate_vector(self, v, k, theta):
+        """
+        Rotate vector v around unit vector k by angle theta (in radians).
+        """
+        # Compute the rotated vector using Rodrigues' formula
+        v_rot = v * torch.cos(theta) + torch.linalg.cross(k, v) * torch.sin(theta) + k * torch.tensordot(k, v) * (1 - torch.cos(theta))
+        
+        return v_rot
+
+    def calculateTransformationMatrix(self, grasp_axis, mid_points, approach_angles):
+        grasp_axis = grasp_axis / torch.norm(grasp_axis, dim=-1, keepdim=True)
+
+        repeted_unit_vector = self.unit_vector.repeat(grasp_axis.shape[0], 1)
+        approach_axis = torch.cross(grasp_axis, repeted_unit_vector)
+        approach_axis = approach_axis / torch.norm(approach_axis, dim=-1, keepdim=True)
+        # print(approach_angles.shape, grasp_axis.shape, approach_axis.shape)
+        approach_axis = self.rotate_vector(approach_axis, grasp_axis, approach_angles)
+        approach_axis = approach_axis / torch.norm(approach_axis, dim=-1, keepdim=True)
+
+        normal_axis = torch.cross(grasp_axis, approach_axis)
+        normal_axis = normal_axis / torch.norm(normal_axis, dim=-1, keepdim=True)
+
+        translation = mid_points - approach_axis * 1.12169998e-01
+        # grasps = torch.eye(4).reshape(1, 4, 4).repeat(grasp_axis.shape[0], 1, 1)
+        grasps = torch.zeros((grasp_axis.shape[0], 4, 4))
+
+        grasps[:, :3, 0] = grasp_axis
+        grasps[:, :3, 1] = normal_axis
+        grasps[:, :3, 2] = approach_axis
+        grasps[:, :3, 3] = translation
+        grasps[:, 3, 3] = 1
+
+        return grasps
     
-    def calculateTransformationMatrix(self, grasp, mid_points):
-        translation = grasp[:, :3] + mid_points
-        r1 = grasp[:, 3:6]
-        r2 = grasp[:, 6:]
-        #orthogonalize the rotation vectors
-        r1 = r1 / torch.norm(r1, dim=1, keepdim=True)
-        r2 = r2 - torch.sum(r1 * r2, dim=1, keepdim=True) * r1
-        r2 = r2 / torch.norm(r2, dim=1, keepdim=True)
-        r3 = torch.cross(r1, r2, dim=1)
-        #create the rotation matrix
-        r = torch.stack([r1, r2, r3], dim=2)
-        #create 4x4 transformation matrix for each 
-        trans_m = torch.eye(4).repeat(len(grasp), 1, 1).to(grasp.device)
-        trans_m[:,:3, :3] = r
-        trans_m[:, :3, 3] = translation
-        return trans_m
+
 if __name__ == "__main__":
 
     from tpp_dataset import TPPDataset
@@ -259,10 +217,10 @@ if __name__ == "__main__":
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     if device == "cuda":
-        model = TppNet(grasp_dim=16).to(device)
+        model = TppAngleNet().to(device)
         model = DataParallel(model)
     else:
-        model = TppNet()
+        model = TppAngleNet()
         # model = DataParallel(model)
     # dataset_name = "tpp_seed"
     dataset_name = "tpp_effdict"
@@ -273,15 +231,15 @@ if __name__ == "__main__":
     
     train_dataset = TPPDataset(train_paths, transform=None, return_pair_dict=True)
     if device == "cuda":
-        train_loader = DataListLoader(train_dataset, batch_size=8, shuffle=True, num_workers=0)
+        train_loader = DataListLoader(train_dataset, batch_size=2, shuffle=True, num_workers=0)
     else:
-        train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=0)
+        train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=0)
     num_success= 0
     for i, data in enumerate(train_loader):
         model.train()
         print(f"Batch: {i}/{len(train_loader)}")
         # pair_classification_out, pair_dot_product = model(data)
-        grasp_outputs, selected_edge_idxs, mid_edge_pos, grasp_axises, grasp_gt, num_valid_grasps, pair_classification_out_ij, mlp_out_ij = model(data)
+        grasp_outputs, selected_edge_idxs, mid_edge_pos, grasp_gt, num_valid_grasps, pair_classification_out_ij, mlp_out_ij = model(data)
         # print(grasp_outputs.shape, grasp_gt.shape, num_valid_grasps.shape, pair_classification_out_ij.shape, mlp_out_ij.shape)
         
 

@@ -8,7 +8,7 @@ import open3d as o3d
 import torch
 
 
-def save_split_samples(data_dir, num_mesh, dataset_name="tpp_seed", radius=0.005, train_ratio=0.8):
+def save_split_samples(data_dir, num_mesh, dataset_name="tpp_effdict", radius=0.005, train_ratio=0.8):
     if not os.path.exists('sample_dirs'):
         os.makedirs('sample_dirs')
     paths_dir = os.path.join('sample_dirs', f'{dataset_name}_r-{radius}_{num_mesh}_samples.npy')

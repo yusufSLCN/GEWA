@@ -27,6 +27,95 @@ def show_tpp_grasps(args, dataset, pos, grasps_dict, pair_scores):
 
     visualize_grasps(pos, selected_grasps, None, contact_idxs)
 
+def show_grasp_and_edge_predictions(points, gt_grasp_dict, selected_edge_idx, grasp_pred, triu_indices, sample_info=None, num_grasp_to_show=5):
+    gt_gripper_meshes = []
+    pred_gripper_meshes = []
+    filtered_edge_idx = []
+    
+    for edge_idx in selected_edge_idx:
+        i = triu_indices[0][edge_idx]
+        j = triu_indices[1][edge_idx]
+        key = frozenset((i, j))
+        if key in gt_grasp_dict:
+            filtered_edge_idx.append(edge_idx)
+    
+    print(f"Number of filtered edges: {len(filtered_edge_idx)}")
+    # selected_edge_idx = filtered_edge_idx[:num_grasp_to_show]
+    selected_edge_idx = selected_edge_idx[:num_grasp_to_show]
+    
+    for grasp_idx, edge_idx in enumerate(selected_edge_idx):
+        i = triu_indices[0][edge_idx]
+        j = triu_indices[1][edge_idx]
+        key = frozenset((i, j))
+        if key in gt_grasp_dict:
+            gt_gripper_mesh = create_gripper(color=[0, 255, 0])
+            gt_gripper_mesh.transform(gt_grasp_dict[key][0].reshape(4, 4))
+            gt_gripper_meshes.append(gt_gripper_mesh)
+
+        pred_gripper_mesh = create_gripper()
+        pred_gripper_mesh.transform(grasp_pred[grasp_idx].reshape(4, 4))
+        pred_gripper_meshes.append(pred_gripper_mesh)
+    
+    
+    # pair_idxs = np.where(pair_scores > 0)[0]
+    # random_idxs = np.random.randint(0, pair_idxs.shape[0], args.num_grasps)
+    # selected_pair_idxs = pair_idxs[random_idxs]
+    selected_edge_index = np.stack((triu_indices[0][selected_edge_idx], triu_indices[1][selected_edge_idx]), axis=1) 
+
+    line_set = o3d.geometry.LineSet(
+    points=o3d.utility.Vector3dVector(points),
+    lines=o3d.utility.Vector2iVector(selected_edge_index))
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+
+    #show the mesh
+    if sample_info is not None:
+        obj_path = sample_info['model_path'][0]
+        scale = float(sample_info['scale'][0])
+        mesh = o3d.io.read_triangle_mesh(obj_path)
+        #scale the mesh
+        mesh.scale(scale, center=mesh.get_center())
+        mesh.translate([-0.1, 0, -0.1], relative=False)
+        o3d.visualization.draw_geometries([mesh, line_set, pcd, *gt_gripper_meshes, *pred_gripper_meshes])
+        
+    else:
+        o3d.visualization.draw_geometries([line_set, pcd, *gt_gripper_meshes, *pred_gripper_meshes])
+
+def show_grasps_of_edges(points, grasps_dict, pair_scores, triu_indices, args, sample_info=None):
+    pair_idxs = np.where(pair_scores > 0)[0]
+    random_idxs = np.random.randint(0, pair_idxs.shape[0], args.num_grasps)
+    selected_pair_idxs = pair_idxs[random_idxs]
+
+    gripper_meshes = []
+    for pair_idx in selected_pair_idxs:
+        i, j = triu_indices[0][pair_idx], triu_indices[1][pair_idx]
+        key = frozenset((i, j))
+        gripper_mesh = create_gripper()
+        gripper_mesh.transform(grasps_dict[key][0].reshape(4, 4))
+        gripper_meshes.append(gripper_mesh)
+
+
+    selected_edge_index = np.stack((triu_indices[0][selected_pair_idxs], triu_indices[1][selected_pair_idxs]), axis=1) 
+
+    line_set = o3d.geometry.LineSet(
+    points=o3d.utility.Vector3dVector(points),
+    lines=o3d.utility.Vector2iVector(selected_edge_index))
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+
+    if sample_info is not None:
+        obj_path = sample_info['model_path']
+        scale = float(sample_info['scale'])
+        mesh = o3d.io.read_triangle_mesh(obj_path)
+        #scale the mesh
+        mesh.scale(scale, center=mesh.get_center())
+        mesh.translate([-0.1, 0, -0.1], relative=False)
+        o3d.visualization.draw_geometries([mesh, line_set, pcd, *gripper_meshes])
+        
+    else:
+        o3d.visualization.draw_geometries([line_set, pcd, *gripper_meshes])
+
+
 def show_all_tpps_of_grasp(points, grasps_dict, pair_scores, triu_indices, args):
     pair_idxs = np.where(pair_scores > 0)[0]
     random_idxs = np.random.randint(0, pair_idxs.shape[0], args.num_grasps)
@@ -147,13 +236,12 @@ if __name__ == "__main__":
     parser.add_argument('-i','--index', type=int, default=0)
     parser.add_argument('-n','--num_grasps', type=int, default=5)
     args = parser.parse_args()
-    train_samples, val_samples = save_split_samples('../data', 100)
+    train_samples, val_samples = save_split_samples('../data', 400, dataset_name="tpp_effdict")
     print(f"Number of train samples: {len(train_samples)}")
     print(f"Number of validation samples: {len(val_samples)}")
     print("Done!")
 
     dataset = TPPDataset(train_samples, return_pair_dict=True)
-    t = time.time()
     sample = dataset[args.index]
     print(sample.sample_info)
     pos =sample.pos.numpy()
@@ -161,5 +249,6 @@ if __name__ == "__main__":
     pair_scores = sample.pair_scores.numpy()
 
     # show_tpp_grasps(args, dataset, pos, grasps_dict, pair_scores)
-    # show_all_tpps_of_grasp(pos, grasps_dict, pair_scores, dataset.triu_indices, args)
-    show_pair_edges(pos, pair_scores, dataset.triu_indices, sample.sample_info)
+    # show_all_tpps_of_grasp(pos, grasps_dict[0], pair_scores, dataset.triu_indices, args)
+    show_grasps_of_edges(pos, grasps_dict[0], pair_scores, dataset.triu_indices, args, sample_info=sample.sample_info)
+    # show_pair_edges(pos, pair_scores, dataset.triu_indices, sample.sample_info)
