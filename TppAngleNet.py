@@ -39,14 +39,21 @@ class TppAngleNet(nn.Module):
         )
         
         # Grasp angle prediction head
-        self.angle_head = nn.Sequential(
+        self.angle_trans_head = nn.Sequential(
             nn.Linear(self.point_feat_dim * 3, self.point_feat_dim),
             nn.ReLU(),
             nn.Linear(self.point_feat_dim, self.point_feat_dim),
             nn.ReLU(),
-            nn.Linear(self.point_feat_dim, 1),
-            nn.Sigmoid()
+            nn.Linear(self.point_feat_dim, 4)
         )
+
+        # self.translation_head = nn.Sequential(
+        #     nn.Linear(self.point_feat_dim * 3, self.point_feat_dim),
+        #     nn.ReLU(),
+        #     nn.Linear(self.point_feat_dim, self.point_feat_dim),
+        #     nn.ReLU(),
+        #     nn.Linear(self.point_feat_dim, 3),
+        # )
 
     def forward(self, data):
         pos, batch = data.pos, data.batch
@@ -148,9 +155,11 @@ class TppAngleNet(nn.Module):
         # grasp_features = torch.cat([selected_edge_features, grasp_touch_points], dim=-1)
         
         # predict grasps
-        grasp_angles = self.angle_head(selected_edge_features)
-        grasp_angles = grasp_angles.flatten()
-        grasp_angles = grasp_angles.unsqueeze(-1)
+        angle_and_translation = self.angle_trans_head(selected_edge_features)
+        grasp_translation = angle_and_translation[:, :, 1:]
+        grasp_translation = grasp_translation.reshape(-1, 3)
+        grasp_angles = F.sigmoid(angle_and_translation[:, :, 0])
+        grasp_angles = grasp_angles.reshape(-1, 1)
         grasp_angles = grasp_angles * np.pi * 2
 
         grasp_axises = torch.stack(grasp_axises)
@@ -159,7 +168,7 @@ class TppAngleNet(nn.Module):
         grasp_gt = torch.tensor(grasp_gt, dtype=torch.float32)
         num_valid_grasps = torch.tensor(num_valid_grasps, dtype=torch.int8)
         
-        grasp_pred = self.calculateTransformationMatrix(grasp_axises, mid_edge_pos, grasp_angles)
+        grasp_pred = self.calculateTransformationMatrix(grasp_axises, mid_edge_pos, grasp_angles, grasp_translation)
 
         # print("return")
         selected_edge_idxs = selected_edge_idxs.to(grasp_angles.device)
@@ -181,20 +190,20 @@ class TppAngleNet(nn.Module):
         
         return v_rot
 
-    def calculateTransformationMatrix(self, grasp_axis, mid_points, approach_angles):
+    def calculateTransformationMatrix(self, grasp_axis, mid_points, approach_angles, grasp_translation):
         grasp_axis = grasp_axis / torch.norm(grasp_axis, dim=-1, keepdim=True)
 
-        repeted_unit_vector = self.unit_vector.repeat(grasp_axis.shape[0], 1)
-        approach_axis = torch.cross(grasp_axis, repeted_unit_vector)
+        repeated_unit_vector = self.unit_vector.repeat(grasp_axis.shape[0], 1).to(grasp_axis.device)
+        approach_axis = torch.linalg.cross(grasp_axis, repeated_unit_vector)
         approach_axis = approach_axis / torch.norm(approach_axis, dim=-1, keepdim=True)
         # print(approach_angles.shape, grasp_axis.shape, approach_axis.shape)
         approach_axis = self.rotate_vector(approach_axis, grasp_axis, approach_angles)
         approach_axis = approach_axis / torch.norm(approach_axis, dim=-1, keepdim=True)
 
-        normal_axis = torch.cross(grasp_axis, approach_axis)
+        normal_axis = torch.linalg.cross(grasp_axis, approach_axis)
         normal_axis = normal_axis / torch.norm(normal_axis, dim=-1, keepdim=True)
 
-        translation = mid_points - approach_axis * 1.12169998e-01
+        translation = (mid_points + grasp_translation) - approach_axis * 1.12169998e-01
         # grasps = torch.eye(4).reshape(1, 4, 4).repeat(grasp_axis.shape[0], 1, 1)
         grasps = torch.zeros((grasp_axis.shape[0], 4, 4))
 

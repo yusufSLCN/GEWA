@@ -259,7 +259,7 @@ for epoch in range(1, num_epochs + 1):
         #     loss = pair_loss
         # else:
             # loss = grasp_loss + 500 * tip_loss + pair_loss
-        loss = grasp_loss + 100 * tip_loss + pair_loss + grasp_axis_loss
+        loss = grasp_loss + pair_loss
 
         loss.backward()
         # # Update the weights
