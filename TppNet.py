@@ -156,12 +156,12 @@ class TppNet(nn.Module):
                 with_replacement = torch.sum(sample_edge_prob) < self.num_grasp_sample
                 edge_index = torch.multinomial(sample_edge_prob, num_samples=self.num_grasp_sample,
                                                 replacement=with_replacement.item())
-                # true_idxs = (sample_edge_scores > 0.5).nonzero()
-
-                # edge_index = true_idxs[:self.num_grasp_sample]
             else:
                 sample_edge_prob = pair_classification_out_ij[i]
-                with_replacement = torch.sum(sample_edge_prob > 0.5) < self.num_grasp_sample
+                pos_pair_count = torch.sum(sample_edge_prob > 0.5)
+                if pos_pair_count > 0:
+                    sample_edge_prob[sample_edge_prob < 0.5] = 0
+                with_replacement = pos_pair_count < self.num_grasp_sample
                 edge_index = torch.multinomial(sample_edge_prob, num_samples=self.num_grasp_sample, 
                                                 replacement=with_replacement.item())
             

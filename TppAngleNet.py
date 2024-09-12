@@ -110,7 +110,10 @@ class TppAngleNet(nn.Module):
                 # edge_index = true_idxs[:self.num_grasp_sample]
             else:
                 sample_edge_prob = pair_classification_out_ij[i]
-                with_replacement = torch.sum(sample_edge_prob > 0.5) < self.num_grasp_sample
+                pos_pair_count = torch.sum(sample_edge_prob > 0.5)
+                if pos_pair_count > 0:
+                    sample_edge_prob[sample_edge_prob < 0.5] = 0
+                with_replacement = pos_pair_count < self.num_grasp_sample
                 edge_index = torch.multinomial(sample_edge_prob, num_samples=self.num_grasp_sample, 
                                                 replacement=with_replacement.item())
             
@@ -203,7 +206,7 @@ class TppAngleNet(nn.Module):
         normal_axis = torch.linalg.cross(grasp_axis, approach_axis)
         normal_axis = normal_axis / torch.norm(normal_axis, dim=-1, keepdim=True)
 
-        translation = (mid_points + grasp_translation) - approach_axis * 1.12169998e-01
+        translation = mid_points - approach_axis * 1.12169998e-01
         # grasps = torch.eye(4).reshape(1, 4, 4).repeat(grasp_axis.shape[0], 1, 1)
         grasps = torch.zeros((grasp_axis.shape[0], 4, 4))
 

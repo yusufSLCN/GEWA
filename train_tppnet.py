@@ -162,7 +162,7 @@ def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, 
         # pred_grasp_axis = pred_grasp_axis.reshape(-1, 3)
         dot_product = torch.sum(pred_grasp_axis * grasp_axises, dim=-1)
         squared_dot = dot_product ** 2
-        grasp_axis_loss = -torch.sum(squared_dot)
+        grasp_axis_loss = -torch.mean(squared_dot)
     else:
         grasp_axis_loss = torch.tensor([0.0]).to(grasp_pred.device)
 
@@ -261,7 +261,7 @@ for epoch in range(1, num_epochs + 1):
         #     loss = pair_loss
         # else:
             # loss = grasp_loss + 500 * tip_loss + pair_loss
-        loss = grasp_loss + 100 * tip_loss + pair_loss + grasp_axis_loss
+        loss = grasp_loss + 200 * tip_loss + pair_loss + grasp_axis_loss
 
         loss.backward()
         # # Update the weights
@@ -290,6 +290,17 @@ for epoch in range(1, num_epochs + 1):
                 train_recall += binary_recall(pair_classification_pred, binary_pair_scores_gt)
                 train_precision += binary_precision(pair_classification_pred, binary_pair_scores_gt)
                 train_f1 += binary_f1_score(pair_classification_pred, binary_pair_scores_gt)
+
+    # average_loss = total_loss / len(train_data_loader)
+    average_grasp_loss = total_grasp_loss / len(train_data_loader)
+    average_pair_loss = total_pair_loss / len(train_data_loader)
+    average_tip_loss = total_tip_loss / len(train_data_loader)
+    average_grasp_axis_loss = total_grasp_axis_loss / len(train_data_loader)
+
+    # wandb.log({"Train Loss": average_loss}, step=epoch)
+    wandb.log({"Train Pair Loss": average_pair_loss, "Train Tip Loss":average_tip_loss,
+                "Train Grasp Loss":average_grasp_loss, "Train Grasp Axis Loss": average_grasp_axis_loss}, step=epoch)
+
     scheduler.step()
     if epoch % args.log_interval == 0:
         if not args.only_classifier:
@@ -302,66 +313,57 @@ for epoch in range(1, num_epochs + 1):
         train_recall = train_recall / len(train_data_loader)
         wandb.log({"Train Recall": train_recall, "Train Accuracy":train_pair_accuracy,
                     "Train Precision":train_precision, "Train_F1":train_f1}, step=epoch)
-    # average_loss = total_loss / len(train_data_loader)
-    average_grasp_loss = total_grasp_loss / len(train_data_loader)
-    average_pair_loss = total_pair_loss / len(train_data_loader)
-    average_tip_loss = total_tip_loss / len(train_data_loader)
-    average_grasp_axis_loss = total_grasp_axis_loss / len(train_data_loader)
-
-    # wandb.log({"Train Loss": average_loss}, step=epoch)
-    wandb.log({"Train Pair Loss": average_pair_loss, "Train Tip Loss":average_tip_loss,
-                "Train Grasp Loss":average_grasp_loss, "Train Grasp Axis Loss": average_grasp_axis_loss}, step=epoch)
-
     # Validation loop
-    model.eval()
-    with torch.no_grad():
-        total_val_loss = 0
-        total_val_grasp_loss = 0
-        total_val_pair_loss = 0
-        total_val_tip_loss = 0
-        total_val_grasp_axis_loss = 0
-        valid_pair_accuracy = 0
-        val_recall = 0
-        val_precision = 0
-        val_f1 = 0
-        val_grasp_success = 0
-        for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
-            if not multi_gpu:
-                # val_data = val_data.to(device)
-                val_data.pos = val_data.pos.to(device)
-                val_data.batch = val_data.batch.to(device)
-                val_pair_scores_gt = val_data.pair_scores.to(device)
-            else:
-                val_pair_scores_gt = torch.cat([s.pair_scores for s in val_data])
+    if epoch % args.log_interval == 0:
+        model.eval()
+        with torch.no_grad():
+            total_val_loss = 0
+            total_val_grasp_loss = 0
+            total_val_pair_loss = 0
+            total_val_tip_loss = 0
+            total_val_grasp_axis_loss = 0
+            valid_pair_accuracy = 0
+            val_recall = 0
+            val_precision = 0
+            val_f1 = 0
+            val_grasp_success = 0
+            for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
+                if not multi_gpu:
+                    # val_data = val_data.to(device)
+                    val_data.pos = val_data.pos.to(device)
+                    val_data.batch = val_data.batch.to(device)
+                    val_pair_scores_gt = val_data.pair_scores.to(device)
+                else:
+                    val_pair_scores_gt = torch.cat([s.pair_scores for s in val_data])
 
-            
-            # val_pair_pred, val_pair_dot_product = model(val_data)
-            val_grasp_pred, val_selected_edge_idxs, val_mid_edge_pos, val_grasp_axises, val_grasp_target, val_num_valid_grasps, val_pair_pred, val_mlp_out_ij = model(val_data)
-            
-            val_pair_scores_gt = val_pair_scores_gt.reshape(-1, num_pairs)
-            val_binary_pair_scores_gt = (val_pair_scores_gt > 0).float().to(val_pair_pred.device)
+                
+                # val_pair_pred, val_pair_dot_product = model(val_data)
+                val_grasp_pred, val_selected_edge_idxs, val_mid_edge_pos, val_grasp_axises, val_grasp_target, val_num_valid_grasps, val_pair_pred, val_mlp_out_ij = model(val_data)
+                
+                val_pair_scores_gt = val_pair_scores_gt.reshape(-1, num_pairs)
+                val_binary_pair_scores_gt = (val_pair_scores_gt > 0).float().to(val_pair_pred.device)
 
-            val_pair_loss, val_grasp_loss, val_tip_loss, val_grasp_axis_loss = calculate_loss(val_grasp_pred, val_grasp_target, val_num_valid_grasps,
-                                                                          val_mid_edge_pos, val_mlp_out_ij, val_binary_pair_scores_gt, val_grasp_axises)
+                val_pair_loss, val_grasp_loss, val_tip_loss, val_grasp_axis_loss = calculate_loss(val_grasp_pred, val_grasp_target, val_num_valid_grasps,
+                                                                            val_mid_edge_pos, val_mlp_out_ij, val_binary_pair_scores_gt, val_grasp_axises)
 
-            if args.only_classifier:
-                val_loss = val_pair_loss
-                if multi_gpu:
-                    val_pair_loss = val_pair_loss.mean()
-                total_val_pair_loss += val_pair_loss.item()
-            else:
-                if multi_gpu:
-                    val_pair_loss = val_pair_loss.mean()
-                    val_grasp_loss = val_grasp_loss.mean()
-                    val_tip_loss = val_tip_loss.mean()
-                    val_grasp_axis_loss = val_grasp_axis_loss.mean()
+                if args.only_classifier:
+                    val_loss = val_pair_loss
+                    if multi_gpu:
+                        val_pair_loss = val_pair_loss.mean()
+                    total_val_pair_loss += val_pair_loss.item()
+                else:
+                    if multi_gpu:
+                        val_pair_loss = val_pair_loss.mean()
+                        val_grasp_loss = val_grasp_loss.mean()
+                        val_tip_loss = val_tip_loss.mean()
+                        val_grasp_axis_loss = val_grasp_axis_loss.mean()
 
-                total_val_pair_loss += val_pair_loss.item()
-                total_val_grasp_loss += val_grasp_loss.item()
-                total_val_tip_loss += val_tip_loss.item()
-                total_val_grasp_axis_loss += val_grasp_axis_loss.item()
+                    total_val_pair_loss += val_pair_loss.item()
+                    total_val_grasp_loss += val_grasp_loss.item()
+                    total_val_tip_loss += val_tip_loss.item()
+                    total_val_grasp_axis_loss += val_grasp_axis_loss.item()
 
-            if epoch % args.log_interval == 0:
+                
                 if not args.only_classifier:
                     val_grasp_pred = val_grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
                     val_grasp_target = val_grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
@@ -377,14 +379,14 @@ for epoch in range(1, num_epochs + 1):
                 val_f1 += binary_f1_score(val_pair_pred, val_binary_pair_scores_gt)
 
 
-        # average_val_loss = total_val_loss / len(val_data_loader)
-        average_val_pair_loss = total_val_pair_loss / len(val_data_loader)
-        average_val_grasp_loss = total_val_grasp_loss / len(val_data_loader)
-        average_val_tip_loss = total_val_tip_loss / len(val_data_loader)
-        average_val_grasp_axis_loss = total_val_grasp_axis_loss / len(val_data_loader)
+            # average_val_loss = total_val_loss / len(val_data_loader)
+            average_val_pair_loss = total_val_pair_loss / len(val_data_loader)
+            average_val_grasp_loss = total_val_grasp_loss / len(val_data_loader)
+            average_val_tip_loss = total_val_tip_loss / len(val_data_loader)
+            average_val_grasp_axis_loss = total_val_grasp_axis_loss / len(val_data_loader)
 
-        if epoch % args.log_interval == 0:
             val_grasp_success_rate = val_grasp_success / len(val_data_loader)
+
             wandb.log({"Valid Grasp Success Rate": val_grasp_success_rate}, step=epoch)
 
             valid_pair_accuracy = valid_pair_accuracy / len(val_data_loader)
@@ -412,10 +414,10 @@ for epoch in range(1, num_epochs + 1):
                 artifact.add_file(model_path)
                 wandb.log_artifact(artifact)
 
-    wandb.log({"Val Pair Loss": average_val_pair_loss, "Val Grasp Loss": average_val_grasp_loss,
-                "Val Tip Loss": average_tip_loss, "Val Grasp Axis Loss": average_grasp_axis_loss}, step=epoch)
-    print(f"Train Pair Loss: {average_pair_loss:.4f} - Val Pair Loss: {average_val_pair_loss:.4f}")
-    print(f"Train Grasp Loss: {average_grasp_loss:.4f} - Val Grasp Loss: {average_val_grasp_loss:.4f}")
+        wandb.log({"Val Pair Loss": average_val_pair_loss, "Val Grasp Loss": average_val_grasp_loss,
+                        "Val Tip Loss": average_tip_loss, "Val Grasp Axis Loss": average_grasp_axis_loss}, step=epoch)
+        print(f" Val Pair Loss: {average_val_pair_loss:.4f} - Val Grasp Loss: {average_val_grasp_loss:.4f}")
+    print(f"Train Pair Loss: {average_pair_loss:.4f} - Train Grasp Loss: {average_grasp_loss:.4f}")
 
 # Finish wandb run
 wandb.finish()
