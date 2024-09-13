@@ -58,7 +58,7 @@ if __name__ == "__main__":
     # model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
     from create_tpp_dataset import save_split_samples
-    train_paths, val_paths = save_split_samples('../data', 20, dataset_name="tpp_effdict")
+    train_paths, val_paths = save_split_samples('../data', 100, dataset_name="tpp_effdict")
 
     dataset = TPPDataset(val_paths, return_pair_dict=True)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False)

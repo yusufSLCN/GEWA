@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch_geometric.data import Data
 # from GraspNet import GraspNet
-from TppNet import TppNet
+from TppAngleNet import TppAngleNet
 from tpp_dataset import TPPDataset
 from visualize_tpp_dataset import show_pair_edges, show_grasp_and_edge_predictions
 import argparse
@@ -11,7 +11,7 @@ from torch_geometric.loader import DataListLoader, DataLoader
 import numpy as np
 from torcheval.metrics.functional.classification import binary_recall
 # from sklearn.metrics import recall_score
-from metrics import count_correct_approach_scores, check_succces_with_whole_dataset
+from metrics import count_correct_approach_scores, check_batch_grasp_success_rate_per_point, check_succces_with_whole_dataset
 import time
 
 if __name__ == "__main__":
@@ -27,37 +27,19 @@ if __name__ == "__main__":
     run = wandb.init(project="Grasp", job_type="download_model", notes="inference")
 
     # idx 4, 5, 6, 7, 13, 18
-    # Access and download model. Returns path to downloaded artifact
-    # downloaded_model_path = run.use_model(name="TppNet_nm_500__bs_32.pth_epoch_130_acc_0.962_recall_0.509_prec_0.270.pth:v0")
-    #contrastive loss
-    # downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_450_acc_0.972_recall_0.517_prec_0.400.pth:v0") 
-    # downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_390_acc_0.970_recall_0.574_prec_0.381.pth:v0")
-    # wo contrastive loss
-    # downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_400_acc_0.972_recall_0.523_prec_0.413.pth:v0")
-    #global embeddings
-    # downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_420_acc_0.972_recall_0.578_prec_0.412.pth:v0")
-    # downloaded_model_path = run.use_model(name="TppNet_nm_2000__bs_32.pth_epoch_490_acc_0.972_recall_0.576_prec_0.420.pth:v0")
+
+    # downloaded_model_path = run.use_model(name="TppAngleNet_nm_100__bs_8.pth_epoch_900_acc_0.97_recall_0.36.pth:v0")
+    downloaded_model_path = run.use_model(name="TppAngleNet_nm_100__bs_8.pth_epoch_490_acc_0.91_recall_0.57.pth:v0")
+    #with translation head
+    # downloaded_model_path = run.use_model(name="TppAngleNet_nm_100__bs_8.pth_epoch_980_acc_0.97_recall_0.35.pth:v0")
     
-    # with grasp head
-    # downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_90_acc_0.93_recall_0.62.pth:v0")
-
-    #500 * tiploss
-    # downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_90_acc_0.93_recall_0.57.pth:v0")
-
-    #100 tip loss + axis loss 
-    downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_540_acc_0.97_recall_0.42.pth:v0")
-
-    # 200 tip loss + axis loss
-    # downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_210_acc_0.97_recall_0.33.pth:v0")
     
-    #wo tip loss 
-    # downloaded_model_path = run.use_model(name="TppNet_nm_100__bs_4.pth_epoch_950_acc_0.94_recall_0.56.pth:v0")
     print(downloaded_model_path)
 
     model_path = downloaded_model_path
 
     # load the GraspNet model and run inference then display the gripper pose
-    model = TppNet()
+    model = TppAngleNet()
     model = nn.DataParallel(model)
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
@@ -82,7 +64,7 @@ if __name__ == "__main__":
         if i == samlpe_idx:
             break
     print(data.sample_info)
-    grasp_pred, selected_edge_idxs, mid_edge_pos, _, grasp_target, num_valid_grasps, pair_classification_pred, pair_dot_product = model(data)
+    grasp_pred, selected_edge_idxs, mid_edge_pos, grasp_target, num_valid_grasps, pair_classification_pred, pair_dot_product = model(data)
     # pair_classification_pred, pair_dot_product, _, _ = model(data)
 
     test_pair_accuracy = count_correct_approach_scores(pair_classification_pred, data.pair_scores)
@@ -94,21 +76,26 @@ if __name__ == "__main__":
     test_recall = binary_recall(pair_classification_pred, binary_pair_scores_gt)
     print(f"Test pair recall: {test_recall}")
 
-
+    # grasp_pred = grasp_pred.detach().numpy()
+    # grasp_pred = grasp_pred.reshape(1, -1, 1, 4, 4)
+    # grasp_target = grasp_target.detach().numpy()
+    # grasp_target = grasp_target.reshape(1, -1, 10, 4, 4)
+    # # print(grasp_pred.shape, grasp_target.shape)
+    # num_valid_grasps = num_valid_grasps.detach().numpy()
+    # grasp_success = check_batch_grasp_success_rate_per_point(grasp_pred, grasp_target, 0.03,
+                                                                # np.deg2rad(30), num_valid_grasps)
+    # grasp_success = grasp_success / len(grasp_pred)
     grasp_dict = data.y[0][0]
     grasp_pred = grasp_pred.detach().numpy()
     grasp_pred = grasp_pred.reshape( -1, 1, 4, 4)
-    print(f"Grasp pred shape: {grasp_pred.shape}")
     # test_grasp_pred = grasp_dict[list(grasp_dict.keys())[0]][0].reshape(1, 1, 4, 4)
     # print(f"{test_grasp_pred.shape}")
     grasp_success = check_succces_with_whole_dataset(grasp_pred, grasp_dict, 0.03, np.deg2rad(30))
     print(f"Grasp success rate: {grasp_success}")
-
     # Display the result
     pair_scores = data.pair_scores.numpy()
     pos = data.pos.numpy()  
     pred_pair_scores = pair_classification_pred.squeeze().detach().numpy()
-    
 
     print(f"min: {np.min(pred_pair_scores)}, max: {np.max(pred_pair_scores)}")
     threshold = 0.5
@@ -127,6 +114,8 @@ if __name__ == "__main__":
 
     sample_info = data.sample_info
     selected_edge_idxs = selected_edge_idxs.squeeze()
+    # print(selected_edge_idxs)
+    # print(np.where(pred_pair_scores > threshold))
 
     show_grasp_and_edge_predictions(pos, grasp_dict, selected_edge_idxs, grasp_pred,
-                                    dataset.triu_indices, sample_info)
+                                    dataset.triu_indices, sample_info, num_grasp_to_show=5)

@@ -13,7 +13,7 @@ def is_grasp_success(grasp, target, trans_thresh, rotat_thresh):
     else:
         return False
     
-def check_batch_grasp_success(grasp_pred, grasp_gt, trans_thresh, rotat_thresh, grasp_per_point, num_grasps_of_approach_points):
+def check_batch_grasp_success(grasp_pred, grasp_gt, trans_thresh, rotat_thresh):
     trans_diff = np.linalg.norm(grasp_pred[:, :3, 3] - grasp_gt[:, :3, 3], axis=1)
     h = (np.trace(np.matmul(grasp_pred[:, :3, :3].transpose(0, 2, 1), grasp_gt[:, :3, :3]), axis1=1, axis2=2) - 1) / 2
     h = np.clip(h, -1, 1)
@@ -47,10 +47,28 @@ def check_batch_topk_success_rate(grasp_pred, grasp_gt, trans_thresh, rotat_thre
     success_rate = num_success / (grasp_pred.shape[0] * top_k)
     return success_rate
 
+
+def check_succces_with_whole_dataset(grasp_pred, grasp_dict, trans_thresh, rotat_thresh):
+    num_success = 0
+    for i in range(grasp_pred.shape[0]):
+        pred = grasp_pred[i]
+        for key in grasp_dict.keys():
+            grasp_target = grasp_dict[key]
+            repeated_pred = np.repeat(pred, len(grasp_target), axis=0)
+            if check_batch_grasp_success(repeated_pred, grasp_target, trans_thresh, rotat_thresh) > 0:
+                num_success += 1
+                break
+    
+    success_rate = num_success / grasp_pred.shape[0]
+    return success_rate
+                                         
+                                         
+
 def check_batch_grasp_success_rate_per_point(grasp_pred, grasp_gt, trans_thresh, rotat_thresh, num_grasps_of_approach_points):
     num_success = 0
     num_valid_points = np.sum(num_grasps_of_approach_points > 0)
     if num_valid_points == 0:
+        print("No valid points")
         return 0
     # print(grasp_pred.shape, grasp_gt.shape)
     # print(num_grasps_of_approach_points.shape)
