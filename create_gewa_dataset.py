@@ -10,12 +10,12 @@ import open3d as o3d
 def save_split_samples(data_dir, num_mesh, train_ratio=0.8):
     if not os.path.exists('sample_dirs'):
         os.makedirs('sample_dirs')
-    paths_dir = os.path.join('sample_dirs', 'success_samples.npy')
+    paths_dir = os.path.join('sample_dirs', f'gewa_r_{num_mesh}_samples.npy')
     if os.path.exists(paths_dir):
         samples = np.load(paths_dir, allow_pickle=True)
 
     else:
-        samples = get_point_cloud_samples(data_dir, num_mesh=-1, min_num_grasps=100)
+        samples = get_point_cloud_samples(data_dir, num_mesh=num_mesh, min_num_grasps=100)
         #sort by name 
         samples = sorted(samples, key=lambda x: x.simplified_mesh_path)
         np.random.seed(0)

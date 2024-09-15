@@ -34,7 +34,10 @@ if __name__ == "__main__":
     # downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_90_acc_0.93_recall_0.57.pth:v0")
 
     #100 tip loss + axis loss 
-    downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_540_acc_0.97_recall_0.42.pth:v0")
+    # downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_540_acc_0.97_recall_0.42.pth:v0")
+    # 0.5 pos scale
+    downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_620_acc_0.92_recall_0.81.pth:v0")
+    
 
     # 200 tip loss + axis loss
     # downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_210_acc_0.97_recall_0.33.pth:v0")
@@ -45,22 +48,25 @@ if __name__ == "__main__":
 
     model_path = downloaded_model_path
 
-
-    # load the GraspNet model and run inference then display the gripper pose
-    model = TppNet()
-    model = nn.DataParallel(model)
-    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
-
     train_paths, val_paths = save_split_samples('../data', 400, dataset_name="tpp_effdict")
 
     dataset = TPPDataset(val_paths, return_pair_dict=True)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)
-    
+
+
     config = wandb.config
     config.model_path = model_path
-    config.model = model.__class__.__name__
+    
     config.dataset = dataset.__class__.__name__
-    config.valid_dataset_size = len(dataset)
+    config.num_mesh = len(dataset)
+    
+    # load the GraspNet model and run inference then display the gripper pose
+    model = TppNet()
+    config.model_name = model.__class__.__name__
+    config.grasp_samples = model.num_grasp_sample
+
+    model = nn.DataParallel(model)
+    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
 
     # print(data)

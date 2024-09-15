@@ -8,7 +8,10 @@ from create_gewa_dataset import save_split_samples
 from acronym_visualize_dataset import visualize_grasp, visualize_gt_and_pred_gasps
 import argparse
 import wandb
-from torch_geometric.loader import DataListLoader, DataLoader
+from torch_geometric.loader import DataLoader
+from torcheval.metrics.functional.classification import binary_recall, binary_precision, binary_accuracy
+from metrics import check_batch_grasp_success_rate_per_point
+import numpy as np
 
 
 if __name__ == "__main__":
@@ -33,7 +36,8 @@ if __name__ == "__main__":
     model_path = downloaded_model_path
 
     # load the GraspNet model and run inference then display the gripper pose
-    model = DynANet(grasp_dim=9, num_grasp_sample=400)
+    num_grasp_samples = 400
+    model = DynANet(grasp_dim=9, num_grasp_sample=num_grasp_samples)
     model = nn.DataParallel(model)
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
@@ -43,6 +47,11 @@ if __name__ == "__main__":
 
     samlpe_idx = args.sample_idx
     # data = data_loader[samlpe_idx]
+    config = wandb.config
+    config.model_path = model_path
+    config.model = model.__class__.__name__
+    config.sample_idx = samlpe_idx
+    config.num_samples = len(data_loader)
 
     # print(data)
     model.device = 'cpu'
@@ -52,18 +61,37 @@ if __name__ == "__main__":
         data = d
         if i == samlpe_idx:
             break
-
+    print(data.sample_info)
+        
     approach_score_pred, grasp_pred, approach_points, grasp_gt, num_grasps_of_approach_points = model(data)
     # grasp_pred[3, :] = [0, 0, 0, 1]
+    binary_approach_score_gt = (data[0].approach_scores > 0).int()
+    binary_approach_score_pred = (approach_score_pred > 0.5).int()
+
+    print(approach_score_pred.shape, binary_approach_score_gt.shape)
+    approach_acc = binary_accuracy(binary_approach_score_pred, binary_approach_score_gt)
+    approach_recall = binary_recall(binary_approach_score_pred, binary_approach_score_gt)
+    approach_precision = binary_precision(binary_approach_score_pred, binary_approach_score_gt)
+
+
+    pred = grasp_pred.cpu().detach().reshape(-1, num_grasp_samples, 1, 4, 4).numpy()
+    gt = grasp_gt.cpu().detach().reshape(-1, num_grasp_samples, dataset.max_grasp_perpoint, 4, 4).numpy()
+    num_grasps_of_approach_points = num_grasps_of_approach_points.cpu().detach().reshape(-1, num_grasp_samples).numpy()
+    grasps_success = check_batch_grasp_success_rate_per_point(pred, gt, 0.03, np.deg2rad(30), num_grasps_of_approach_points)
+
+    print(f"Approach accuracy: {approach_acc}, recall: {approach_recall}, precision: {approach_precision}")
+    print(f"Grasp success rate: {grasps_success}")
 
     # visualize_grasp(data[0].numpy(), grasp, data[2]['query_point'].numpy())
+    print(approach_score_pred.shape, pred.shape, approach_points.shape, gt.shape, num_grasps_of_approach_points.shape)
     num_of_grasps = 5
-    grasp_pred = grasp_pred[:num_of_grasps].detach().numpy().reshape(-1, 4, 4)
-    grasp_gt = grasp_gt[0, :num_of_grasps, 0].detach().numpy().reshape(-1, 4, 4)
+    grasp_pred = pred[0, :num_of_grasps, 0].reshape(-1, 4, 4)
+    grasp_gt = gt[0, :num_of_grasps, 0].reshape(-1, 4, 4)
     approach_points = approach_points[:num_of_grasps].detach().numpy()
     approach_score_pred = (approach_score_pred > 0.5).float().numpy()
     approach_score_gt = (data[0].approach_scores > 0).float().numpy()
-    num_grasps_of_approach_points = num_grasps_of_approach_points[:num_of_grasps].detach().numpy()
+    num_grasps_of_approach_points = num_grasps_of_approach_points.flatten()
+    num_grasps_of_approach_points = num_grasps_of_approach_points[:num_of_grasps]
     print(grasp_gt.shape, grasp_pred.shape, approach_points.shape, approach_score_pred.shape)
     # visualize_gt_and_pred_gasps(data[0].pos.numpy(), grasp_gt, grasp_pred, approach_points, approach_score_gt, num_grasps_of_approach_points)
     visualize_gt_and_pred_gasps(data[0].pos.numpy(), grasp_gt, grasp_pred, approach_points, approach_score_pred, num_grasps_of_approach_points)
