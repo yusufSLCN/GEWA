@@ -4,9 +4,9 @@ from TPPSample import TPPSample
 import tqdm
 from acronym_utils import load_file_names, extract_sample_info
 import h5py
+import json
 
-
-def save_split_samples(data_dir, num_mesh, dataset_name="tpp_effdict", radius=0.005, train_ratio=0.8):
+def save_split_samples(data_dir, num_mesh, dataset_name="tpp_effdict", radius=0.005, train_ratio=0.8, contactnet_split=False):
     if not os.path.exists('sample_dirs'):
         os.makedirs('sample_dirs')
     paths_dir = os.path.join('sample_dirs', f'{dataset_name}_r-{radius}_{num_mesh}_samples.npy')
@@ -26,13 +26,27 @@ def save_split_samples(data_dir, num_mesh, dataset_name="tpp_effdict", radius=0.
         num_mesh = len(samples)
         print(f"Number of meshes in the simlified subset: {num_mesh}")
 
-    split_idx = int(len(samples) * train_ratio)
-    all_train_samples = samples[:split_idx]
-    all_valid_samples = samples[split_idx:]
+    if contactnet_split:
+        print("Using contactnet split")
+        train_meshes, valid_meshes = get_contactnet_split()
+        train_samples = []
+        valid_samples = []
+        for sample in samples:
+            mesh_name = sample.info['grasps']
+            mesh_name = os.path.basename(mesh_name)
+            mesh_name = os.path.splitext(mesh_name)[0]
+            if mesh_name in train_meshes:
+                train_samples.append(sample)
+            elif mesh_name in valid_meshes:
+                valid_samples.append(sample)
+    else:
+        split_idx = int(len(samples) * train_ratio)
+        all_train_samples = samples[:split_idx]
+        all_valid_samples = samples[split_idx:]
 
-    subset_idx = int(num_mesh * train_ratio)
-    train_samples = all_train_samples[:subset_idx]
-    valid_samples = all_valid_samples[:num_mesh - subset_idx]
+        subset_idx = int(num_mesh * train_ratio)
+        train_samples = all_train_samples[:subset_idx]
+        valid_samples = all_valid_samples[:num_mesh - subset_idx]
 
     # #save the train and test meshes
     # np.save('sample_dirs/train_success_simplified_acronym_meshes.npy', train_meshes)
@@ -264,9 +278,31 @@ def create_point_cloud_and_grasps(N, num_grasps):
         dummy_grasp_poses[i, :3, :3] = o3d.geometry.get_rotation_matrix_from_xyz([0, 0, i * np.pi/num_grasps])
     return points, dummy_grasp_poses
 
+
+def get_contactnet_split():
+    path = 'splits'
+    train_meshes = []
+    valid_meshes = []
+    #json files in the path
+    for model_split_file in os.listdir(path):
+        if model_split_file.endswith(".json"):
+            with open(os.path.join(path, model_split_file), 'r') as file:
+                data = json.load(file)
+
+                train_names = [os.path.splitext(file_name)[0] for file_name in data['train']]
+                test_names = [os.path.splitext(file_name)[0] for file_name in data['test']]
+                # print(train_names)
+                # print(test_names)
+                train_meshes += train_names
+                valid_meshes += test_names
+    print("contactnet split")
+    print(f"Train split {len(train_meshes)}")
+    print(f"Test split {len(valid_meshes)}")
+    return train_meshes, valid_meshes
+
 if __name__ == "__main__":
     
-    train_samples, val_samples = save_split_samples('../data',  -1, dataset_name="tpp_effdict_nomean_wnormals")
+    train_samples, val_samples = save_split_samples('../data',  100, dataset_name="tpp_effdict", contactnet_split=True)
     print(f"Number of train samples: {len(train_samples)}")
     print(f"Number of validation samples: {len(val_samples)}")
     print("Done!")
