@@ -14,11 +14,22 @@ from create_gewa_dataset import save_split_samples
 
 if __name__ == "__main__":
 
-    # parser = argparse.ArgumentParser()
-    # args = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-gs', '--grasp_samples', type=int, default=200)
+    parser.add_argument('-n', '--notes', type=str, default='')
+    parser.add_argument('-sbs', '--sort_by_score', action='store_true')
+    args = parser.parse_args()
 
     # Initialize a run dont upload the run info
-    run = wandb.init(project="Grasp", job_type="eval", notes="validation")
+    sort_by_score = args.sort_by_score
+    num_grasp_samples = args.grasp_samples
+
+    if sort_by_score:
+        notes = f"top {num_grasp_samples}" + args.notes
+    else:
+        notes = args.notes
+    run = wandb.init(project="Grasp", job_type="eval", notes=f"validation {notes}")
+    config = wandb.config
 
     downloaded_model_path = run.use_model(name="DynANet_nm_4000__bs_128_epoch_2020.pth:v0")
     print(downloaded_model_path)
@@ -27,19 +38,17 @@ if __name__ == "__main__":
 
 
     # load the GraspNet model and run inference then display the gripper pose
-    num_grasp_samples = 100
-    model = DynANet(grasp_dim=9, num_grasp_sample=num_grasp_samples)
-    model = nn.DataParallel(model)
+    model = DynANet(grasp_dim=9, num_grasp_sample=num_grasp_samples, sort_by_score=sort_by_score)
+    config.model_name = model.__class__.__name__
+    model = nn.DataParallel(model, device_ids=[0])
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
-    train_paths, val_paths = save_split_samples('../data', -1)
+    train_paths, val_paths = save_split_samples('../data', num_mesh=1000)
 
     dataset = GewaDataset(val_paths)
-    data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
+    data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)
     
-    config = wandb.config
     config.model_path = model_path
-    config.model_name = model.__class__.__name__
     config.dataset = dataset.__class__.__name__
     config.num_mesh = len(dataset)
     config.grasp_samples = num_grasp_samples
@@ -63,13 +72,15 @@ if __name__ == "__main__":
         if device == torch.device("cuda"):
             data.pos = data.pos.to(device)
             data.batch = data.batch.to(device)
+            data.y = data.y.to(device)
+            data.num_grasps = data.num_grasps.to(device)
             
 
         approach_score_pred, grasp_pred, approach_points, grasp_gt, num_grasps_of_approach_points = model(data)
         # pair_classification_pred, pair_dot_product, _, _ = model(data)
         binary_approach_score_gt = (data[0].approach_scores > 0).int()
         binary_approach_score_pred = (approach_score_pred > 0.5).int()
-
+        binary_approach_score_pred = binary_approach_score_pred.detach().cpu()
         # print(approach_score_pred.shape, binary_approach_score_gt.shape)
         approach_acc = binary_accuracy(binary_approach_score_pred, binary_approach_score_gt)
         approach_recall = binary_recall(binary_approach_score_pred, binary_approach_score_gt)

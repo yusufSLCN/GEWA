@@ -36,7 +36,7 @@ parser.add_argument('-gd','--grasp_dim', type=int, default=9)
 parser.add_argument('-gs', '--grasp_samples', type=int, default=100)
 parser.add_argument('-li', '--log_interval', type=int, default=10)
 parser.add_argument('-oc', '--only_classifier', action='store_true')
-parser.add_argument('-dn', '--dataset_name', type=str, default="tpp_effdict")
+parser.add_argument('-dn', '--dataset_name', type=str, default="tpp_effdict_nomean_wnormals")
 args = parser.parse_args()
 
 
@@ -59,8 +59,8 @@ print("Transform params: ", transfom_params)
 # Save the split samples
 train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh, dataset_name=args.dataset_name)
 return_grasp_dict = not args.only_classifier
-train_dataset = TPPDataset(train_dirs, transform=transform, return_pair_dict=return_grasp_dict)
-val_dataset = TPPDataset(val_dirs, return_pair_dict=return_grasp_dict)
+train_dataset = TPPDataset(train_dirs, transform=transform, return_pair_dict=return_grasp_dict, normalize=True, return_normals=True)
+val_dataset = TPPDataset(val_dirs, return_pair_dict=return_grasp_dict, normalize=True, return_normals=True)
                    
 # Initialize wandb
 wandb.init(project="Grasp", notes=args.notes)
@@ -99,7 +99,7 @@ print(device)
 # model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
 max_grasp_per_edge = 10
 model = TppNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples,
-                max_num_grasps=max_grasp_per_edge, only_classifier=args.only_classifier).to(device)
+                max_num_grasps=max_grasp_per_edge, only_classifier=args.only_classifier, with_normals=True).to(device)
 num_pairs = model.num_pairs
 config.model_name = model.__class__.__name__
 wandb.watch(model, log="all")

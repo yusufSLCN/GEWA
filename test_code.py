@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-
+from torch_geometric.nn import DynamicEdgeConv, MLP
 
 # arr = np.arange(32).reshape(-1, 4, 4)
 # print(arr)
@@ -20,15 +20,15 @@ import numpy as np
 # print(upper_tri_idx)
 # print(pairs.shape)
 
-triu = torch.triu_indices(3, 3, offset=1)
-batched_shared_features = torch.ones(2, 3, 4)
-batched_shared_features[:, 1, :] = 2
-batched_shared_features[:, 2, :] = 3
-dot_product = torch.matmul(batched_shared_features, batched_shared_features.transpose(1, 2))
-print(dot_product)
-print(dot_product.shape)
-upper = dot_product[:, triu[0], triu[1]]
-print(upper)
+# triu = torch.triu_indices(3, 3, offset=1)
+# batched_shared_features = torch.ones(2, 3, 4)
+# batched_shared_features[:, 1, :] = 2
+# batched_shared_features[:, 2, :] = 3
+# dot_product = torch.matmul(batched_shared_features, batched_shared_features.transpose(1, 2))
+# print(dot_product)
+# print(dot_product.shape)
+# upper = dot_product[:, triu[0], triu[1]]
+# print(upper)
 # gt = torch.ones(2, 16) * torch.range(0, 15)
 # pred = torch.zeros(2, 16)
 # import torch.nn as nn
@@ -36,3 +36,6 @@ print(upper)
 # loss = grasp_mse_loss(pred, gt)
 # print(loss.shape)
 # print(loss)
+points = torch.zeros((10, 6))
+conv1 = DynamicEdgeConv(MLP([12, 16, 32]), k=8, aggr='max')
+out = conv1(points)

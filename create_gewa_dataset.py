@@ -92,7 +92,6 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
             grasp_success = np.array(data["grasps/qualities/flex/object_in_gripper"])
             num_success = np.sum(grasp_success > success_threshold)
             if num_success > min_num_grasps:
-                simplified_mesh_count += 1
                 success_grasp_mask = grasp_success > success_threshold
                 success_grasp_poses = grasp_poses[success_grasp_mask]
 
@@ -110,7 +109,8 @@ def get_point_cloud_samples(data_dir, success_threshold=0.5, num_mesh=-1, num_po
                     np.save(approach_points_save_path, approach_point_scores)
 
                     np.save(point_cloud_save_path, point_cloud)
-                
+
+                simplified_mesh_count += 1
                 point_cloud_sample = Sample(simplified_mesh_path, point_cloud_save_path, approach_points_save_path, point_grasps_save_path, grasps_file_name, sample)
                 point_cloud_samples.append(point_cloud_sample)
     return point_cloud_samples

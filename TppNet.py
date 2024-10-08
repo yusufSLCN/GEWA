@@ -5,7 +5,7 @@ from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool, global_mea
 import numpy as np
 
 class TppNet(nn.Module):
-    def __init__(self, grasp_dim=9, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False):
+    def __init__(self, grasp_dim=9, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False, sort_by_score=False, with_normals=False):
         super(TppNet, self).__init__()
         
         self.num_grasp_sample = num_grasp_sample
@@ -15,11 +15,15 @@ class TppNet(nn.Module):
         self.num_points = num_points
         self.max_num_grasps = max_num_grasps
         self.only_classifier = only_classifier
+        self.sort_by_score = sort_by_score
+
+        self.with_normals = with_normals
         self.triu = torch.triu_indices(num_points, num_points, offset=1)
 
         self.num_pairs = self.triu.shape[1]
         
-        self.conv1 = DynamicEdgeConv(MLP([6, 16, 32]), k=self.k, aggr='max')
+        input_dim = 12 if self.with_normals else 6
+        self.conv1 = DynamicEdgeConv(MLP([input_dim, 16, 32]), k=self.k, aggr='max')
         self.conv2 = DynamicEdgeConv(MLP([64, 64, 128]), k=self.k, aggr='max')
         self.conv3 = DynamicEdgeConv(MLP([256, 256, 512]), k=self.k, aggr='max')
         # self.conv4 = DynamicEdgeConv(MLP([1024, 1024, 2048]), k=self.k, aggr='max')
@@ -55,7 +59,14 @@ class TppNet(nn.Module):
 
     def forward(self, data):
         pos, batch = data.pos, data.batch
-        x1 = self.conv1(pos, batch)
+        if self.with_normals:
+            normals = data.normals
+            input = torch.cat((pos, normals), dim=1)
+            # print(pos.shape, normals.shape)
+        else:
+            input = pos
+            
+        x1 = self.conv1(input, batch)
         x2 = self.conv2(x1, batch)
         x3 = self.conv3(x2, batch)
         # x4 = self.conv4(x3, batch)
@@ -146,7 +157,7 @@ class TppNet(nn.Module):
         num_valid_grasps = np.zeros((pos.shape[0], self.num_grasp_sample))
         # print(edge_scores.shape)
         # print(data.y)
-        for i in range(edge_scores.shape[0]):  # Iterate over each point cloud in the batch
+        for i in range(edge_scores.shape[0]):  # Iterate over each edge in the batch
             sample_pos = pos[i]
             
             # Multinomial sampling for point selection
@@ -158,12 +169,16 @@ class TppNet(nn.Module):
                                                 replacement=with_replacement.item())
             else:
                 sample_edge_prob = pair_classification_out_ij[i]
-                pos_pair_count = torch.sum(sample_edge_prob > 0.5)
-                if pos_pair_count > 0:
-                    sample_edge_prob[sample_edge_prob < 0.5] = 0
-                with_replacement = pos_pair_count < self.num_grasp_sample
-                edge_index = torch.multinomial(sample_edge_prob, num_samples=self.num_grasp_sample, 
-                                                replacement=with_replacement.item())
+                if self.sort_by_score:
+                    sorted_score = torch.argsort(sample_edge_prob, descending=True)
+                    edge_index = sorted_score[:self.num_grasp_sample]
+                else:
+                    pos_pair_count = torch.sum(sample_edge_prob > 0.5)
+                    if pos_pair_count > 0:
+                        sample_edge_prob[sample_edge_prob < 0.5] = 0
+                    with_replacement = pos_pair_count < self.num_grasp_sample
+                    edge_index = torch.multinomial(sample_edge_prob, num_samples=self.num_grasp_sample, 
+                                                    replacement=with_replacement.item())
             
             # print("find edge indxs")
             edge_index = edge_index.to("cpu")
@@ -234,7 +249,7 @@ class TppNet(nn.Module):
 
     
     def calculateTransformationMatrix(self, grasp, mid_points):
-        translation = grasp[:, :3] + mid_points
+        # translation = grasp[:, :3] + mid_points
         r1 = grasp[:, 3:6]
         r2 = grasp[:, 6:]
         #orthogonalize the rotation vectors
@@ -242,8 +257,13 @@ class TppNet(nn.Module):
         r2 = r2 - torch.sum(r1 * r2, dim=1, keepdim=True) * r1
         r2 = r2 / torch.norm(r2, dim=1, keepdim=True)
         r3 = torch.cross(r1, r2, dim=1)
+        r3 = r3 / torch.norm(r3, dim=1, keepdim=True)
         #create the rotation matrix
         r = torch.stack([r1, r2, r3], dim=2)
+
+        gaxis_translation_scale = grasp[:, 0].reshape(-1, 1)
+        grasp_axis_trans_shift = gaxis_translation_scale * r1
+        translation = mid_points - r3 * 1.12169998e-01 + grasp_axis_trans_shift
         #create 4x4 transformation matrix for each 
         trans_m = torch.eye(4).repeat(len(grasp), 1, 1).to(grasp.device)
         trans_m[:,:3, :3] = r

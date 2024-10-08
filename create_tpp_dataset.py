@@ -4,14 +4,13 @@ from TPPSample import TPPSample
 import tqdm
 from acronym_utils import load_file_names, extract_sample_info
 import h5py
-import open3d as o3d
-import torch
 
 
 def save_split_samples(data_dir, num_mesh, dataset_name="tpp_effdict", radius=0.005, train_ratio=0.8):
     if not os.path.exists('sample_dirs'):
         os.makedirs('sample_dirs')
     paths_dir = os.path.join('sample_dirs', f'{dataset_name}_r-{radius}_{num_mesh}_samples.npy')
+    print(paths_dir)
     if os.path.exists(paths_dir):
         samples = np.load(paths_dir, allow_pickle=True)
     else:
@@ -44,6 +43,8 @@ def save_split_samples(data_dir, num_mesh, dataset_name="tpp_effdict", radius=0.
 
 
 def get_point_cloud_samples(data_dir, dataset_name, success_threshold=0.5, num_mesh=-1, num_points=1000, min_num_grasps=100, radius=0.005):
+    import open3d as o3d
+   
     simplified_mesh_directory = os.path.join(data_dir, 'simplified_obj')
     grasp_directory =  os.path.join(data_dir, 'acronym/grasps')
     model_root = '../data/ShapeNetSem-backup/models-OBJ/models'
@@ -51,6 +52,7 @@ def get_point_cloud_samples(data_dir, dataset_name, success_threshold=0.5, num_m
     point_cloud_folder = os.path.join(data_dir, f'{dataset_name}_point_cloud_{num_points}_{radius}')
     touch_pair_score_folder = os.path.join(data_dir, f'{dataset_name}_scores_{num_points}_{radius}')
     touch_pair_score_matrix_folder = os.path.join(data_dir, f'{dataset_name}_score_matrix_{num_points}_{radius}')
+    normals_folder = os.path.join(data_dir, f'{dataset_name}_normals_{num_points}_{radius}')
 
     if not os.path.exists(touch_pair_score_matrix_folder):
         print(f"Creating directory {touch_pair_score_matrix_folder}")
@@ -68,6 +70,10 @@ def get_point_cloud_samples(data_dir, dataset_name, success_threshold=0.5, num_m
         print(f"Creating directory {pair_grasp_folder}")
         os.makedirs(pair_grasp_folder)
 
+    if not os.path.exists(normals_folder):
+        print(f"Creating directory {normals_folder}")
+        os.makedirs(normals_folder)
+    
     grasp_file_names = load_file_names(grasp_directory)
     # read discarded_samples.txt
     discarded_samples = []
@@ -87,6 +93,7 @@ def get_point_cloud_samples(data_dir, dataset_name, success_threshold=0.5, num_m
         pair_score_matrix_path = f'{touch_pair_score_matrix_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
         point_cloud_path = f'{point_cloud_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
         pair_grasps_path = f'{pair_grasp_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
+        normals_path = f'{normals_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
 
         # Check if the simplified mesh exists because not all samples have been simplified
         if os.path.exists(simplified_mesh_path):
@@ -106,14 +113,18 @@ def get_point_cloud_samples(data_dir, dataset_name, success_threshold=0.5, num_m
                 if not (os.path.exists(point_cloud_path) and os.path.exists(pair_scores_path) and os.path.exists(pair_grasps_path) and os.path.exists(pair_score_matrix_path)):
                     mesh_data = o3d.io.read_triangle_mesh(simplified_mesh_path)
                     o3d.utility.random.seed(0)
-                    point_cloud = mesh_data.sample_points_poisson_disk(num_points)
+                    point_cloud_data = mesh_data.sample_points_poisson_disk(num_points)
                     sample['scale'] = float(sample['scale'])
-                    point_cloud = np.asarray(point_cloud.points) * sample['scale']
+                    point_cloud = np.asarray(point_cloud_data.points) * sample['scale']
+
+                    point_cloud_data.estimate_normals()
+                    normals = np.asarray(point_cloud_data.normals)
 
                     #normalize point cloud
-                    mean = np.mean(point_cloud, axis=0)
-                    point_cloud = point_cloud - mean
-                    success_grasp_poses[:, :3, 3] = success_grasp_poses[:, :3, 3] - mean
+                    # mean = np.mean(point_cloud, axis=0)
+                    # sample['mean'] = mean
+                    # point_cloud = point_cloud - mean
+                    # success_grasp_poses[:, :3, 3] = success_grasp_poses[:, :3, 3] - mean
 
                     pair_score_matrix, pair_scores, tpp_grasp_dict, _ = create_touch_point_pair_scores_and_grasps(point_cloud, success_grasp_poses, cylinder_radius=radius, cylinder_height=0.041)
                     if np.sum(pair_score_matrix) < min_num_grasps:
@@ -122,15 +133,23 @@ def get_point_cloud_samples(data_dir, dataset_name, success_threshold=0.5, num_m
                     np.save(pair_scores_path, pair_scores)
                     np.save(pair_grasps_path, tpp_grasp_dict)
                     np.save(point_cloud_path, point_cloud)
+                    np.save(normals_path, normals)
+                # else:
+                #     point_cloud = np.load(point_cloud_path)
+                #     mean = np.mean(point_cloud, axis=0)
+                #     sample['mean'] = mean
+                #     sample['scale'] = float(sample['scale'])
                 
                 point_cloud_sample = TPPSample(simplified_mesh_path, point_cloud_path, pair_scores_path, pair_score_matrix_path,
-                                               pair_grasps_path, grasps_file_name, sample)
+                                               pair_grasps_path, normals_path, grasps_file_name, sample)
                 simplified_mesh_count += 1
                 point_cloud_samples.append(point_cloud_sample)
     return point_cloud_samples
 
 
 def create_touch_point_pair_scores_and_grasps(vertices, grasp_poses, cylinder_radius=0.02, cylinder_height=0.02, max_grasps_per_pair=20, pair_alignment_threshold=0.7):
+    import torch
+    
     gripper_right_tip_vector = np.array([-4.100000e-02, -7.27595772e-12, 1.12169998e-01, 1])
     gripper_left_tip_vector = np.array([4.10000000e-02, -7.27595772e-12, 1.12169998e-01, 1])
     right_tip_pos = np.matmul(grasp_poses, gripper_right_tip_vector)[:, :3]
@@ -233,6 +252,8 @@ def is_point_inside_cylinder(points, cylinder_top, cylinder_bottom, cylinder_rad
 
 
 def create_point_cloud_and_grasps(N, num_grasps):
+    import open3d as o3d
+
     gripper_right_tip_vector = np.array([-5.100000e-02, 0, 1.12169998e-01, 1])
     gripper_left_tip_vector = np.array([5.10000000e-02, 0, 1.12169998e-01, 1])
     cube_size = 0.08
@@ -245,7 +266,7 @@ def create_point_cloud_and_grasps(N, num_grasps):
 
 if __name__ == "__main__":
     
-    train_samples, val_samples = save_split_samples('../data',  400, dataset_name="tpp_effdict")
+    train_samples, val_samples = save_split_samples('../data',  -1, dataset_name="tpp_effdict_nomean_wnormals")
     print(f"Number of train samples: {len(train_samples)}")
     print(f"Number of validation samples: {len(val_samples)}")
     print("Done!")

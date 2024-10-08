@@ -4,13 +4,14 @@ import torch.nn.functional as F
 from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool
 
 class DynANet(nn.Module):
-    def __init__(self, grasp_dim=16, k=16, num_grasp_sample=500):
+    def __init__(self, grasp_dim=16, k=16, num_grasp_sample=500, sort_by_score=False):
         super(DynANet, self).__init__()
         
         self.num_grasp_sample = num_grasp_sample
         self.grap_dim = grasp_dim
         self.k = k
         self.multi_gpu = False
+        self.sort_by_score = sort_by_score
         
         self.conv1 = DynamicEdgeConv(MLP([6, 16, 16, 32]), k=self.k, aggr='max')
         self.conv2 = DynamicEdgeConv(MLP([64, 64, 64, 128]), k=self.k, aggr='max')
@@ -69,9 +70,13 @@ class DynANet(nn.Module):
                 # selected_approach_scores.append(approach_scores[point_index])
             else:
                 sample_appraoch_prob = classification_output[mask]
-                with_replacement = torch.sum(sample_appraoch_prob > 0.5) < self.num_grasp_sample
-                point_index = torch.multinomial(sample_appraoch_prob, num_samples=self.num_grasp_sample, 
-                                                replacement=with_replacement.item())
+                if self.sort_by_score:
+                    sorted_score = torch.argsort(sample_appraoch_prob, descending=True)
+                    point_index = sorted_score[:self.num_grasp_sample]
+                else:
+                    with_replacement = torch.sum(sample_appraoch_prob > 0.5) < self.num_grasp_sample
+                    point_index = torch.multinomial(sample_appraoch_prob, num_samples=self.num_grasp_sample, 
+                                                    replacement=with_replacement.item())
                 # selected_approach_scores.append(sample_appraoch_prob[point_index])
             # point_index = torch.multinomial(da, num_samples=self.num_grasp_sample)
             # point_index = torch.arange(len(sample_pos))

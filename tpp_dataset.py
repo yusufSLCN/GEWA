@@ -6,13 +6,15 @@ import numpy as np
 import time
     
 class TPPDataset(Dataset):
-    def __init__(self, data, transform=None, return_pair_matrix=False, return_pair_dict=False):
+    def __init__(self, data, transform=None, return_pair_matrix=False, return_pair_dict=False, normalize=False, return_normals=False):
         self.data = data
         self.transform = transform
         self.device = "cpu"
         self.triu_indices = np.triu_indices(1000, k=1)
         self.return_pair_matrix = return_pair_matrix
         self.return_pair_dict = return_pair_dict
+        self.normalize = normalize
+        self.return_normals = return_normals
 
 
     def __len__(self):
@@ -34,12 +36,22 @@ class TPPDataset(Dataset):
             pair_score_matrix = torch.tensor(pair_score_matrix, dtype=torch.float32)
         else:
             pair_score_matrix = None
-  
+
+        if self.normalize:
+            mean = np.mean(point_cloud, axis=0)
+            point_cloud = point_cloud - mean
+            sample_info["mean"] = mean
+
+        if self.return_normals:
+            normals = torch.tensor(sample.normals, dtype=torch.float32)
+        else:
+            normals = None
+        
         # convert to torch tensors
         point_cloud = torch.tensor(point_cloud, dtype=torch.float32)
         pair_scores = torch.tensor(pair_scores, dtype=torch.float32)
 
-        data = Data(x=point_cloud, y=pair_grasps_dict, pos=point_cloud,
+        data = Data(x=point_cloud, y=pair_grasps_dict, pos=point_cloud, normals=normals,
                      pair_scores=pair_scores, pair_score_matrix=pair_score_matrix, sample_info=sample_info)
         if self.transform != None:
             data = self.transform(data)

@@ -9,6 +9,7 @@ class TPPSample:
     pair_scores_path: str
     pair_score_matrix_path: str
     pair_grasps_save_path: str
+    normals_path:str
     grasps_path: str
     info: dict = None
 
@@ -27,6 +28,10 @@ class TPPSample:
     @property
     def pair_grasps(self):
         return np.load(self.pair_grasps_save_path, allow_pickle=True).item()
+    
+    @property
+    def normals(self):
+        return np.load(self.normals_path)
     
     @property
     def grasps(self):
