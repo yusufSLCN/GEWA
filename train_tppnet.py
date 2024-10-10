@@ -10,7 +10,7 @@ from tqdm import tqdm
 from tpp_dataset import TPPDataset
 from TppNet import TppNet
 from create_tpp_dataset import save_split_samples
-from metrics import check_batch_topk_success_rate, count_correct_approach_scores, check_batch_grasp_success_rate_per_point
+from metrics import check_batch_success_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
 import os
 import numpy as np
 import torch.optim as optim
@@ -78,7 +78,7 @@ config.num_workers = args.num_workers
 config.contactnet_split = args.contactnet_split
 config.dataset = train_dataset.__class__.__name__
 config.train_size = len(train_dataset)
-config.val_dataset = len(val_dataset)
+config.val_size = len(val_dataset)
 if args.augment:
     config.transform = transfom_params
 
@@ -285,10 +285,13 @@ for epoch in range(1, num_epochs + 1):
             with torch.no_grad():
                 if not args.only_classifier:
                     grasp_pred = grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
-                    grasp_target = grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
-                    num_valid_grasps = num_valid_grasps.cpu().detach().numpy()
-                    train_grasp_success += check_batch_grasp_success_rate_per_point(grasp_pred, grasp_target, 0.03,
-                                                                                    np.deg2rad(30), num_valid_grasps)
+                    # grasp_target = grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
+                    # num_valid_grasps = num_valid_grasps.cpu().detach().numpy()
+                    # train_grasp_success += check_batch_grasp_success_rate_per_point(grasp_pred, grasp_target, 0.03,
+                    #                                                                 np.deg2rad(30), num_valid_grasps)
+                    grasp_gt_paths = [s.sample_info['grasps'] for s in data]
+                    means = [s.sample_info['mean'] for s in data]
+                    train_grasp_success += check_batch_success_with_whole_gewa_dataset(grasp_pred, 0.03, np.deg2rad(30),grasp_gt_paths, means)
 
                 # Calculate the pair accuracy
                 pair_classification_pred = pair_classification_pred.to(binary_pair_scores_gt.device)
@@ -374,10 +377,15 @@ for epoch in range(1, num_epochs + 1):
                 
                 if not args.only_classifier:
                     val_grasp_pred = val_grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
-                    val_grasp_target = val_grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
-                    val_num_valid_grasps = val_num_valid_grasps.cpu().detach().numpy()
-                    val_grasp_success += check_batch_grasp_success_rate_per_point(val_grasp_pred, val_grasp_target, 0.03,
-                                                                                    np.deg2rad(30), val_num_valid_grasps)
+                    # val_grasp_target = val_grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
+                    # val_num_valid_grasps = val_num_valid_grasps.cpu().detach().numpy()
+                    # val_grasp_success += check_batch_grasp_success_rate_per_point(val_grasp_pred, val_grasp_target, 0.03,
+                    #                                                                 np.deg2rad(30), val_num_valid_grasps)
+                    val_grasp_gt_paths = [s.sample_info['grasps'] for s in val_data]
+                    val_means = [s.sample_info['mean'] for s in val_data]
+                    val_grasp_success += check_batch_success_with_whole_gewa_dataset(val_grasp_pred, 0.03, np.deg2rad(30),val_grasp_gt_paths, val_means)
+
+
                 #sklearn to get other metrics
                 val_pair_pred = torch.flatten(val_pair_pred)
                 val_binary_pair_scores_gt = torch.flatten(val_binary_pair_scores_gt).int()

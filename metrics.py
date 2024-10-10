@@ -65,7 +65,7 @@ def check_succces_with_whole_dataset(grasp_pred, grasp_dict, trans_thresh, rotat
 def check_batch_success_with_whole_gewa_dataset(grasp_preds, trans_thresh, rotat_thresh, grasp_gt_paths, point_cloud_means):
     batch_success_rate = 0
     batch_size = grasp_preds.shape[0]
-    print(grasp_preds.shape, grasp_gt_paths.shape, point_cloud_means.shape)
+    # print(grasp_preds.shape, len(grasp_gt_paths), len(point_cloud_means))
     for i in range(batch_size):
         batch_success_rate += check_succces_with_whole_gewa_dataset(grasp_preds[i], trans_thresh, rotat_thresh, grasp_gt_paths[i], point_cloud_means[i])
 

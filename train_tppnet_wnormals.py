@@ -26,7 +26,7 @@ parser.add_argument('-e', '--epochs', type=int, default=50)
 parser.add_argument('-d', '--device', type=str, default='cuda')
 parser.add_argument('-nw', '--num_workers', type=int, default=0)
 parser.add_argument('-nm', '--num_mesh', type=int, default=10)
-parser.add_argument('-dd', '--data_dir', type=str, default='../data')
+parser.add_argument('-dd', '--data_dir', type=str, default='/export/workspaces/ws1/salcany-GEWA/data/')
 parser.add_argument('-a', '--augment', dest='augment', action='store_true')
 parser.add_argument('-n', '--notes', type=str, default='')
 parser.add_argument('-di', '--device_id', type=int, default=0)
@@ -37,6 +37,7 @@ parser.add_argument('-gs', '--grasp_samples', type=int, default=100)
 parser.add_argument('-li', '--log_interval', type=int, default=10)
 parser.add_argument('-oc', '--only_classifier', action='store_true')
 parser.add_argument('-dn', '--dataset_name', type=str, default="tpp_effdict_nomean_wnormals")
+parser.add_argument('-csplit', '--contactnet_split', action='store_true')
 parser.add_argument('-norm', '--normalize', action='store_true')
 args = parser.parse_args()
 
@@ -58,7 +59,7 @@ else:
 print("Transform params: ", transfom_params)
 
 # Save the split samples
-train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh, dataset_name=args.dataset_name)
+train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh, dataset_name=args.dataset_name, contactnet_split=args.contactnet_split)
 return_grasp_dict = not args.only_classifier
 train_dataset = TPPDataset(train_dirs, transform=transform, return_pair_dict=return_grasp_dict, normalize=True, return_normals=True)
 val_dataset = TPPDataset(val_dirs, return_pair_dict=return_grasp_dict, normalize=True, return_normals=True)
@@ -83,7 +84,10 @@ config.grasp_dim = args.grasp_dim
 config.grasp_samples = args.grasp_samples
 config.only_classifier = args.only_classifier
 config.dataset_name = args.dataset_name
+config.contactnet_split = args.contactnet_split
 config.normalize = args.normalize
+config.train_size = len(train_dataset)
+config.val_size = len(val_dataset)
 # Analyze the dataset class stats
 num_epochs = args.epochs
 
@@ -286,8 +290,8 @@ for epoch in range(1, num_epochs + 1):
                     # num_valid_grasps = num_valid_grasps.cpu().detach().numpy()
                     # train_grasp_success += check_batch_grasp_success_rate_per_point(grasp_pred, grasp_target, 0.03,
                     #                                                                 np.deg2rad(30), num_valid_grasps)
-                    grasp_gt_paths = data.sample_info['grasps']
-                    means = data.sample_info['mean']
+                    grasp_gt_paths = [s.sample_info['grasps'] for s in data]
+                    means = [s.sample_info['mean'] for s in data]
                     train_grasp_success += check_batch_success_with_whole_gewa_dataset(grasp_pred, 0.03, np.deg2rad(30),grasp_gt_paths, means)
                 # Calculate the pair accuracy
                 pair_classification_pred = pair_classification_pred.to(binary_pair_scores_gt.device)
@@ -377,9 +381,9 @@ for epoch in range(1, num_epochs + 1):
                     # val_num_valid_grasps = val_num_valid_grasps.cpu().detach().numpy()
                     # val_grasp_success += check_batch_grasp_success_rate_per_point(val_grasp_pred, val_grasp_target, 0.03,
                     #                                                                 np.deg2rad(30), val_num_valid_grasps)
-                    val_grasp_gt_paths = val_data.sample_info['grasps']
-                    val_means = val_data.sample_info['mean']
-                    train_grasp_success += check_batch_success_with_whole_gewa_dataset(val_grasp_pred, 0.03, np.deg2rad(30),val_grasp_gt_paths, val_means)
+                    val_grasp_gt_paths = [s.sample_info['grasps'] for s in val_data]
+                    val_means = [s.sample_info['mean'] for s in val_data]
+                    val_grasp_success += check_batch_success_with_whole_gewa_dataset(val_grasp_pred, 0.03, np.deg2rad(30), val_grasp_gt_paths, val_means)
                 #sklearn to get other metrics
                 val_pair_pred = torch.flatten(val_pair_pred)
                 val_binary_pair_scores_gt = torch.flatten(val_binary_pair_scores_gt).int()
