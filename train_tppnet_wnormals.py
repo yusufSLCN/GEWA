@@ -10,7 +10,7 @@ from tqdm import tqdm
 from tpp_dataset import TPPDataset
 from TppNet import TppNet
 from create_tpp_dataset import save_split_samples
-from metrics import check_batch_topk_success_rate, count_correct_approach_scores, check_batch_grasp_success_rate_per_point
+from metrics import check_batch_success_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
 import os
 import numpy as np
 import torch.optim as optim
@@ -37,6 +37,7 @@ parser.add_argument('-gs', '--grasp_samples', type=int, default=100)
 parser.add_argument('-li', '--log_interval', type=int, default=10)
 parser.add_argument('-oc', '--only_classifier', action='store_true')
 parser.add_argument('-dn', '--dataset_name', type=str, default="tpp_effdict_nomean_wnormals")
+parser.add_argument('-norm', '--normalize', action='store_true')
 args = parser.parse_args()
 
 
@@ -82,6 +83,7 @@ config.grasp_dim = args.grasp_dim
 config.grasp_samples = args.grasp_samples
 config.only_classifier = args.only_classifier
 config.dataset_name = args.dataset_name
+config.normalize = args.normalize
 # Analyze the dataset class stats
 num_epochs = args.epochs
 
@@ -99,7 +101,7 @@ print(device)
 # model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
 max_grasp_per_edge = 10
 model = TppNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples,
-                max_num_grasps=max_grasp_per_edge, only_classifier=args.only_classifier, with_normals=True).to(device)
+                max_num_grasps=max_grasp_per_edge, only_classifier=args.only_classifier, with_normals=True, normalize=args.normalize).to(device)
 num_pairs = model.num_pairs
 config.model_name = model.__class__.__name__
 wandb.watch(model, log="all")
@@ -280,11 +282,13 @@ for epoch in range(1, num_epochs + 1):
             with torch.no_grad():
                 if not args.only_classifier:
                     grasp_pred = grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
-                    grasp_target = grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
-                    num_valid_grasps = num_valid_grasps.cpu().detach().numpy()
-                    train_grasp_success += check_batch_grasp_success_rate_per_point(grasp_pred, grasp_target, 0.03,
-                                                                                    np.deg2rad(30), num_valid_grasps)
-
+                    # grasp_target = grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
+                    # num_valid_grasps = num_valid_grasps.cpu().detach().numpy()
+                    # train_grasp_success += check_batch_grasp_success_rate_per_point(grasp_pred, grasp_target, 0.03,
+                    #                                                                 np.deg2rad(30), num_valid_grasps)
+                    grasp_gt_paths = data.sample_info['grasps']
+                    means = data.sample_info['mean']
+                    train_grasp_success += check_batch_success_with_whole_gewa_dataset(grasp_pred, 0.03, np.deg2rad(30),grasp_gt_paths, means)
                 # Calculate the pair accuracy
                 pair_classification_pred = pair_classification_pred.to(binary_pair_scores_gt.device)
                 pair_classification_pred = torch.flatten(pair_classification_pred)
@@ -369,10 +373,13 @@ for epoch in range(1, num_epochs + 1):
                 
                 if not args.only_classifier:
                     val_grasp_pred = val_grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
-                    val_grasp_target = val_grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
-                    val_num_valid_grasps = val_num_valid_grasps.cpu().detach().numpy()
-                    val_grasp_success += check_batch_grasp_success_rate_per_point(val_grasp_pred, val_grasp_target, 0.03,
-                                                                                    np.deg2rad(30), val_num_valid_grasps)
+                    # val_grasp_target = val_grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
+                    # val_num_valid_grasps = val_num_valid_grasps.cpu().detach().numpy()
+                    # val_grasp_success += check_batch_grasp_success_rate_per_point(val_grasp_pred, val_grasp_target, 0.03,
+                    #                                                                 np.deg2rad(30), val_num_valid_grasps)
+                    val_grasp_gt_paths = val_data.sample_info['grasps']
+                    val_means = val_data.sample_info['mean']
+                    train_grasp_success += check_batch_success_with_whole_gewa_dataset(val_grasp_pred, 0.03, np.deg2rad(30),val_grasp_gt_paths, val_means)
                 #sklearn to get other metrics
                 val_pair_pred = torch.flatten(val_pair_pred)
                 val_binary_pair_scores_gt = torch.flatten(val_binary_pair_scores_gt).int()

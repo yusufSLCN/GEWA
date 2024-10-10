@@ -9,7 +9,7 @@ class TPPSample:
     pair_scores_path: str
     pair_score_matrix_path: str
     pair_grasps_save_path: str
-    # normals_path:str
+    normals_path:str
     grasps_path: str
     info: dict = None
 

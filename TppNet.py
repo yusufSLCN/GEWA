@@ -5,7 +5,8 @@ from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool, global_mea
 import numpy as np
 
 class TppNet(nn.Module):
-    def __init__(self, grasp_dim=9, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False, sort_by_score=False, with_normals=False):
+    def __init__(self, grasp_dim=9, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False,
+                  sort_by_score=False, with_normals=False, normalize=False):
         super(TppNet, self).__init__()
         
         self.num_grasp_sample = num_grasp_sample
@@ -16,6 +17,7 @@ class TppNet(nn.Module):
         self.max_num_grasps = max_num_grasps
         self.only_classifier = only_classifier
         self.sort_by_score = sort_by_score
+        self.normalize = normalize
 
         self.with_normals = with_normals
         self.triu = torch.triu_indices(num_points, num_points, offset=1)
@@ -194,6 +196,9 @@ class TppNet(nn.Module):
                 sample_grasp_dict = data.y[i][0]
                 if grasp_key in sample_grasp_dict:
                     edge_grasps = sample_grasp_dict[grasp_key]
+                    if self.normalize:
+                        mean = data.sample_info["mean"][i]
+                        edge_grasps[:, :3, 3] -= mean
 
                     if len(edge_grasps) > self.max_num_grasps:
                         edge_grasps = edge_grasps[:self.max_num_grasps]
@@ -277,25 +282,26 @@ if __name__ == "__main__":
     from metrics import check_batch_grasp_success
     from torch_geometric.nn import DataParallel
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cpu"
     if device == "cuda":
-        model = TppNet(grasp_dim=16).to(device)
+        model = TppNet(normalize=True).to(device)
         model = DataParallel(model)
     else:
-        model = TppNet()
+        model = TppNet(normalize=True)
         # model = DataParallel(model)
     # dataset_name = "tpp_seed"
-    dataset_name = "tpp_effdict"
-    train_paths, val_paths = save_split_samples('../data', 100, dataset_name)
+    dataset_name = "tpp_effdict_nomean_wnormals"
+    train_paths, val_paths = save_split_samples('../data', 1000, dataset_name)
     classification_criterion = nn.BCELoss()
     grasp_criterion = nn.MSELoss()
     # transform = RandomRotationTransform(rotation_range)
     
-    train_dataset = TPPDataset(train_paths, transform=None, return_pair_dict=True)
+    train_dataset = TPPDataset(train_paths, transform=None, return_pair_dict=True, normalize=True)
     if device == "cuda":
-        train_loader = DataListLoader(train_dataset, batch_size=8, shuffle=True, num_workers=0)
+        train_loader = DataListLoader(train_dataset, batch_size=2, shuffle=True, num_workers=0)
     else:
-        train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=0)
+        train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=0)
     num_success= 0
     for i, data in enumerate(train_loader):
         model.train()

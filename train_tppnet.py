@@ -36,6 +36,7 @@ parser.add_argument('-gd','--grasp_dim', type=int, default=9)
 parser.add_argument('-gs', '--grasp_samples', type=int, default=100)
 parser.add_argument('-li', '--log_interval', type=int, default=10)
 parser.add_argument('-oc', '--only_classifier', action='store_true')
+parser.add_argument('-csplit', '--contactnet_split', action='store_true')
 parser.add_argument('-dn', '--dataset_name', type=str, default="tpp_effdict")
 args = parser.parse_args()
 
@@ -57,7 +58,8 @@ else:
 print("Transform params: ", transfom_params)
 
 # Save the split samples
-train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh, dataset_name=args.dataset_name)
+train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh, dataset_name=args.dataset_name,
+                                           contactnet_split=args.contactnet_split)
 return_grasp_dict = not args.only_classifier
 train_dataset = TPPDataset(train_dirs, transform=transform, return_pair_dict=return_grasp_dict)
 val_dataset = TPPDataset(val_dirs, return_pair_dict=return_grasp_dict)
@@ -73,7 +75,10 @@ config.epoch = args.epochs
 config.num_mesh = args.num_mesh
 config.data_dir = args.data_dir
 config.num_workers = args.num_workers
+config.contactnet_split = args.contactnet_split
 config.dataset = train_dataset.__class__.__name__
+config.train_size = len(train_dataset)
+config.val_dataset = len(val_dataset)
 if args.augment:
     config.transform = transfom_params
 

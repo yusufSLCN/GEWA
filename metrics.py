@@ -62,6 +62,16 @@ def check_succces_with_whole_dataset(grasp_pred, grasp_dict, trans_thresh, rotat
     success_rate = num_success / grasp_pred.shape[0]
     return success_rate
 
+def check_batch_success_with_whole_gewa_dataset(grasp_preds, trans_thresh, rotat_thresh, grasp_gt_paths, point_cloud_means):
+    batch_success_rate = 0
+    batch_size = grasp_preds.shape[0]
+    print(grasp_preds.shape, grasp_gt_paths.shape, point_cloud_means.shape)
+    for i in range(batch_size):
+        batch_success_rate += check_succces_with_whole_gewa_dataset(grasp_preds[i], trans_thresh, rotat_thresh, grasp_gt_paths[i], point_cloud_means[i])
+
+    batch_success_rate = batch_success_rate / batch_size
+    return batch_success_rate
+
 def check_succces_with_whole_gewa_dataset(grasp_pred, trans_thresh, rotat_thresh, grasp_gt_path, point_cloud_mean):
     grasp_gt_file = h5py.File(grasp_gt_path, "r")
     grasp_poses = np.array(grasp_gt_file["grasps/transforms"])
