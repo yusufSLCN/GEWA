@@ -417,13 +417,13 @@ for epoch in range(1, num_epochs + 1):
             print(f"Train Pair F1: {train_f1} - Valid Pair F1: {val_f1}")
             print(f"Train Grasp Success: {train_success_rate} - Valid Grasp Success: {val_grasp_success_rate}")
             # Save the model if the validation loss is low
-            if val_f1 > 0.1:
+            if val_grasp_success_rate > 0.1:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}.pth"
                 model_folder = f"models/{model_name}"
                 if not os.path.exists(model_folder):
                     os.makedirs(model_folder)
 
-                model_file = f"{model_name}_epoch_{epoch}_acc_{valid_pair_accuracy:.2f}_recall_{val_recall:.2f}.pth"
+                model_file = f"{model_name}_epoch_{epoch}_success_{val_grasp_success_rate:.2f}_acc_{valid_pair_accuracy:.2f}_recall_{val_recall:.2f}.pth"
                 model_path = os.path.join(model_folder, model_file)
                 torch.save(model.state_dict(), model_path)
                 artifact = wandb.Artifact(model_file, type='model')

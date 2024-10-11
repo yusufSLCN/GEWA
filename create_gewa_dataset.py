@@ -5,9 +5,10 @@ import tqdm
 from acronym_utils import load_file_names, extract_sample_info, find_appraoch_score_target, create_point_close_grasp_list_and_approach_scores
 import h5py
 import open3d as o3d
+from create_tpp_dataset import get_contactnet_split
 
 
-def save_split_samples(data_dir, num_mesh, train_ratio=0.8):
+def save_split_samples(data_dir, num_mesh, train_ratio=0.8, contactnet_split=False):
     if not os.path.exists('sample_dirs'):
         os.makedirs('sample_dirs')
     paths_dir = os.path.join('sample_dirs', f'gewa_r_{num_mesh}_samples.npy')
@@ -27,13 +28,27 @@ def save_split_samples(data_dir, num_mesh, train_ratio=0.8):
         num_mesh = len(samples)
         print(f"Number of meshes in the simlified subset: {num_mesh}")
 
-    split_idx = int(len(samples) * train_ratio)
-    all_train_samples = samples[:split_idx]
-    all_valid_samples = samples[split_idx:]
+    if contactnet_split:
+        print("Using contactnet split")
+        train_meshes, valid_meshes = get_contactnet_split()
+        train_samples = []
+        valid_samples = []
+        for sample in samples:
+            mesh_name = sample.info['grasps']
+            mesh_name = os.path.basename(mesh_name)
+            mesh_name = os.path.splitext(mesh_name)[0]
+            if mesh_name in train_meshes:
+                train_samples.append(sample)
+            elif mesh_name in valid_meshes:
+                valid_samples.append(sample)
+    else:
+        split_idx = int(len(samples) * train_ratio)
+        all_train_samples = samples[:split_idx]
+        all_valid_samples = samples[split_idx:]
 
-    subset_idx = int(num_mesh * train_ratio)
-    train_samples = all_train_samples[:subset_idx]
-    valid_samples = all_valid_samples[:num_mesh - subset_idx]
+        subset_idx = int(num_mesh * train_ratio)
+        train_samples = all_train_samples[:subset_idx]
+        valid_samples = all_valid_samples[:num_mesh - subset_idx]
 
     # #save the train and test meshes
     # np.save('sample_dirs/train_success_simplified_acronym_meshes.npy', train_meshes)

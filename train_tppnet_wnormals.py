@@ -61,8 +61,8 @@ print("Transform params: ", transfom_params)
 # Save the split samples
 train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh, dataset_name=args.dataset_name, contactnet_split=args.contactnet_split)
 return_grasp_dict = not args.only_classifier
-train_dataset = TPPDataset(train_dirs, transform=transform, return_pair_dict=return_grasp_dict, normalize=True, return_normals=True)
-val_dataset = TPPDataset(val_dirs, return_pair_dict=return_grasp_dict, normalize=True, return_normals=True)
+train_dataset = TPPDataset(train_dirs, transform=transform, return_pair_dict=return_grasp_dict, normalize=args.normalize, return_normals=True)
+val_dataset = TPPDataset(val_dirs, return_pair_dict=return_grasp_dict, normalize=args.normalize, return_normals=True)
                    
 # Initialize wandb
 wandb.init(project="Grasp", notes=args.notes)

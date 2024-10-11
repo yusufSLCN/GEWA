@@ -20,7 +20,7 @@ if __name__ == "__main__":
     parser.add_argument('-gs', '--grasp_samples', type=int, default=200)
     parser.add_argument('-n', '--notes', type=str, default='')
     parser.add_argument('-sbs', '--sort_by_score', action='store_true')
-
+    parser.add_argument('-csplit', '--contactnet_split', action='store_true')
     args = parser.parse_args()
     grasp_samples = args.grasp_samples
     sort_by_score = args.sort_by_score
@@ -28,7 +28,7 @@ if __name__ == "__main__":
 
     notes = args.notes
     if sort_by_score:
-        notes += f"top {grasp_samples}"
+        notes += f"top10 {grasp_samples}"
     run = wandb.init(project="Grasp", job_type="eval", notes=f"validation {notes}")
 
     # idx 4, 5, 6, 7, 13, 18
@@ -50,7 +50,10 @@ if __name__ == "__main__":
     #wo tip loss 
     # downloaded_model_path = run.use_model(name="TppNet_nm_100__bs_4.pth_epoch_950_acc_0.94_recall_0.56.pth:v0")
 
-    downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_930_acc_0.96_recall_0.53.pth:v0")
+    # calculated trans
+    # downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_930_acc_0.96_recall_0.53.pth:v0")
+    # contact split
+    downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_870_acc_0.95_recall_0.69.pth:v0")
     print(downloaded_model_path)
 
     model_path = downloaded_model_path
@@ -63,7 +66,7 @@ if __name__ == "__main__":
     model = TppNet(num_grasp_sample=grasp_samples, sort_by_score=sort_by_score)
 
     # train_paths, val_paths = save_split_samples('../data', 1000, dataset_name="tpp_effdict")
-    train_paths, val_paths = save_split_samples('../data', 1000, dataset_name="tpp_effdict_nomean")
+    train_paths, val_paths = save_split_samples('../data', 1000, dataset_name="tpp_effdict_nomean", contactnet_split=args.contactnet_split)
 
     dataset = TPPDataset(val_paths, return_pair_dict=True)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)
@@ -76,7 +79,7 @@ if __name__ == "__main__":
     # load the GraspNet model and run inference then display the gripper pose
     config.model_name = model.__class__.__name__
     config.grasp_samples = model.num_grasp_sample
-
+    config.contactnet_split = args.contactnet_split
     model = nn.DataParallel(model, device_ids=[0])
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(device)

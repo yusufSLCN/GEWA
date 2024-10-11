@@ -10,7 +10,7 @@ from tqdm import tqdm
 from gewa_dataset import GewaDataset
 from DynANet import DynANet
 from create_gewa_dataset import save_split_samples
-from metrics import check_batch_topk_success_rate, count_correct_approach_scores, check_batch_grasp_success_rate_per_point
+from metrics import check_batch_success_with_whole_gewa_dataset, count_correct_approach_scores, check_batch_grasp_success_rate_per_point
 import os
 import numpy as np
 import torch.optim as optim
@@ -31,6 +31,8 @@ parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 parser.add_argument('-cr', '--crop_radius', type=float, default=-1)
 parser.add_argument('-gd','--grasp_dim', type=int, default=9)
 parser.add_argument('-gs', '--grasp_samples', type=int, default=100)
+parser.add_argument('-li', '--log_interval', type=int, default=10)
+parser.add_argument('-csplit', '--contactnet_split', action='store_true')
 
 args = parser.parse_args()
 
@@ -52,7 +54,7 @@ else:
 print("Transform params: ", transfom_params)
 
 # Save the split samples
-train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh)
+train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh, contactnet_split=args.contactnet_split)
 max_grasp_per_point = 20
 train_dataset = GewaDataset(train_dirs, transform=transform, max_grasp_perpoint=max_grasp_per_point)
 val_dataset = GewaDataset(val_dirs, max_grasp_perpoint=max_grasp_per_point)
@@ -77,6 +79,7 @@ config.crop_radius = args.crop_radius
 config.grasp_dim = args.grasp_dim
 config.grasp_samples = args.grasp_samples
 config.max_grasp_per_point = max_grasp_per_point
+config.contactnet_split = args.contactnet_split
 
 # Analyze the dataset class stats
 num_epochs = args.epochs
@@ -179,7 +182,7 @@ for epoch in range(1, num_epochs + 1):
             approach_gt = data.approach_scores
         else:
             approach_gt = torch.cat([s.approach_scores for s in data])
-        approach_score_pred, grasp_pred, approach_points, grasp_gt, num_grasps_of_approach_points, selected_approach_scores = model(data)
+        approach_score_pred, grasp_pred, approach_points, grasp_gt, num_grasps_of_approach_points = model(data)
 
         approach_loss, grasp_loss, tip_loss = calculate_loss(approach_score_pred, grasp_pred, approach_gt, grasp_gt, approach_points, num_grasps_of_approach_points)
 
@@ -197,17 +200,18 @@ for epoch in range(1, num_epochs + 1):
         total_approach_loss += approach_loss.item()
         total_tip_loss += tip_loss.item()
 
-        if epoch % 20 == 0:
+        if epoch % args.log_interval == 0:
             with torch.no_grad():
                 # Calculate the grasp success rate
                 pred = grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
-                gt = grasp_gt.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_point, 4, 4).numpy()
-                num_grasps_of_approach_points = num_grasps_of_approach_points.cpu().detach().reshape(-1, args.grasp_samples).numpy()
-                selected_approach_scores = selected_approach_scores.cpu().detach().numpy()
-                # train_grasp_success += check_batch_topk_success_rate(pred, gt,  0.03, 
-                #                                                     np.deg2rad(30), num_grasps_of_approach_points, selected_approach_scores)
-                train_grasp_success += check_batch_grasp_success_rate_per_point(pred, gt, 0.03,
-                                                                                np.deg2rad(30), num_grasps_of_approach_points)
+                # gt = grasp_gt.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_point, 4, 4).numpy()
+                # num_grasps_of_approach_points = num_grasps_of_approach_points.cpu().detach().reshape(-1, args.grasp_samples).numpy()
+                # selected_approach_scores = selected_approach_scores.cpu().detach().numpy()
+                # train_grasp_success += check_batch_grasp_success_rate_per_point(pred, gt, 0.03,
+                #                                                                 np.deg2rad(30), num_grasps_of_approach_points)
+                grasp_gt_paths = [s.sample_info['grasps'] for s in data]
+                point_cloud_means = [s.sample_info['mean'].detach().cpu().numpy() for s in data]
+                train_grasp_success += check_batch_success_with_whole_gewa_dataset(pred, 0.03, np.deg2rad(30), grasp_gt_paths, point_cloud_means)
                 # Calculate the approach accuracy
                 if multi_gpu:
                     approach_scores_gt = torch.cat([s.approach_scores for s in data], dim=0).to(approach_score_pred.device)
@@ -216,7 +220,7 @@ for epoch in range(1, num_epochs + 1):
 
                 train_approach_accuracy += count_correct_approach_scores(approach_score_pred, approach_scores_gt)
     scheduler.step()
-    if epoch % 20 == 0:
+    if epoch % args.log_interval == 0:
         train_success_rate = train_grasp_success / len(train_data_loader)
         wandb.log({"Train Grasp Success Rate": train_success_rate}, step=epoch)
         train_approach_accuracy = train_approach_accuracy / (len(train_dataset) * 1000)
@@ -252,7 +256,7 @@ for epoch in range(1, num_epochs + 1):
             else:
                 val_approach_gt = torch.cat([s.approach_scores for s in val_data])
 
-            approach_score_pred, val_grasp_pred, approach_points, val_grasp_gt, num_grasps_of_approach_points, selected_approach_scores = model(val_data)
+            approach_score_pred, val_grasp_pred, approach_points, val_grasp_gt, num_grasps_of_approach_points = model(val_data)
             val_approach_loss, val_grasp_loss, val_tip_loss = calculate_loss(approach_score_pred, val_grasp_pred, val_approach_gt, val_grasp_gt, approach_points, num_grasps_of_approach_points)
             
             if multi_gpu:
@@ -261,16 +265,19 @@ for epoch in range(1, num_epochs + 1):
                 val_tip_loss = val_tip_loss.mean()
             val_loss = val_approach_loss + 100 * val_tip_loss + val_grasp_loss
 
-            if epoch % 20 == 0:
+            if epoch % args.log_interval == 0:
                 # Calculate the grasp success rate
                 pred = val_grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
-                gt = val_grasp_gt.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_point, 4, 4).numpy()
-                num_grasps_of_approach_points = num_grasps_of_approach_points.cpu().detach().reshape(-1, args.grasp_samples).numpy()
-                selected_approach_scores = selected_approach_scores.cpu().detach().reshape(-1, args.grasp_samples).numpy()
-                # valid_grasp_success += check_batch_topk_success_rate(pred, gt,  0.03, np.deg2rad(30), 
-                #                                                                 num_grasps_of_approach_points, selected_approach_scores)
-                valid_grasp_success += check_batch_grasp_success_rate_per_point(pred, gt, 0.03,
-                                                                np.deg2rad(30), num_grasps_of_approach_points)
+                # gt = val_grasp_gt.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_point, 4, 4).numpy()
+                # num_grasps_of_approach_points = num_grasps_of_approach_points.cpu().detach().reshape(-1, args.grasp_samples).numpy()
+                # selected_approach_scores = selected_approach_scores.cpu().detach().reshape(-1, args.grasp_samples).numpy()
+                # valid_grasp_success += check_batch_grasp_success_rate_per_point(pred, gt, 0.03,
+                #                                                 np.deg2rad(30), num_grasps_of_approach_points)
+
+                grasp_gt_paths = [s.sample_info['grasps'] for s in val_data]
+                point_cloud_means = [s.sample_info['mean'].detach().cpu().numpy() for s in val_data]
+                valid_grasp_success += check_batch_success_with_whole_gewa_dataset(pred, 0.03, np.deg2rad(30), grasp_gt_paths, point_cloud_means)
+
                 # Calculate the approach accuracy
                 if multi_gpu:
                     approach_scores_gt = torch.cat([s.approach_scores for s in val_data], dim=0).to(approach_score_pred.device)
@@ -287,12 +294,12 @@ for epoch in range(1, num_epochs + 1):
         average_val_grasp_loss = total_val_grasp_loss / len(val_data_loader)
         average_val_approach_loss = total_val_approach_loss / len(val_data_loader)
         average_val_tip_loss = total_val_tip_loss / len(val_data_loader)
-        if epoch % 20 == 0:
+        if epoch % args.log_interval == 0:
             grasp_success_rate = valid_grasp_success / len(val_data_loader)
             wandb.log({"Valid Grasp Success Rate": grasp_success_rate}, step=epoch)
             approach_accuracy = valid_approach_accuracy / (len(val_dataset) * 1000)
             wandb.log({"Valid Approach Accuracy": approach_accuracy}, step=epoch)
-
+            print(f"Train Grasp Success: {train_success_rate} - Valid Grasp Success: {grasp_success_rate}")
             # Save the model if the validation loss is low
             if grasp_success_rate > 0.1:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}__gd_{args.grasp_dim}__gs_{args.grasp_samples}.pth"
@@ -300,7 +307,7 @@ for epoch in range(1, num_epochs + 1):
                 if not os.path.exists(model_folder):
                     os.makedirs(model_folder)
 
-                model_file = f"{model_name}_epoch_{epoch}.pth"
+                model_file = f"{model_name}_epoch_{epoch}_grasp_success_{grasp_success_rate}.pth"
                 model_path = os.path.join(model_folder, model_file)
                 torch.save(model.state_dict(), model_path)
                 artifact = wandb.Artifact(model_file, type='model')
