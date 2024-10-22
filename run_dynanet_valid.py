@@ -31,7 +31,9 @@ if __name__ == "__main__":
     run = wandb.init(project="Grasp", job_type="eval", notes=f"validation {notes}")
     config = wandb.config
 
-    downloaded_model_path = run.use_model(name="DynANet_nm_4000__bs_128_epoch_2020.pth:v0")
+    # downloaded_model_path = run.use_model(name="DynANet_nm_4000__bs_128_epoch_2020.pth:v0")
+    #contactnet split
+    downloaded_model_path = run.use_model(name="DynANet_nm_1000__bs_64__gd_9__gs_200.pth_epoch_3640_grasp_success_0.6211493055555557.pth:v0")
     print(downloaded_model_path)
 
     model_path = downloaded_model_path
@@ -43,7 +45,7 @@ if __name__ == "__main__":
     model = nn.DataParallel(model, device_ids=[0])
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
-    train_paths, val_paths = save_split_samples('../data', num_mesh=1000)
+    train_paths, val_paths = save_split_samples('../data', num_mesh=1000, contactnet_split=True)
 
     dataset = GewaDataset(val_paths)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)

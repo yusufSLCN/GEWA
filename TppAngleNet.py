@@ -5,7 +5,7 @@ from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool, global_mea
 import numpy as np
 
 class TppAngleNet(nn.Module):
-    def __init__(self, k=8, angle_bin_count=72, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False):
+    def __init__(self, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False):
         super(TppAngleNet, self).__init__()
         
         self.num_grasp_sample = num_grasp_sample
@@ -31,7 +31,6 @@ class TppAngleNet(nn.Module):
             # nn.Linear(128, self.point_feat_dim)
         ) 
 
-        self.angle_delta = 2 * np.pi / angle_bin_count
         self.edge_classifier = nn.Sequential(
             nn.Linear(self.point_feat_dim * 3, self.point_feat_dim),
             nn.ReLU(),
@@ -43,9 +42,10 @@ class TppAngleNet(nn.Module):
         self.angle_head = nn.Sequential(
             nn.Linear(self.point_feat_dim * 3, self.point_feat_dim),
             nn.ReLU(),
-            nn.Linear(self.point_feat_dim, self.point_feat_dim),
+            nn.Linear(self.point_feat_dim, self.point_feat_dim // 2),
             nn.ReLU(),
-            nn.Linear(self.point_feat_dim, angle_bin_count)
+            nn.Linear(self.point_feat_dim // 2, 1),
+            nn.Sigmoid()
         )
 
         # self.translation_head = nn.Sequential(
@@ -159,10 +159,8 @@ class TppAngleNet(nn.Module):
         # grasp_features = torch.cat([selected_edge_features, grasp_touch_points], dim=-1)
         
         # predict grasps
-        angle_logit = self.angle_head(selected_edge_features)
-        angle_prob = F.softmax(angle_logit, dim=-1)
-        grasp_angles = torch.argmax(angle_prob, dim=-1)
-        grasp_angles = grasp_angles * self.angle_delta
+        grasp_angles = self.angle_head(selected_edge_features)
+        grasp_angles = grasp_angles * np.pi
         grasp_angles = grasp_angles.reshape(-1, 1)
 
         grasp_axises = torch.stack(grasp_axises)

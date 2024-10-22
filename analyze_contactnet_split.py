@@ -7,8 +7,8 @@ import h5py
 
 def create_contactnet_splits(num_mesh=400, min_num_success_grasps=100):
 
-    train_save_file = f"contactnet_{num_mesh}_train_split.npy"
-    valid_save_file = f"contactnet_{num_mesh}_valid_split.npy"
+    train_save_file = f"train_valid_splits/contactnet_{num_mesh}_train_split.npy"
+    valid_save_file = f"train_valid_splits/contactnet_{num_mesh}_valid_split.npy"
 
     if os.path.exists(train_save_file) and os.path.exists(valid_save_file):
         return train_save_file, valid_save_file
@@ -24,7 +24,6 @@ def create_contactnet_splits(num_mesh=400, min_num_success_grasps=100):
     #remove file extension
     simplified_meshes = [os.path.splitext(file)[0] for file in simplified_meshes]
     print(f"{len(simplified_meshes)} simplified meshes")
-    print(simplified_meshes[0])
 
     # dataset_name = "tpp_effdict_nomean_wnormals"
     # radius=0.005

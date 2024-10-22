@@ -55,137 +55,6 @@ def save_split_samples(data_dir, num_mesh, dataset_name="tpp_effdict", radius=0.
     print(f"Test mesh {len(valid_samples)}")
     return train_samples, valid_samples
 
-def get_obj_to_point_cloud_samples(data_dir, dataset_name, success_threshold=0.5, num_mesh=-1, num_points=1000, min_num_grasps=100, radius=0.005):
-    import open3d as o3d
-    grasp_directory =  os.path.join(data_dir, 'acronym/grasps')
-    model_root = '../data/ShapeNetSem-backup/models-OBJ/models'
-    pair_grasp_folder = os.path.join(data_dir, f'{dataset_name}_grasps_{num_points}_{radius}')
-    point_cloud_folder = os.path.join(data_dir, f'{dataset_name}_point_cloud_{num_points}_{radius}')
-    touch_pair_score_folder = os.path.join(data_dir, f'{dataset_name}_scores_{num_points}_{radius}')
-    touch_pair_score_matrix_folder = os.path.join(data_dir, f'{dataset_name}_score_matrix_{num_points}_{radius}')
-    normals_folder = os.path.join(data_dir, f'{dataset_name}_normals_{num_points}_{radius}')
-
-    if not os.path.exists(touch_pair_score_matrix_folder):
-        print(f"Creating directory {touch_pair_score_matrix_folder}")
-        os.makedirs(touch_pair_score_matrix_folder)
-
-    if not os.path.exists(touch_pair_score_folder):
-        print(f"Creating directory {touch_pair_score_folder}")
-        os.makedirs(touch_pair_score_folder)
-
-    if not os.path.exists(point_cloud_folder):
-        print(f"Creating directory {point_cloud_folder}")
-        os.makedirs(point_cloud_folder)
-
-    if not os.path.exists(pair_grasp_folder):
-        print(f"Creating directory {pair_grasp_folder}")
-        os.makedirs(pair_grasp_folder)
-
-    if not os.path.exists(normals_folder):
-        print(f"Creating directory {normals_folder}")
-        os.makedirs(normals_folder)
-    
-    train_split_files, test_split_files = get_contactnet_split(num_mesh=num_mesh)
-    # read discarded_samples.txt
-    # discarded_samples = []
-    # if os.path.exists('discarded_objects.txt'):
-    #     with open('discarded_objects.txt', 'r') as f:
-    #         discarded_samples = f.readlines()
-    #         discarded_samples = [sample.strip() for sample in discarded_samples]
-
-    train_sample_info = extract_sample_info(train_split_files, model_root=model_root)
-    train_point_cloud_samples = []
-    for i, sample in tqdm.tqdm(enumerate(train_sample_info), total=len(train_sample_info)):
-        obj_file_path = sample['model_path']
-        pair_scores_path = f'{touch_pair_score_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
-        pair_score_matrix_path = f'{touch_pair_score_matrix_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
-        point_cloud_path = f'{point_cloud_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
-        pair_grasps_path = f'{pair_grasp_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
-        normals_path = f'{normals_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
-
-        grasps_file_name = sample['grasps']
-        data = h5py.File(grasps_file_name, "r")
-        grasp_poses = np.array(data["grasps/transforms"])
-        grasp_success = np.array(data["grasps/qualities/flex/object_in_gripper"])
-        success_grasp_mask = grasp_success > success_threshold
-
-        num_success = np.sum(success_grasp_mask)
-        sample['scale'] = float(sample['scale'])
-
-        if num_success > min_num_grasps:
-            success_grasp_poses = grasp_poses[success_grasp_mask]
-            if not (os.path.exists(point_cloud_path) and os.path.exists(pair_scores_path) and os.path.exists(pair_grasps_path) and os.path.exists(pair_score_matrix_path)):
-                mesh_data = o3d.io.read_triangle_mesh(obj_file_path)
-                mesh_data.scale(sample['scale'], center=mesh_data.get_center())
-                o3d.utility.random.seed(0)
-                point_cloud_data = mesh_data.sample_points_poisson_disk(num_points)
-                point_cloud = np.asarray(point_cloud_data.points)
-
-                point_cloud_data.estimate_normals()
-                normals = np.asarray(point_cloud_data.normals)
-
-                pair_score_matrix, pair_scores, tpp_grasp_dict, _ = create_touch_point_pair_scores_and_grasps(point_cloud, success_grasp_poses, cylinder_radius=radius, cylinder_height=0.041)
-                if np.sum(pair_score_matrix) < min_num_grasps:
-                    continue
-                np.save(pair_score_matrix_path, pair_score_matrix)
-                np.save(pair_scores_path, pair_scores)
-                np.save(pair_grasps_path, tpp_grasp_dict)
-                np.save(point_cloud_path, point_cloud)
-                np.save(normals_path, normals)
-            
-            point_cloud_sample = TPPSample(obj_file_path, point_cloud_path, pair_scores_path, pair_score_matrix_path,
-                                            pair_grasps_path, normals_path, grasps_file_name, sample)
-            train_point_cloud_samples.append(point_cloud_sample)
-
-
-    test_sample_info = extract_sample_info(test_split_files, model_root=model_root)
-    test_point_cloud_samples = []
-    for i, sample in tqdm.tqdm(enumerate(test_sample_info), total=len(test_sample_info)):
-        obj_file_path = sample['model_path']
-        pair_scores_path = f'{touch_pair_score_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
-        pair_score_matrix_path = f'{touch_pair_score_matrix_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
-        point_cloud_path = f'{point_cloud_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
-        pair_grasps_path = f'{pair_grasp_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
-        normals_path = f'{normals_folder}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.npy'
-
-        grasps_file_name = sample['grasps']
-        data = h5py.File(grasps_file_name, "r")
-        grasp_poses = np.array(data["grasps/transforms"])
-        grasp_success = np.array(data["grasps/qualities/flex/object_in_gripper"])
-        success_grasp_mask = grasp_success > success_threshold
-
-        num_success = np.sum(success_grasp_mask)
-        sample['scale'] = float(sample['scale'])
-
-        if num_success > min_num_grasps:
-            success_grasp_poses = grasp_poses[success_grasp_mask]
-            if not (os.path.exists(point_cloud_path) and os.path.exists(pair_scores_path) and os.path.exists(pair_grasps_path) and os.path.exists(pair_score_matrix_path)):
-                mesh_data = o3d.io.read_triangle_mesh(obj_file_path)
-                mesh_data.scale(sample['scale'], center=mesh_data.get_center())
-                o3d.utility.random.seed(0)
-                point_cloud_data = mesh_data.sample_points_poisson_disk(num_points)
-                point_cloud = np.asarray(point_cloud_data.points)
-
-                point_cloud_data.estimate_normals()
-                normals = np.asarray(point_cloud_data.normals)
-
-                pair_score_matrix, pair_scores, tpp_grasp_dict, _ = create_touch_point_pair_scores_and_grasps(point_cloud, success_grasp_poses, cylinder_radius=radius, cylinder_height=0.041)
-                if np.sum(pair_score_matrix) < min_num_grasps:
-                    continue
-                np.save(pair_score_matrix_path, pair_score_matrix)
-                np.save(pair_scores_path, pair_scores)
-                np.save(pair_grasps_path, tpp_grasp_dict)
-                np.save(point_cloud_path, point_cloud)
-                np.save(normals_path, normals)
-            
-            point_cloud_sample = TPPSample(obj_file_path, point_cloud_path, pair_scores_path, pair_score_matrix_path,
-                                            pair_grasps_path, normals_path, grasps_file_name, sample)
-            test_point_cloud_samples.append(point_cloud_sample)
-
-   
-    return train_point_cloud_samples, test_point_cloud_samples
-
-
 def save_contactnet_split_samples(data_dir, num_mesh, dataset_name="tpp_effdict", radius=0.005):
     from analyze_contactnet_split import create_contactnet_splits
     if not os.path.exists('sample_dirs'):
@@ -560,7 +429,7 @@ if __name__ == "__main__":
     
     # train_samples, val_samples = save_split_samples('../data',  400, dataset_name="tpp_effdict_nomean_wnormals", contactnet_split=True)
     
-    train_samples, val_samples = save_contactnet_split_samples('../data',  400, dataset_name="tpp_effdict_nomean_wnormals")
+    train_samples, val_samples = save_contactnet_split_samples('../data',  1000, dataset_name="tpp_effdict_nomean_wnormals")
     
     print(f"Number of train samples: {len(train_samples)}")
     print(f"Number of validation samples: {len(val_samples)}")
