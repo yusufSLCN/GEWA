@@ -12,8 +12,8 @@ def load_file_names(directory):
     for root, dirs, files in os.walk(directory):
         for file in files:
             file_names.append(os.path.join(root, file))
+    file_names.sort()
     return file_names
-
 
 
 def extract_sample_info(file_names, model_root, discard_samples=[]):
@@ -30,6 +30,15 @@ def extract_sample_info(file_names, model_root, discard_samples=[]):
         samples_paths.append(sample)
     return samples_paths
 
+def extract_sample_info_from_basename(file_names, model_root, grasp_root):
+    samples_paths = []
+    for base_name in file_names:
+        name_part = base_name.split('_')
+        model_file_path = os.path.join(model_root, name_part[1] + '.obj')
+        grasp_file_path = os.path.join(grasp_root, base_name + '.h5')
+        sample = {'class' : name_part[0], 'grasps': grasp_file_path, 'model_path' : model_file_path , 'model_name': name_part[1], 'scale' : name_part[2] } 
+        samples_paths.append(sample)
+    return samples_paths
         
 def load_sample(sample):
     grasp_file_name = sample['grasps']

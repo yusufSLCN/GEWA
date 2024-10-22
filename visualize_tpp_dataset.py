@@ -27,7 +27,7 @@ def show_tpp_grasps(args, dataset, pos, grasps_dict, pair_scores):
 
     visualize_grasps(pos, selected_grasps, None, contact_idxs)
 
-def show_grasp_and_edge_predictions(points, gt_grasp_dict, selected_edge_idx, grasp_pred, triu_indices, sample_info=None, num_grasp_to_show=5):
+def show_grasp_and_edge_predictions(points, gt_grasp_dict, selected_edge_idx, grasp_pred, triu_indices, sample_info=None, num_grasp_to_show=5, mean =0):
     gt_gripper_meshes = []
     pred_gripper_meshes = []
     filtered_edge_idx = []
@@ -49,7 +49,9 @@ def show_grasp_and_edge_predictions(points, gt_grasp_dict, selected_edge_idx, gr
         key = frozenset((i, j))
         if key in gt_grasp_dict:
             gt_gripper_mesh = create_gripper(color=[0, 255, 0])
-            gt_gripper_mesh.transform(gt_grasp_dict[key][0].reshape(4, 4))
+            trans = gt_grasp_dict[key][0].reshape(4, 4)
+            trans[0:3, 3] -= mean
+            # gt_gripper_mesh.transform(gt_grasp_dict[key][0].reshape(4, 4))
             gt_gripper_meshes.append(gt_gripper_mesh)
 
         pred_gripper_mesh = create_gripper()
@@ -76,6 +78,7 @@ def show_grasp_and_edge_predictions(points, gt_grasp_dict, selected_edge_idx, gr
         #scale the mesh
         mesh.scale(scale, center=mesh.get_center())
         mesh.translate([-0.1, 0, -0.1], relative=False)
+        mesh.compute_vertex_normals()
         o3d.visualization.draw_geometries([mesh, line_set, pcd, *gt_gripper_meshes, *pred_gripper_meshes])
         
     else:
@@ -163,7 +166,7 @@ def show_pair_edges(points, pair_scores, triu_indices, sample_info=None, thresho
     line_set.colors = o3d.utility.Vector3dVector(colors)
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(points)
-    # pcd.estimate_normals()
+    pcd.estimate_normals()
     # print(np.asarray(pcd.normals).shape)
     gripper = create_gripper()
     if sample_info is not None:
@@ -250,5 +253,5 @@ if __name__ == "__main__":
 
     # show_tpp_grasps(args, dataset, pos, grasps_dict, pair_scores)
     # show_all_tpps_of_grasp(pos, grasps_dict[0], pair_scores, dataset.triu_indices, args)
-    show_grasps_of_edges(pos, grasps_dict[0], pair_scores, dataset.triu_indices, args, sample_info=sample.sample_info)
-    # show_pair_edges(pos, pair_scores, dataset.triu_indices, sample.sample_info)
+    # show_grasps_of_edges(pos, grasps_dict[0], pair_scores, dataset.triu_indices, args, sample_info=sample.sample_info)
+    show_pair_edges(pos, pair_scores, dataset.triu_indices, sample.sample_info)

@@ -11,7 +11,7 @@ from torch_geometric.loader import DataListLoader, DataLoader
 import numpy as np
 from torcheval.metrics.functional.classification import binary_recall
 # from sklearn.metrics import recall_score
-from metrics import count_correct_approach_scores, check_succces_with_whole_dataset
+from metrics import count_correct_approach_scores, check_succces_with_whole_dataset, check_succces_with_whole_gewa_dataset
 import time
 
 if __name__ == "__main__":
@@ -45,13 +45,16 @@ if __name__ == "__main__":
     # downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_90_acc_0.93_recall_0.57.pth:v0")
 
     #100 tip loss + axis loss 
-    downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_540_acc_0.97_recall_0.42.pth:v0")
+    # downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_540_acc_0.97_recall_0.42.pth:v0")
 
     # 200 tip loss + axis loss
     # downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_210_acc_0.97_recall_0.33.pth:v0")
     
     #wo tip loss 
     # downloaded_model_path = run.use_model(name="TppNet_nm_100__bs_4.pth_epoch_950_acc_0.94_recall_0.56.pth:v0")
+
+    #calcualted translation
+    downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_870_acc_0.95_recall_0.69.pth:v0")
     print(downloaded_model_path)
 
     model_path = downloaded_model_path
@@ -62,7 +65,8 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
     from create_tpp_dataset import save_split_samples
-    train_paths, val_paths = save_split_samples('../data', 400, dataset_name="tpp_effdict")
+    # train_paths, val_paths = save_split_samples('../data', 400, dataset_name="tpp_effdict", contactnet_split=True)
+    train_paths, val_paths = save_split_samples('../data', 400, dataset_name="tpp_effdict_nomean_wnormals", contactnet_split=True)
 
     dataset = TPPDataset(val_paths, return_pair_dict=True)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)
@@ -82,6 +86,8 @@ if __name__ == "__main__":
         if i == samlpe_idx:
             break
     print(data.sample_info)
+    pointcloud_mean = torch.mean(data.pos, dim=0)
+    data.pos -= pointcloud_mean
     grasp_pred, selected_edge_idxs, mid_edge_pos, _, grasp_target, num_valid_grasps, pair_classification_pred, pair_dot_product = model(data)
     # pair_classification_pred, pair_dot_product, _, _ = model(data)
 
@@ -101,7 +107,11 @@ if __name__ == "__main__":
     print(f"Grasp pred shape: {grasp_pred.shape}")
     # test_grasp_pred = grasp_dict[list(grasp_dict.keys())[0]][0].reshape(1, 1, 4, 4)
     # print(f"{test_grasp_pred.shape}")
-    grasp_success = check_succces_with_whole_dataset(grasp_pred, grasp_dict, 0.03, np.deg2rad(30))
+
+    grasp_gt_path = data.sample_info['grasps'][0]
+    pointcloud_mean = pointcloud_mean.detach().cpu().numpy()
+    grasp_success = check_succces_with_whole_gewa_dataset(grasp_pred,  0.03, np.deg2rad(30), grasp_gt_path, pointcloud_mean)
+    # grasp_success = check_succces_with_whole_dataset(grasp_pred, grasp_dict, 0.03, np.deg2rad(30))
     print(f"Grasp success rate: {grasp_success}")
 
     # Display the result
@@ -129,4 +139,4 @@ if __name__ == "__main__":
     selected_edge_idxs = selected_edge_idxs.squeeze()
 
     show_grasp_and_edge_predictions(pos, grasp_dict, selected_edge_idxs, grasp_pred,
-                                    dataset.triu_indices, sample_info)
+                                    dataset.triu_indices, sample_info, mean=pointcloud_mean)

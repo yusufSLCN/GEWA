@@ -36,6 +36,9 @@ from torch_geometric.nn import DynamicEdgeConv, MLP
 # loss = grasp_mse_loss(pred, gt)
 # print(loss.shape)
 # print(loss)
-points = torch.zeros((10, 6))
-conv1 = DynamicEdgeConv(MLP([12, 16, 32]), k=8, aggr='max')
-out = conv1(points)
+# points = torch.zeros((10, 6))
+# conv1 = DynamicEdgeConv(MLP([12, 16, 32]), k=8, aggr='max')
+# out = conv1(points)
+from create_tpp_dataset import get_contactnet_split
+train_meshes, valid_meshes = get_contactnet_split()
+print(train_meshes[0])
