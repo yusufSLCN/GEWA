@@ -5,6 +5,7 @@ import tqdm
 from acronym_utils import load_file_names, extract_sample_info, extract_sample_info_from_basename
 import h5py
 import json
+import torch
 
 def save_split_samples(data_dir, num_mesh, dataset_name="tpp_effdict", radius=0.005, train_ratio=0.8, contactnet_split=False):
     if not os.path.exists('sample_dirs'):
@@ -124,7 +125,6 @@ def process_contactnet_split(split_file, data_dir, dataset_name, success_thresho
 
     point_cloud_samples = []
     # Dictionary to store the closese grasps to each point in the mesh
-    simplified_mesh_count = 0
     print("Extracting simplified meshes with closest grasps")
     for i, sample in tqdm.tqdm(enumerate(sample_info), total=len(sample_info)):
         simplified_mesh_path = f'{simplified_mesh_directory}/{sample["class"]}_{sample["model_name"]}_{sample["scale"]}.obj'
@@ -161,16 +161,20 @@ def process_contactnet_split(split_file, data_dir, dataset_name, success_thresho
                 # success_grasp_poses[:, :3, 3] = success_grasp_poses[:, :3, 3] - mean
 
                 pair_score_matrix, pair_scores, tpp_grasp_dict, _ = create_touch_point_pair_scores_and_grasps(point_cloud, success_grasp_poses, cylinder_radius=radius, cylinder_height=0.041)
+                num_positive_pairs = torch.sum(pair_scores)
+                if  num_positive_pairs < 50:
+                    print(f"Skipping {simplified_mesh_path}, pos pair count = {num_positive_pairs}")
+                    continue
+
                 np.save(pair_score_matrix_path, pair_score_matrix)
                 np.save(pair_scores_path, pair_scores)
                 np.save(pair_grasps_path, tpp_grasp_dict)
                 np.save(point_cloud_path, point_cloud)
                 np.save(normals_path, normals)
                 
-                point_cloud_sample = TPPSample(simplified_mesh_path, point_cloud_path, pair_scores_path, pair_score_matrix_path,
-                                               pair_grasps_path, normals_path, grasps_file_name, sample)
-                simplified_mesh_count += 1
-                point_cloud_samples.append(point_cloud_sample)
+            point_cloud_sample = TPPSample(simplified_mesh_path, point_cloud_path, pair_scores_path, pair_score_matrix_path,
+                                            pair_grasps_path, normals_path, grasps_file_name, sample)
+            point_cloud_samples.append(point_cloud_sample)
     return point_cloud_samples
 
     
