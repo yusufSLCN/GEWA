@@ -169,13 +169,14 @@ class TppAngleNet(nn.Module):
         grasp_angles = grasp_angles.reshape(-1, 1)
 
         grasp_axises = torch.stack(grasp_axises)
+        grasp_axises = grasp_axises / torch.norm(grasp_axises, dim=-1, keepdim=True)
+
         mid_edge_pos = torch.stack(mid_edge_pos)
         selected_edge_idxs = torch.stack(selected_edge_idxs)
         grasp_gt = torch.tensor(grasp_gt, dtype=torch.float32)
         num_valid_grasps = torch.tensor(num_valid_grasps, dtype=torch.int8)
         # print(grasp_angles.shape, grasp_axises.shape, mid_edge_pos.shape)
 
-        
         grasp_pred = self.calculateTransformationMatrix(grasp_axises, mid_edge_pos, grasp_angles)
 
         # print("return")

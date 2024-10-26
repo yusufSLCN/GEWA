@@ -41,6 +41,8 @@ class TPPDataset(Dataset):
             mean = np.mean(point_cloud, axis=0)
             point_cloud = point_cloud - mean
             sample_info["mean"] = mean
+        else:
+            sample_info["mean"] = None
 
         if self.return_normals:
             normals = torch.tensor(sample.normals, dtype=torch.float32)

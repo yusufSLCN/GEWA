@@ -4,7 +4,7 @@ from matplotlib import colormaps
 import matplotlib.pyplot as plt
 from tpp_dataset import TPPDataset
 from acronym_visualize_dataset import visualize_grasps
-from create_tpp_dataset import save_split_samples
+from create_tpp_dataset import save_contactnet_split_samples
 from tpp_dataset import TPPDataset
 from acronym_visualize_dataset import visualize_grasps
 import argparse
@@ -84,7 +84,7 @@ def show_grasp_and_edge_predictions(points, gt_grasp_dict, selected_edge_idx, gr
     else:
         o3d.visualization.draw_geometries([line_set, pcd, *gt_gripper_meshes, *pred_gripper_meshes])
 
-def show_grasps_of_edges(points, grasps_dict, pair_scores, triu_indices, args, sample_info=None):
+def show_grasps_of_edges(points, grasps_dict, pair_scores, triu_indices, args, sample_info=None, mean=None, view_params=None):
     pair_idxs = np.where(pair_scores > 0)[0]
     random_idxs = np.random.randint(0, pair_idxs.shape[0], args.num_grasps)
     selected_pair_idxs = pair_idxs[random_idxs]
@@ -94,7 +94,11 @@ def show_grasps_of_edges(points, grasps_dict, pair_scores, triu_indices, args, s
         i, j = triu_indices[0][pair_idx], triu_indices[1][pair_idx]
         key = frozenset((i, j))
         gripper_mesh = create_gripper()
-        gripper_mesh.transform(grasps_dict[key][0].reshape(4, 4))
+
+        transform = grasps_dict[key][0].reshape(4, 4)
+        if mean is not None:
+            transform[0:3, 3] -= mean
+        gripper_mesh.transform(transform)
         gripper_meshes.append(gripper_mesh)
 
 
@@ -106,18 +110,53 @@ def show_grasps_of_edges(points, grasps_dict, pair_scores, triu_indices, args, s
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(points)
 
-    if sample_info is not None:
-        obj_path = sample_info['model_path']
-        scale = float(sample_info['scale'])
-        mesh = o3d.io.read_triangle_mesh(obj_path)
-        #scale the mesh
-        mesh.scale(scale, center=mesh.get_center())
-        mesh.translate([-0.1, 0, -0.1], relative=False)
-        o3d.visualization.draw_geometries([mesh, line_set, pcd, *gripper_meshes])
-        
-    else:
-        o3d.visualization.draw_geometries([line_set, pcd, *gripper_meshes])
+    if view_params is None:
+        view_params = {
+        'zoom': 1,
+        'front': [1, -0.5, -1],    # Camera direction
+        'up': [0, 1, 0]         # Up direction
+        }
 
+    if sample_info is not None:
+        mesh = read_obj_mesh(sample_info)
+        mesh.translate([-0.2, 0, 0], relative=False)
+        o3d.visualization.draw_geometries([mesh, line_set, pcd, *gripper_meshes], 
+                                            zoom=view_params['zoom'],
+                                            front=view_params['front'],
+                                            lookat=mesh.get_center(),
+                                            up=view_params['up'])
+    else:
+        o3d.visualization.draw_geometries([line_set, pcd, *gripper_meshes],
+                                            zoom=view_params['zoom'],
+                                            front=view_params['front'],
+                                            lookat=pcd.get_center(),
+                                            up=view_params['up'])
+
+def read_obj_mesh(sample_info):
+    obj_path = sample_info['model_path']
+    scale = float(sample_info['scale'])
+    mesh = o3d.io.read_triangle_mesh(obj_path)
+    mesh.compute_vertex_normals()
+    #scale the mesh
+    mesh.scale(scale, center=mesh.get_center())
+    return mesh
+
+def show_obj_mesh(sample_info, view_params=None):
+    mesh = read_obj_mesh(sample_info)
+    # o3d.visualization.draw_geometries([mesh])
+
+    if view_params is None:
+        view_params = {
+        'zoom': 1,
+        'front': [1, 0.5, -1],    # Camera direction
+        'up': [0, 1, 0]         # Up direction
+        }
+    
+    o3d.visualization.draw_geometries([mesh], 
+                                zoom=view_params['zoom'],
+                                front=view_params['front'],
+                                lookat=mesh.get_center(),
+                                up=view_params['up'])
 
 def show_all_tpps_of_grasp(points, grasps_dict, pair_scores, triu_indices, args):
     pair_idxs = np.where(pair_scores > 0)[0]
@@ -150,7 +189,7 @@ def show_all_tpps_of_grasp(points, grasps_dict, pair_scores, triu_indices, args)
     print("contact_idxs", len(contact_idxs))
     visualize_grasps(points, grasps, None, contact_idxs, cylinder_edges=edges)
 
-def show_pair_edges(points, pair_scores, triu_indices, sample_info=None, threshold=0.5):
+def show_pair_edges(points, pair_scores, triu_indices, sample_info=None, threshold=0.5, show_gripper=False, view_params=None):
     pair_idxs = np.where(pair_scores > threshold)[0]
     good_pair_scores = pair_scores[pair_idxs]
     edge_index = np.stack((triu_indices[0][pair_idxs], triu_indices[1][pair_idxs]), axis=1) 
@@ -168,18 +207,33 @@ def show_pair_edges(points, pair_scores, triu_indices, sample_info=None, thresho
     pcd.points = o3d.utility.Vector3dVector(points)
     pcd.estimate_normals()
     # print(np.asarray(pcd.normals).shape)
-    gripper = create_gripper()
+    if show_gripper:
+        gripper = create_gripper()
+    else:
+        gripper = o3d.geometry.TriangleMesh()
+
+    if view_params is None:
+        view_params = {
+        'zoom': 1,
+        'front': [1, -0.5, -1],    # Camera direction
+        'up': [0, 1, 0]         # Up direction
+        }
+        
     if sample_info is not None:
-        obj_path = sample_info['model_path']
-        scale = float(sample_info['scale'])
-        mesh = o3d.io.read_triangle_mesh(obj_path)
-        #scale the mesh
-        mesh.scale(scale, center=mesh.get_center())
+        mesh = read_obj_mesh(sample_info)
         mesh.translate([-0.1, 0, -0.1], relative=False)
-        o3d.visualization.draw_geometries([mesh, line_set, pcd, gripper])
+        o3d.visualization.draw_geometries([mesh, line_set, pcd, gripper], 
+                                            zoom=view_params['zoom'],
+                                            front=view_params['front'],
+                                            lookat=mesh.get_center(),
+                                            up=view_params['up'])
         
     else:
-        o3d.visualization.draw_geometries([line_set, pcd, gripper])
+        o3d.visualization.draw_geometries([line_set, pcd, gripper], 
+                                            zoom=view_params['zoom'],
+                                            front=view_params['front'],
+                                            lookat=pcd.get_center(),
+                                            up=view_params['up'])
 
 
 def create_gripper(color=[0, 0, 255], tube_radius=0.001, resolution=6):
@@ -239,19 +293,29 @@ if __name__ == "__main__":
     parser.add_argument('-i','--index', type=int, default=0)
     parser.add_argument('-n','--num_grasps', type=int, default=5)
     args = parser.parse_args()
-    train_samples, val_samples = save_split_samples('../data', 400, dataset_name="tpp_effdict")
+    train_samples, val_samples = save_contactnet_split_samples('../data', 1200, dataset_name="tpp_effdict_nomean_wnormals")
     print(f"Number of train samples: {len(train_samples)}")
     print(f"Number of validation samples: {len(val_samples)}")
     print("Done!")
+    #train samples: banana 100, bear bottle 160, book 220
+    #
+    #
 
-    dataset = TPPDataset(train_samples, return_pair_dict=True)
+    dataset = TPPDataset(train_samples, return_pair_dict=True, normalize=True)
     sample = dataset[args.index]
     print(sample.sample_info)
     pos =sample.pos.numpy()
     grasps_dict = sample.y
     pair_scores = sample.pair_scores.numpy()
+    mean = sample.sample_info["mean"]
 
+    view_params = {
+    'zoom': 0.8,
+    'front': [1, 0.5, 1],    # Camera direction
+    'up': [0, 0, 1]         # Up direction
+    }
     # show_tpp_grasps(args, dataset, pos, grasps_dict, pair_scores)
     # show_all_tpps_of_grasp(pos, grasps_dict[0], pair_scores, dataset.triu_indices, args)
-    # show_grasps_of_edges(pos, grasps_dict[0], pair_scores, dataset.triu_indices, args, sample_info=sample.sample_info)
-    show_pair_edges(pos, pair_scores, dataset.triu_indices, sample.sample_info)
+    show_obj_mesh(sample.sample_info, view_params)
+    show_grasps_of_edges(pos, grasps_dict[0], pair_scores, dataset.triu_indices, args, sample_info=None, mean=mean, view_params=view_params)
+    show_pair_edges(pos, pair_scores, dataset.triu_indices, sample_info=None, view_params=view_params)
