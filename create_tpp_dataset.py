@@ -433,7 +433,7 @@ if __name__ == "__main__":
     
     # train_samples, val_samples = save_split_samples('../data',  400, dataset_name="tpp_effdict_nomean_wnormals", contactnet_split=True)
     
-    train_samples, val_samples = save_contactnet_split_samples('../data',  1000, dataset_name="tpp_effdict_nomean_wnormals")
+    train_samples, val_samples = save_contactnet_split_samples('../data',  1200, dataset_name="tpp_effdict_nomean_wnormals")
     
     print(f"Number of train samples: {len(train_samples)}")
     print(f"Number of validation samples: {len(val_samples)}")

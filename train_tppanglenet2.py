@@ -106,7 +106,7 @@ print(device)
 # model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
 max_grasp_per_edge = 10
 model = TppAngleNet(num_grasp_sample=args.grasp_samples,
-                max_num_grasps=max_grasp_per_edge, only_classifier=args.only_classifier).to(device)
+                max_num_grasps=max_grasp_per_edge, only_classifier=args.only_classifier, normalize=True).to(device)
 num_pairs = model.num_pairs
 config.model_name = model.__class__.__name__
 wandb.watch(model, log="all")

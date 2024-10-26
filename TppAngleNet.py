@@ -5,7 +5,7 @@ from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool, global_mea
 import numpy as np
 
 class TppAngleNet(nn.Module):
-    def __init__(self, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False):
+    def __init__(self, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False, normalize=True):
         super(TppAngleNet, self).__init__()
         
         self.num_grasp_sample = num_grasp_sample
@@ -14,6 +14,7 @@ class TppAngleNet(nn.Module):
         self.num_points = num_points
         self.max_num_grasps = max_num_grasps
         self.only_classifier = only_classifier
+        self.normalize = normalize
         self.triu = torch.triu_indices(num_points, num_points, offset=1)
 
         self.unit_vector = torch.tensor([0, 0, 1], dtype=torch.float32)
@@ -133,6 +134,10 @@ class TppAngleNet(nn.Module):
                 if grasp_key in sample_grasp_dict:
                     edge_grasps = sample_grasp_dict[grasp_key]
 
+                    if self.normalize:
+                        mean = data.sample_info["mean"][i]
+                        edge_grasps[:, :3, 3] -= mean
+
                     if len(edge_grasps) > self.max_num_grasps:
                         edge_grasps = edge_grasps[:self.max_num_grasps]
 
@@ -181,8 +186,7 @@ class TppAngleNet(nn.Module):
         # print(grasp_outputs.device, selected_edge_idxs.device,
         #        mid_edge_pos.device, grasp_gt.device, num_valid_grasps.device, pair_classification_out_ij.device, mlp_out_ij.device)
 
-
-        return grasp_pred, selected_edge_idxs, mid_edge_pos, grasp_gt, num_valid_grasps, pair_classification_out_ij, mlp_out_ij
+        return grasp_pred, selected_edge_idxs, mid_edge_pos, grasp_axises, grasp_gt, num_valid_grasps, pair_classification_out_ij, mlp_out_ij
 
     def rotate_vector(self, v, k, theta):
         """
