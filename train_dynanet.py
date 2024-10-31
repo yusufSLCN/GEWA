@@ -9,7 +9,7 @@ import argparse
 from tqdm import tqdm
 from gewa_dataset import GewaDataset
 from DynANet import DynANet
-from create_gewa_dataset import save_split_samples
+from create_gewa_dataset import save_contactnet_split_samples
 from metrics import check_batch_success_with_whole_gewa_dataset, count_correct_approach_scores, check_batch_grasp_success_rate_per_point
 import os
 import numpy as np
@@ -39,7 +39,7 @@ args = parser.parse_args()
 
 # Load the datasets with transforms
 if args.augment:
-    translation_range = 0.001  # translation values range
+    translation_range = 0.002  # translation values range
     # rotation_range = [-180, 180]
     rotation_range = None
     transform_list = [RandomJitter(translation_range)]
@@ -54,7 +54,7 @@ else:
 print("Transform params: ", transfom_params)
 
 # Save the split samples
-train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh, contactnet_split=args.contactnet_split)
+train_dirs, val_dirs = save_contactnet_split_samples(args.data_dir, num_mesh=args.num_mesh)
 max_grasp_per_point = 20
 train_dataset = GewaDataset(train_dirs, transform=transform, max_grasp_perpoint=max_grasp_per_point)
 val_dataset = GewaDataset(val_dirs, max_grasp_perpoint=max_grasp_per_point)

@@ -11,7 +11,7 @@ from torch_geometric.loader import DataListLoader, DataLoader
 import numpy as np
 from torcheval.metrics.functional.classification import binary_recall, binary_precision, binary_accuracy
 from metrics import check_succces_with_whole_dataset, check_succces_with_whole_gewa_dataset
-from create_tpp_dataset import save_split_samples
+from create_tpp_dataset import save_contactnet_split_samples
 
 
 if __name__ == "__main__":
@@ -20,7 +20,6 @@ if __name__ == "__main__":
     parser.add_argument('-gs', '--grasp_samples', type=int, default=200)
     parser.add_argument('-n', '--notes', type=str, default='')
     parser.add_argument('-sbs', '--sort_by_score', action='store_true')
-    parser.add_argument('-csplit', '--contactnet_split', action='store_true')
     args = parser.parse_args()
     grasp_samples = args.grasp_samples
     sort_by_score = args.sort_by_score
@@ -53,7 +52,14 @@ if __name__ == "__main__":
     # calculated trans
     # downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_930_acc_0.96_recall_0.53.pth:v0")
     # contact split
-    downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_870_acc_0.95_recall_0.69.pth:v0")
+    # downloaded_model_path = run.use_model(name="TppNet_nm_1200__bs_4.pth_epoch_540_success_0.60_acc_0.95_recall_0.61.pth:v0")
+
+    #100 tip loss 
+    # downloaded_model_path = run.use_model(name="TppNet_nm_1200__bs_4.pth_epoch_330_success_0.66_acc_0.97_recall_0.34.pth:v0")
+
+    #axis loss
+    downloaded_model_path = run.use_model(name="TppNet_nm_1200__bs_4.pth_epoch_570_success_0.56_acc_0.94_recall_0.65.pth:v0")
+
     print(downloaded_model_path)
 
     model_path = downloaded_model_path
@@ -63,12 +69,12 @@ if __name__ == "__main__":
     else:
         device = torch.device("cpu")
     # load the GraspNet model and run inference then display the gripper pose
-    model = TppNet(num_grasp_sample=grasp_samples, sort_by_score=sort_by_score)
+    model = TppNet(num_grasp_sample=grasp_samples, sort_by_score=sort_by_score, normalize=True)
 
     # train_paths, val_paths = save_split_samples('../data', 1000, dataset_name="tpp_effdict")
-    train_paths, val_paths = save_split_samples('../data', 1000, dataset_name="tpp_effdict_nomean", contactnet_split=args.contactnet_split)
+    train_paths, val_paths = save_contactnet_split_samples('../data', 1200, dataset_name="tpp_effdict_nomean_wnormals")
 
-    dataset = TPPDataset(val_paths, return_pair_dict=True)
+    dataset = TPPDataset(val_paths, return_pair_dict=True, normalize=True)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)
 
 
@@ -79,7 +85,7 @@ if __name__ == "__main__":
     # load the GraspNet model and run inference then display the gripper pose
     config.model_name = model.__class__.__name__
     config.grasp_samples = model.num_grasp_sample
-    config.contactnet_split = args.contactnet_split
+    config.contactnet_split = True
     model = nn.DataParallel(model, device_ids=[0])
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(device)
@@ -99,8 +105,8 @@ if __name__ == "__main__":
             data.pair_scores = data.pair_scores.to(device)
 
 
-        pointcloud_mean = torch.mean(data.pos, dim=0)
-        data.pos -= pointcloud_mean
+        # pointcloud_mean = torch.mean(data.pos, dim=0)
+        # data.pos -= pointcloud_mean
             
         grasp_pred, selected_edge_idxs, mid_edge_pos, _, grasp_target, num_valid_grasps, pair_classification_pred, pair_dot_product = model(data)
         # pair_classification_pred, pair_dot_product, _, _ = model(data)
@@ -119,7 +125,8 @@ if __name__ == "__main__":
         # grasp_success = check_succces_with_whole_dataset(grasp_pred, grasp_dict, 0.03, np.deg2rad(30))
 
         grasp_gt_path = data.sample_info['grasps'][0]
-        pointcloud_mean = pointcloud_mean.detach().cpu().numpy()
+        # pointcloud_mean = pointcloud_mean.detach().cpu().numpy()
+        pointcloud_mean = data.sample_info['mean']
         grasp_success = check_succces_with_whole_gewa_dataset(grasp_pred,  0.03, np.deg2rad(30), grasp_gt_path, pointcloud_mean)
         print(f"Grasp success rate: {grasp_success}")
 

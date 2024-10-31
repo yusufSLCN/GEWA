@@ -419,7 +419,7 @@ for epoch in range(1, num_epochs + 1):
             print(f"Train Pair F1: {train_f1} - Valid Pair F1: {val_f1}")
             print(f"Train Grasp Success: {train_success_rate} - Valid Grasp Success: {val_grasp_success_rate}")
             # Save the model if the validation loss is low
-            if val_grasp_success_rate > 0.1:
+            if val_grasp_success_rate >= 0 and epoch % 20 == 0:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}.pth"
                 model_folder = f"models/{model_name}"
                 if not os.path.exists(model_folder):
