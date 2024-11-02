@@ -17,7 +17,7 @@ from create_tpp_dataset import save_contactnet_split_samples
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-gs', '--grasp_samples', type=int, default=200)
+    parser.add_argument('-gs', '--grasp_samples', type=int, default=10)
     parser.add_argument('-n', '--notes', type=str, default='')
     parser.add_argument('-sbs', '--sort_by_score', action='store_true')
     args = parser.parse_args()
@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     notes = args.notes
     if sort_by_score:
-        notes += f"top10 {grasp_samples}"
+        notes += f"top {grasp_samples}"
     run = wandb.init(project="Grasp", job_type="eval", notes=f"validation {notes}")
 
     # idx 4, 5, 6, 7, 13, 18
@@ -50,15 +50,16 @@ if __name__ == "__main__":
     # downloaded_model_path = run.use_model(name="TppNet_nm_100__bs_4.pth_epoch_950_acc_0.94_recall_0.56.pth:v0")
 
     # calculated trans
-    # downloaded_model_path = run.use_model(name="TppNet_nm_1000__bs_8.pth_epoch_930_acc_0.96_recall_0.53.pth:v0")
     # contact split
     # downloaded_model_path = run.use_model(name="TppNet_nm_1200__bs_4.pth_epoch_540_success_0.60_acc_0.95_recall_0.61.pth:v0")
 
     #100 tip loss 
     # downloaded_model_path = run.use_model(name="TppNet_nm_1200__bs_4.pth_epoch_330_success_0.66_acc_0.97_recall_0.34.pth:v0")
+    #5600 mesh training
+    downloaded_model_path = run.use_model(name="TppNet_nm_5600__bs_4.pth_epoch_410_success_0.71_acc_0.97_recall_0.32.pth:v0")
 
     #axis loss
-    downloaded_model_path = run.use_model(name="TppNet_nm_1200__bs_4.pth_epoch_570_success_0.56_acc_0.94_recall_0.65.pth:v0")
+    # downloaded_model_path = run.use_model(name="TppNet_nm_1200__bs_4.pth_epoch_570_success_0.56_acc_0.94_recall_0.65.pth:v0")
 
     print(downloaded_model_path)
 
@@ -72,7 +73,7 @@ if __name__ == "__main__":
     model = TppNet(num_grasp_sample=grasp_samples, sort_by_score=sort_by_score, normalize=True)
 
     # train_paths, val_paths = save_split_samples('../data', 1000, dataset_name="tpp_effdict")
-    train_paths, val_paths = save_contactnet_split_samples('../data', 1200, dataset_name="tpp_effdict_nomean_wnormals")
+    train_paths, val_paths = save_contactnet_split_samples('../data', 5600, dataset_name="tpp_effdict_nomean_wnormals")
 
     dataset = TPPDataset(val_paths, return_pair_dict=True, normalize=True)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)

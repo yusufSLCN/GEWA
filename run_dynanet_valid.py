@@ -9,13 +9,13 @@ from torch_geometric.loader import DataLoader
 import numpy as np
 from torcheval.metrics.functional.classification import binary_recall, binary_precision, binary_accuracy
 from metrics import check_succces_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
-from create_gewa_dataset import save_split_samples
+from create_gewa_dataset import save_contactnet_split_samples
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-gs', '--grasp_samples', type=int, default=200)
+    parser.add_argument('-gs', '--grasp_samples', type=int, default=10)
     parser.add_argument('-n', '--notes', type=str, default='')
     parser.add_argument('-sbs', '--sort_by_score', action='store_true')
     args = parser.parse_args()
@@ -33,7 +33,7 @@ if __name__ == "__main__":
 
     # downloaded_model_path = run.use_model(name="DynANet_nm_4000__bs_128_epoch_2020.pth:v0")
     #contactnet split
-    downloaded_model_path = run.use_model(name="DynANet_nm_1000__bs_64__gd_9__gs_200.pth_epoch_3640_grasp_success_0.6211493055555557.pth:v0")
+    downloaded_model_path = run.use_model(name="DynANet_nm_1200__bs_64__gd_9__gs_50.pth_epoch_1370_grasp_success_0.5898125000000001.pth:v0")
     print(downloaded_model_path)
 
     model_path = downloaded_model_path
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     model = nn.DataParallel(model, device_ids=[0])
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
-    train_paths, val_paths = save_split_samples('../data', num_mesh=1000, contactnet_split=True)
+    train_paths, val_paths = save_contactnet_split_samples('../data', num_mesh=1200)
 
     dataset = GewaDataset(val_paths)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)

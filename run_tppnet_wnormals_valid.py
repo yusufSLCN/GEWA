@@ -11,7 +11,7 @@ from torch_geometric.loader import DataListLoader, DataLoader
 import numpy as np
 from torcheval.metrics.functional.classification import binary_recall, binary_precision, binary_accuracy
 from metrics import check_succces_with_whole_dataset, check_succces_with_whole_gewa_dataset
-from create_tpp_dataset import save_split_samples
+from create_tpp_dataset import save_contactnet_split_samples
 
 
 if __name__ == "__main__":
@@ -45,8 +45,8 @@ if __name__ == "__main__":
     model = TppNet(num_grasp_sample=grasp_samples, sort_by_score=sort_by_score, with_normals=True, normalize=True)
 
     # train_paths, val_paths = save_split_samples('../data', 1000, dataset_name="tpp_effdict")
-    train_paths, val_paths = save_split_samples('../data', 1000, 
-                                                dataset_name="tpp_effdict_nomean_wnormals", contactnet_split=args.contactnet_split)
+    train_paths, val_paths = save_contactnet_split_samples('../data', 1000, 
+                                                dataset_name="tpp_effdict_nomean_wnormals")
 
     dataset = TPPDataset(val_paths, return_pair_dict=True, normalize=True, return_normals=True)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)
