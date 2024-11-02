@@ -65,23 +65,23 @@ def create_contactnet_splits(num_mesh=400, min_num_success_grasps=100):
                 for name in train_names:
                     if name in simplified_meshes:
                         grasp_file_path = os.path.join(grasp_directory, name + '.h5')
-                        num_success = get_num_success_grasps(grasp_file_path)
-                        if num_success < min_num_success_grasps:
-                            continue
+                        # num_success = get_num_success_grasps(grasp_file_path)
+                        # if num_success < min_num_success_grasps:
+                        #     continue
 
-                        if num_simplified_train >= max_train_class_samples:
-                            break
+                        # if num_simplified_train >= max_train_class_samples:
+                        #     break
                         num_simplified_train += 1
                         train_meshes.append(name)
 
                 for name in test_names:
                     if name in simplified_meshes:
                         grasp_file_path = os.path.join(grasp_directory, name + '.h5')
-                        num_success = get_num_success_grasps(grasp_file_path)
-                        if num_success < min_num_success_grasps:
-                            continue
-                        if num_simplified_test >= max_test_class_samples:
-                            break
+                        # num_success = get_num_success_grasps(grasp_file_path)
+                        # if num_success < min_num_success_grasps:
+                        #     continue
+                        # if num_simplified_test >= max_test_class_samples:
+                        #     break
                         num_simplified_test += 1
                         valid_meshes.append(name)
                 # print(f"Model: {model_split_file}")

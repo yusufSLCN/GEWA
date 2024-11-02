@@ -36,7 +36,7 @@ parser.add_argument('-gd','--grasp_dim', type=int, default=9)
 parser.add_argument('-gs', '--grasp_samples', type=int, default=100)
 parser.add_argument('-li', '--log_interval', type=int, default=10)
 parser.add_argument('-oc', '--only_classifier', action='store_true')
-parser.add_argument('-csplit', '--contactnet_split', action='store_true')
+# parser.add_argument('-csplit', '--contactnet_split', action='store_true')
 parser.add_argument('-dn', '--dataset_name', type=str, default="tpp_effdict_nomean_wnormals")
 args = parser.parse_args()
 
@@ -77,7 +77,7 @@ config.epoch = args.epochs
 config.num_mesh = args.num_mesh
 config.data_dir = args.data_dir
 config.num_workers = args.num_workers
-config.contactnet_split = args.contactnet_split
+config.contactnet_split = True
 config.dataset = train_dataset.__class__.__name__
 config.train_size = len(train_dataset)
 config.val_size = len(val_dataset)
