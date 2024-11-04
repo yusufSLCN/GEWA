@@ -5,8 +5,8 @@ from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool, global_mea
 import numpy as np
 
 class TppNet(nn.Module):
-    def __init__(self, grasp_dim=9, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False,
-                  sort_by_score=False, with_normals=False, normalize=False):
+    def __init__(self, grasp_dim=7, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False,
+                  sort_by_score=True, with_normals=False, normalize=False, topk=10):
         super(TppNet, self).__init__()
         
         self.num_grasp_sample = num_grasp_sample
@@ -18,6 +18,7 @@ class TppNet(nn.Module):
         self.only_classifier = only_classifier
         self.sort_by_score = sort_by_score
         self.normalize = normalize
+        self.topk = topk
 
         self.with_normals = with_normals
         self.triu = torch.triu_indices(num_points, num_points, offset=1)
@@ -155,8 +156,14 @@ class TppNet(nn.Module):
         edge_scores = data.pair_scores
         edge_scores = edge_scores.reshape(-1, self.num_pairs)
         pos = pos.reshape(-1, self.num_points, 3)
-        grasp_gt = np.zeros((pos.shape[0], self.num_grasp_sample, self.max_num_grasps, 4, 4))
-        num_valid_grasps = np.zeros((pos.shape[0], self.num_grasp_sample))
+
+        if self.training:
+            num_valid_grasps = np.zeros((pos.shape[0], self.num_grasp_sample))
+            grasp_gt = np.zeros((pos.shape[0], self.num_grasp_sample, self.max_num_grasps, 4, 4))
+        else:
+            num_valid_grasps = np.zeros((pos.shape[0], self.topk))
+            grasp_gt = np.zeros((pos.shape[0], self.topk, self.max_num_grasps, 4, 4))
+
         # print(edge_scores.shape)
         # print(data.y)
         for i in range(edge_scores.shape[0]):  # Iterate over each edge in the batch
@@ -173,13 +180,13 @@ class TppNet(nn.Module):
                 sample_edge_prob = pair_classification_out_ij[i]
                 if self.sort_by_score:
                     sorted_score = torch.argsort(sample_edge_prob, descending=True)
-                    edge_index = sorted_score[:self.num_grasp_sample]
+                    edge_index = sorted_score[:self.topk]
                 else:
                     pos_pair_count = torch.sum(sample_edge_prob > 0.5)
                     if pos_pair_count > 0:
                         sample_edge_prob[sample_edge_prob < 0.5] = 0
-                    with_replacement = pos_pair_count < self.num_grasp_sample
-                    edge_index = torch.multinomial(sample_edge_prob, num_samples=self.num_grasp_sample, 
+                    with_replacement = pos_pair_count < self.topk
+                    edge_index = torch.multinomial(sample_edge_prob, num_samples=self.topk, 
                                                     replacement=with_replacement.item())
             
             # print("find edge indxs")
@@ -255,8 +262,8 @@ class TppNet(nn.Module):
     
     def calculateTransformationMatrix(self, grasp, mid_points):
         # translation = grasp[:, :3] + mid_points
-        r1 = grasp[:, 3:6]
-        r2 = grasp[:, 6:]
+        r1 = grasp[:, :3]
+        r2 = grasp[:, 3:6]
         #orthogonalize the rotation vectors
         r1 = r1 / torch.norm(r1, dim=1, keepdim=True)
         r2 = r2 - torch.sum(r1 * r2, dim=1, keepdim=True) * r1
@@ -266,7 +273,7 @@ class TppNet(nn.Module):
         #create the rotation matrix
         r = torch.stack([r1, r2, r3], dim=2)
 
-        gaxis_translation_scale = grasp[:, 0].reshape(-1, 1)
+        gaxis_translation_scale = grasp[:, -1].reshape(-1, 1)
         grasp_axis_trans_shift = gaxis_translation_scale * r1
         translation = mid_points - r3 * 1.12169998e-01 + grasp_axis_trans_shift
         #create 4x4 transformation matrix for each 
