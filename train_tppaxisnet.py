@@ -8,7 +8,7 @@ from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
 from tpp_dataset import TPPDataset
-from TppAngleNet import TppAngleNet
+from TppAxisNet import TppAxisNet
 from create_tpp_dataset import save_contactnet_split_samples
 from metrics import check_batch_success_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
 import os
@@ -32,11 +32,11 @@ parser.add_argument('-n', '--notes', type=str, default='')
 parser.add_argument('-di', '--device_id', type=int, default=0)
 parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 parser.add_argument('-cr', '--crop_radius', type=float, default=-1)
-parser.add_argument('-gd','--grasp_dim', type=int, default=9)
-parser.add_argument('-gs', '--grasp_samples', type=int, default=100)
+parser.add_argument('-gd','--grasp_dim', type=int, default=4)
+parser.add_argument('-gs', '--grasp_samples', type=int, default=50)
 parser.add_argument('-li', '--log_interval', type=int, default=10)
 parser.add_argument('-oc', '--only_classifier', action='store_true')
-parser.add_argument('-csplit', '--contactnet_split', action='store_true')
+# parser.add_argument('-csplit', '--contactnet_split', action='store_true')
 parser.add_argument('-dn', '--dataset_name', type=str, default="tpp_effdict_nomean_wnormals")
 args = parser.parse_args()
 
@@ -77,7 +77,7 @@ config.epoch = args.epochs
 config.num_mesh = args.num_mesh
 config.data_dir = args.data_dir
 config.num_workers = args.num_workers
-config.contactnet_split = args.contactnet_split
+config.contactnet_split = True
 config.dataset = train_dataset.__class__.__name__
 config.train_size = len(train_dataset)
 config.val_size = len(val_dataset)
@@ -105,10 +105,12 @@ print(device)
 # model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
 # model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
 max_grasp_per_edge = 10
-model = TppAngleNet(num_grasp_sample=args.grasp_samples,
-                max_num_grasps=max_grasp_per_edge, only_classifier=args.only_classifier, normalize=True).to(device)
+topk = 10
+model = TppAxisNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples,
+                max_num_grasps=max_grasp_per_edge, only_classifier=args.only_classifier, normalize=True, topk=topk).to(device)
 num_pairs = model.num_pairs
 config.model_name = model.__class__.__name__
+config.topk = topk
 wandb.watch(model, log="all")
 
 multi_gpu = False
@@ -141,7 +143,7 @@ neg_pos_ratio = 44.8
 classification_criterion = nn.BCEWithLogitsLoss(pos_weight= torch.tensor(0.3 * neg_pos_ratio))
 
 
-def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, mlp_out_ij, binary_pair_scores_gt, grasp_axises=None):
+def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, mlp_out_ij, binary_pair_scores_gt, grasp_axises=None, num_grasp_samples=50):
     # Calculate the pair loss
     # pos_pair_count = torch.sum(binary_pair_scores_gt)
     # pos_weight = (binary_pair_scores_gt.numel() - pos_pair_count) / pos_pair_count
@@ -151,7 +153,6 @@ def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, 
     if args.only_classifier:
         return pair_loss, None, None
 
-    # print(num_valid_grasps.shape)
     # print(mid_edge_points.shape)
     valid_grasp_mask = num_valid_grasps > 0
     valid_grasp_mask = valid_grasp_mask.flatten()
@@ -175,19 +176,16 @@ def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, 
 
 
     # # Calculate the grasp loss
-    grasp_pred = grasp_pred.reshape(-1, args.grasp_samples, 1,  16)
+    grasp_pred = grasp_pred.reshape(-1, num_grasp_samples, 1,  16)
     min_grasp_losses = []
     grasp_target = grasp_target.to(grasp_pred.device)
-    grasp_target = grasp_target.reshape(-1, args.grasp_samples, max_grasp_per_edge, 16)
+    grasp_target = grasp_target.reshape(-1, num_grasp_samples, max_grasp_per_edge, 16)
 
     #just translation
     # grasp_pred = grasp_pred_mat[:, :3, 3]
     # grasp_pred = grasp_pred.reshape(-1, args.grasp_samples, 1,  3)
     # grasp_target = grasp_target[:, :, :, :3, 3]
     # grasp_target = grasp_target.to(grasp_pred.device)
-   
-
-
 
     for i in range(len(grasp_target)):
         sample_grasp_target = grasp_target[i]
@@ -197,7 +195,7 @@ def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, 
 
         #some of the target grasps are just for padding
         #extract the valid grasp losses and take the minimum
-        for g_idx in range(args.grasp_samples):
+        for g_idx in range(num_grasp_samples):
             if num_valid_grasps[i, g_idx] == 0:
                 continue
             a_point_loss = grasp_losses[g_idx, :num_valid_grasps[i, g_idx]]
@@ -252,7 +250,8 @@ for epoch in range(1, num_epochs + 1):
         pair_scores_gt = pair_scores_gt.reshape(-1, num_pairs)
         binary_pair_scores_gt = (pair_scores_gt > 0).float().to(pair_classification_pred.device)
 
-        pair_loss, grasp_loss, tip_loss, grasp_axis_loss = calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_pos, mlp_out_ij, binary_pair_scores_gt, grasp_axises)
+        pair_loss, grasp_loss, tip_loss, grasp_axis_loss = calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_pos,
+                                                                           mlp_out_ij, binary_pair_scores_gt, grasp_axises, num_grasp_samples=args.grasp_samples)
 
         # contrastive_criterion = nn.CrossEntropyLoss()
         # contrastive_loss =  contrastive_criterion(mlp_out_ij, mlp_out_ji)
@@ -291,8 +290,12 @@ for epoch in range(1, num_epochs + 1):
                     # num_valid_grasps = num_valid_grasps.cpu().detach().numpy()
                     # train_grasp_success += check_batch_grasp_success_rate_per_point(grasp_pred, grasp_target, 0.03,
                     #                                                                 np.deg2rad(30), num_valid_grasps)
-                    grasp_gt_paths = [s.sample_info['grasps'] for s in data]
-                    means = [s.sample_info['mean'] for s in data]
+                    if multi_gpu:
+                        grasp_gt_paths = [s.sample_info['grasps'] for s in data]
+                        means = [s.sample_info['mean'] for s in data]
+                    else:
+                        grasp_gt_paths = data.sample_info['grasps']
+                        means = data.sample_info['mean']
                     train_grasp_success += check_batch_success_with_whole_gewa_dataset(grasp_pred, 0.03, np.deg2rad(30),grasp_gt_paths, means)
 
                 # Calculate the pair accuracy
@@ -357,7 +360,7 @@ for epoch in range(1, num_epochs + 1):
                 val_binary_pair_scores_gt = (val_pair_scores_gt > 0).float().to(val_pair_pred.device)
 
                 val_pair_loss, val_grasp_loss, val_tip_loss, val_grasp_axis_loss = calculate_loss(val_grasp_pred, val_grasp_target, val_num_valid_grasps,
-                                                                            val_mid_edge_pos, val_mlp_out_ij, val_binary_pair_scores_gt, val_grasp_axises)
+                                                                            val_mid_edge_pos, val_mlp_out_ij, val_binary_pair_scores_gt, val_grasp_axises, topk)
 
                 if args.only_classifier:
                     val_loss = val_pair_loss
@@ -378,13 +381,17 @@ for epoch in range(1, num_epochs + 1):
 
                 
                 if not args.only_classifier:
-                    val_grasp_pred = val_grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
+                    val_grasp_pred = val_grasp_pred.cpu().detach().reshape(-1, topk, 1, 4, 4).numpy()
                     # val_grasp_target = val_grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
                     # val_num_valid_grasps = val_num_valid_grasps.cpu().detach().numpy()
                     # val_grasp_success += check_batch_grasp_success_rate_per_point(val_grasp_pred, val_grasp_target, 0.03,
                     #                                                                 np.deg2rad(30), val_num_valid_grasps)
-                    val_grasp_gt_paths = [s.sample_info['grasps'] for s in val_data]
-                    val_means = [s.sample_info['mean'] for s in val_data]
+                    if multi_gpu:
+                        val_grasp_gt_paths = [s.sample_info['grasps'] for s in val_data]
+                        val_means = [s.sample_info['mean'] for s in val_data]
+                    else:
+                        val_grasp_gt_paths = val_data.sample_info['grasps']
+                        val_means = val_data.sample_info['mean']
                     val_grasp_success += check_batch_success_with_whole_gewa_dataset(val_grasp_pred, 0.03, np.deg2rad(30),val_grasp_gt_paths, val_means)
 
 
@@ -419,7 +426,7 @@ for epoch in range(1, num_epochs + 1):
             print(f"Train Pair F1: {train_f1} - Valid Pair F1: {val_f1}")
             print(f"Train Grasp Success: {train_success_rate} - Valid Grasp Success: {val_grasp_success_rate}")
             # Save the model if the validation loss is low
-            if val_grasp_success_rate >= 0 and epoch % 20 == 0:
+            if val_grasp_success_rate > 0.1:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}.pth"
                 model_folder = f"models/{model_name}"
                 if not os.path.exists(model_folder):

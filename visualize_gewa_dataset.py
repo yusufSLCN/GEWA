@@ -1,24 +1,24 @@
 from acronym_visualize_dataset import visualize_point_cloud, visualize_approach_points, visualize_grasps
 from gewa_dataset import GewaDataset
-from create_gewa_dataset import save_split_samples
+from create_gewa_dataset import save_contactnet_split_samples
 import argparse
 import numpy as np
 
 def show_grasps(dataset, idx, show_contacts=False):
     approach_scores = dataset[idx].approach_scores.numpy()
     good_approach_score_idxs = np.arange(approach_scores.shape[0])[approach_scores > 0.5]
-    point_idxs = np.random.choice(good_approach_score_idxs, 5)
+    point_idxs = np.random.choice(good_approach_score_idxs, 3)
     print(point_idxs)
     # point_idxs = np.random.randint(len(dataset[idx].pos), size=5)
-    point_idxs = [0] * 10
-    grasps = dataset[idx].y[point_idxs, :10].numpy().reshape(-1, 4, 4)
+    # point_idxs = [0] * 10
+    grasps = dataset[idx].y[point_idxs, 0].numpy().reshape(-1, 4, 4)
     print(grasps.shape)
     if show_contacts:
         contact_points_idx = dataset[idx].contact_points[point_idxs].numpy().astype(int)
     else:
         contact_points_idx = None
 
-    visualize_grasps(dataset[idx].pos.numpy(), grasps, point_idxs, contact_points_idx, show_tip=True)
+    visualize_grasps(dataset[idx].pos.numpy(), grasps, point_idxs, contact_points_idx, show_tip=False)
 
 
 def show_object_graph(sample, ratio, r):
@@ -63,8 +63,11 @@ def show_knn_grap(sample, k=16):
 
 
 if __name__ == "__main__":
-    train_data, valid_data = save_split_samples('../data', -1)
-    dataset = GewaDataset(valid_data)
+    # train_data, valid_data = save_split_samples('../data', -1)
+    #train samples: banana 100, bear bottle 160, bread slice 250
+    #
+    train_samples, val_samples = save_contactnet_split_samples('../data', num_mesh=1200)
+    dataset = GewaDataset(train_samples)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i','--index', type=int, default=0)
@@ -72,7 +75,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     idx = args.index
     # visualize_point_cloud(dataset[idx].pos)
-    # visualize_approach_points(dataset[idx].pos.numpy(), dataset[idx].approach_scores.numpy())
+    for i in range(len(dataset)):
+        if dataset[i].sample_info['class'] == 'Cup':
+            idx = i
+            break
+    print(dataset[idx].sample_info)
+    visualize_approach_points(dataset[idx].pos.numpy(), dataset[idx].approach_scores.numpy())
     # show_object_graph(dataset[idx], ratio=0.2, r=0.0001)
-    # show_grasps(dataset, idx, show_contacts=False)
-    show_knn_grap(dataset[idx])
+    show_grasps(dataset, idx, show_contacts=False)
+    # show_knn_grap(dataset[idx])

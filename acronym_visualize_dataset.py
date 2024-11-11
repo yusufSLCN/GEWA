@@ -6,8 +6,8 @@ import open3d as o3d
 
 
 def create_scene_with_reference(vertices=None):
-    sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
-    scene = trimesh.Scene(sphare)  #Add the ball to the scene
+    # sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
+    scene = trimesh.Scene()  
 
     if  vertices is not None:
         obj_points = trimesh.points.PointCloud(vertices)
@@ -119,6 +119,8 @@ def visualize_grasps(vertices, grasps, query_point_idxs=None, contact_points_idx
     zipped = zip(grasps, query_point_idxs)    
     for grasp, query_point_idx in zipped:
         new_gripper = create_gripper_marker()
+        print(grasp.shape)
+        print(f"Grasp {grasp}")
         point_gripper = new_gripper.apply_transform(grasp)
         scene.add_geometry(point_gripper)
 
@@ -141,13 +143,15 @@ def visualize_grasps(vertices, grasps, query_point_idxs=None, contact_points_idx
     if contact_points_idx is not None:
         for contact_pair in contact_points_idx:
             contact1_sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
-            contact1_sphare.visual.face_colors = [136, 0, 255, 255]
+            #red
+            contact1_sphare.visual.face_colors = [255, 0, 0, 255]
             contact_point1 = vertices[contact_pair[0]]
             contact1_sphare.apply_translation(contact_point1)
             scene.add_geometry(contact1_sphare)
 
             contact2_sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
-            contact2_sphare.visual.face_colors = [51, 255, 204, 255]
+            #yellow
+            contact2_sphare.visual.face_colors = [255, 255, 0, 255]
             contact_point2 = vertices[contact_pair[1]]
             contact2_sphare.apply_translation(contact_point2)
             scene.add_geometry(contact2_sphare)
@@ -223,8 +227,8 @@ def visualize_gt_and_pred_gasps(vertices, gt, pred, query_point, approach_scores
     scene.show()
 
 def visualize_approach_points(vertices, approach_points):
-    sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
-    scene = trimesh.Scene(sphare)  #Add the ball to the scene
+    # sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
+    scene = trimesh.Scene()  #Add the ball to the scene
 
     # colors = np.ones((len(vertices), 4), dtype=np.uint) *255
     # valid_approaches_idx = approach_points > 0

@@ -73,9 +73,9 @@ def save_contactnet_split_samples(data_dir, num_mesh, dataset_name="approach", r
         train_meshes, valid_meshes = create_contactnet_splits(num_mesh=num_mesh, min_num_success_grasps=100)
 
         samples = {}
-        train_samples = process_contactnet_split(train_meshes, data_dir, dataset_name, success_threshold=0.5, num_points=1000, radius=0.005)
+        train_samples = process_contactnet_split(train_meshes, data_dir, dataset_name, success_threshold=0.5, num_points=1000, radius=radius)
         samples['train'] = train_samples
-        valid_samples = process_contactnet_split(valid_meshes, data_dir, dataset_name, success_threshold=0.5, num_points=1000, radius=0.005)
+        valid_samples = process_contactnet_split(valid_meshes, data_dir, dataset_name, success_threshold=0.5, num_points=1000, radius=radius)
         samples['valid'] = valid_samples
         np.save(paths_dir, samples)
 

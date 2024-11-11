@@ -4,3 +4,4 @@ wandb/
 sample_dirs/*
 models/*
 artifacts/*
+images/*

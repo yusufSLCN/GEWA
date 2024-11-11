@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 import numpy as np
 import pywavefront
 from transforms import create_random_rotation_translation_matrix
-from create_dataset_paths import save_split_meshes
+from deprecated.create_dataset_paths import save_split_meshes
 from torch_geometric.data import Data
 import trimesh
 

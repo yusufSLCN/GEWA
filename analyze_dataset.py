@@ -1,50 +1,31 @@
-from torch_geometric.datasets import ShapeNet
-import torch_geometric.transforms as T
-from utils import plot_point_cloud, plot_network
 import numpy as np
-from gewa_dataset import GewaDataset
+from tpp_dataset import TPPDataset
+from create_tpp_dataset import save_contactnet_split_samples
+from torch_geometric.loader import DataLoader
+
 
 if __name__ == "__main__":
     # dataset = ShapeNet(root='data/ShapeNet', categories=['Mug'], split='val', pre_transform=T.KNNGraph(k=6))
-    from gewa_dataset import GewaDataset
-    from create_gewa_dataset import save_split_samples
 
-    train_paths, val_paths = save_split_samples('../data', -1)
-    dataset = GewaDataset(train_paths, normalize_points=True)
 
-    dataset_average_distance = []
+    # train_paths, val_paths = save_split_samples('../data', 400, dataset_name="tpp_effdict", contactnet_split=True)
+    # train_paths, val_paths = save_split_samples('../data', 400, dataset_name="tpp_effdict_nomean_wnormals", contactnet_split=True)
+    train_paths, val_paths = save_contactnet_split_samples('../data', num_mesh=1200, dataset_name="tpp_effdict_nomean_wnormals")
+    
+    # val_paths = [val_paths[args.sample_idx]]
+    dataset = TPPDataset(train_paths, return_pair_dict=True, normalize=True)
+    # data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)
+    data_classes = {}
+    for data in dataset:
+        if data.sample_info['class'] not in data_classes:
+            data_classes[data.sample_info['class']] = 1
+        else:
+            data_classes[data.sample_info['class']] += 1
 
-    for i in range(len(dataset)):
-        if (i + 1) % 100 == 0:
-            print(f"Processing {i + 1}/{len(dataset)}")
+    print(f"Number of classes: {len(data_classes)}")
+    #plot the histogram of the classes
+    # import matplotlib.pyplot as plt
+    # plt.bar(data_classes.keys(), data_classes.values())
+    # plt.show()
 
-        sample = dataset[i]
-        pos = sample.pos.numpy()
-        approach_scores = sample.approach_scores.numpy()
-        sample_grasps = sample.y.numpy()
-        num_grasps = sample.num_grasps.numpy()
-        point_average = []
-        for j in range(len(pos)):
-            if num_grasps[j] > 0:
-                point = pos[j]
-                grasps = sample_grasps[j, :num_grasps[j]]
-                gripper_tip_vector = np.array([0, 0, 1.12169998e-01, 1])
-                grasp_tip_pos = np.matmul(grasps, gripper_tip_vector)[:, :3]
-                #calculate the distance between the point and grasp tip
-                distances = np.linalg.norm(grasp_tip_pos - point, axis=1)
-
-                mean_point_distance = np.mean(distances)
-                if mean_point_distance > 0.01:
-                    print(distances)
-                    print(approach_scores[j])
-                    print(f"{sample.sample_info}")
-                    print(f"Object {i}, point {j}")
-                    print(f"Mean point distance: {mean_point_distance}")
-                    #stop code execution
-                    # exit()
-                point_average.append(mean_point_distance)
-
-        dataset_average_distance.append(np.array(point_average).mean())
-
-    print(f"Average distance: {np.array(dataset_average_distance).mean()}")
 

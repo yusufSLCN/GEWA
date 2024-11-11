@@ -4,10 +4,10 @@ import torch.nn.functional as F
 from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool, global_mean_pool
 import numpy as np
 
-class TppNet(nn.Module):
-    def __init__(self, grasp_dim=7, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False,
+class TppAxisNet(nn.Module):
+    def __init__(self, grasp_dim=4, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False,
                   sort_by_score=True, with_normals=False, normalize=False, topk=10):
-        super(TppNet, self).__init__()
+        super(TppAxisNet, self).__init__()
         
         self.num_grasp_sample = num_grasp_sample
         self.grap_dim = grasp_dim
@@ -242,7 +242,7 @@ class TppNet(nn.Module):
         # grasp_outputs = self.grasp_head(grasp_features)
         if self.grap_dim != 16:
             grasp_outputs = grasp_outputs.reshape(-1, self.grap_dim)
-            grasp_outputs = self.calculateTransformationMatrix(grasp_outputs, mid_edge_pos)
+            grasp_outputs = self.calculateTransformationMatrix(grasp_outputs, mid_edge_pos, grasp_axises)
             grasp_outputs = grasp_outputs.view(-1, 16)
         # else:
             # print(grasp_outputs.shape)
@@ -260,10 +260,10 @@ class TppNet(nn.Module):
         return grasp_outputs, selected_edge_idxs, mid_edge_pos, grasp_axises, grasp_gt, num_valid_grasps, pair_classification_out_ij, mlp_out_ij
 
     
-    def calculateTransformationMatrix(self, grasp, mid_points):
+    def calculateTransformationMatrix(self, grasp, mid_points, grasp_axises):
         # translation = grasp[:, :3] + mid_points
-        r1 = grasp[:, :3]
-        r2 = grasp[:, 3:6]
+        r1 = grasp_axises
+        r2 = grasp[:, :3]
         #orthogonalize the rotation vectors
         r1 = r1 / torch.norm(r1, dim=1, keepdim=True)
         r2 = r2 - torch.sum(r1 * r2, dim=1, keepdim=True) * r1
@@ -275,7 +275,7 @@ class TppNet(nn.Module):
 
         gaxis_translation_scale = grasp[:, -1].reshape(-1, 1)
         grasp_axis_trans_shift = gaxis_translation_scale * r1
-        translation = mid_points - r3 * 1.12169998e-01 + grasp_axis_trans_shift
+        translation = mid_points - r3 * 1.12169998e-01
         #create 4x4 transformation matrix for each 
         trans_m = torch.eye(4).repeat(len(grasp), 1, 1).to(grasp.device)
         trans_m[:,:3, :3] = r
@@ -284,7 +284,7 @@ class TppNet(nn.Module):
 if __name__ == "__main__":
 
     from tpp_dataset import TPPDataset
-    from create_tpp_dataset import save_contactnet_split_samples
+    from create_tpp_dataset import save_split_samples
     from torch_geometric.loader import DataLoader, DataListLoader
     from metrics import check_batch_grasp_success
     from torch_geometric.nn import DataParallel
@@ -296,15 +296,10 @@ if __name__ == "__main__":
         model = DataParallel(model)
     else:
         model = TppNet(normalize=True)
-
-    #count the parameters
-    pytorch_total_params = sum(p.numel() for p in model.parameters())
-    print(f"Total number of parameters: {pytorch_total_params}")
-
-    # model = DataParallel(model)
+        # model = DataParallel(model)
     # dataset_name = "tpp_seed"
     dataset_name = "tpp_effdict_nomean_wnormals"
-    train_paths, val_paths = save_contactnet_split_samples('../data', 1200, dataset_name)
+    train_paths, val_paths = save_split_samples('../data', 1000, dataset_name)
     classification_criterion = nn.BCELoss()
     grasp_criterion = nn.MSELoss()
     # transform = RandomRotationTransform(rotation_range)
