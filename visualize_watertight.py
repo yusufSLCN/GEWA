@@ -1,18 +1,18 @@
-from create_tpp_dataset import save_split_samples
+from create_tpp_dataset import save_contactnet_split_samples
 import open3d as o3d
 
 if __name__ == "__main__":
-    train_samples, val_samples = save_split_samples('../data', 400, dataset_name="tpp_effdict_nomean_wnormals", contactnet_split=True)
+    train_samples, val_samples = save_contactnet_split_samples('../data', 1200, dataset_name="tpp_effdict_nomean_wnormals")
     # print(train_paths[0])
     # print(val_paths[0])
 
-    for sample in train_samples:
+    for i, sample in enumerate(val_samples):
+        print(f"Sample {i}")
         simplified_obj_path = sample.simplified_mesh_path
         print(simplified_obj_path)
         origin_obj_path = sample.info['model_path']
         print(origin_obj_path)
         scale = sample.info['scale']
-        print(scale)
 
         # Load the mesh
         origin_mesh = o3d.io.read_triangle_mesh(origin_obj_path)

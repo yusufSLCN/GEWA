@@ -12,6 +12,7 @@ def create_scene_with_reference(vertices=None):
     if  vertices is not None:
         obj_points = trimesh.points.PointCloud(vertices)
         scene.add_geometry(obj_points)
+
     return scene
 
 def visualize_random_best_grasps(vertices, point_grasp_dict, aug_matrix):
@@ -95,6 +96,38 @@ def visualize_grasp(vertices, grasp, query_point_idx=None):
         sphare.apply_translation(query_point)
         scene.add_geometry(sphare)
     scene.show()
+
+
+def visualize_edge_grasps(vertices, grasps, approach_point=None, contact_points=None, contact_normals=None):
+    scene = create_scene_with_reference(vertices)
+    for grasp in grasps:
+        new_gripper = create_gripper_marker()
+        print(grasp.shape)
+        print(f"Grasp {grasp}")
+        point_gripper = new_gripper.apply_transform(grasp)
+        scene.add_geometry(point_gripper)
+
+    if approach_point is not None:
+        sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
+        sphare.visual.face_colors = [0, 255, 0, 255]
+        sphare.apply_translation(approach_point)
+        scene.add_geometry(sphare)
+    
+    if contact_points is not None:
+        for c_point in contact_points:
+            sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.003)
+            sphare.visual.face_colors = [255, 0, 0, 255]
+            sphare.apply_translation(c_point)
+            scene.add_geometry(sphare)
+
+    if contact_normals is not None:
+        #display normal vectors starting at vertices
+        for vertex, normal in zip(contact_points, contact_normals):
+            cylinder = trimesh.creation.cylinder(radius=0.0002, segment=[vertex, vertex + normal * 0.01])
+            scene.add_geometry(cylinder)
+    scene.show()
+
+    
 
 
 def visualize_grasps(vertices, grasps, query_point_idxs=None, contact_points_idx=None, cylinder_edges=None, show_tip=False):

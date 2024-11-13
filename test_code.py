@@ -39,6 +39,21 @@ from torch_geometric.nn import DynamicEdgeConv, MLP
 # points = torch.zeros((10, 6))
 # conv1 = DynamicEdgeConv(MLP([12, 16, 32]), k=8, aggr='max')
 # out = conv1(points)
-from create_tpp_dataset import get_contactnet_split
-train_meshes, valid_meshes = get_contactnet_split()
-print(train_meshes[0])
+# from create_tpp_dataset import get_contactnet_split
+# train_meshes, valid_meshes = get_contactnet_split()
+# print(train_meshes[0])
+
+grasps = np.random.rand(2, 1024, 1, 4, 4)  # Shape (2, 1024, 1, 4, 4)
+indexes = np.array([
+    [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000],  # Indices for first group
+    [50, 150, 250, 350, 450, 550, 650, 750, 850, 950]     # Indices for second group
+])  # Shape (2, 10)
+
+# Use advanced indexing to select based on indexes
+result = grasps[np.arange(2)[:, None], indexes]  # Shape (2, 10, 1, 4, 4)
+
+print(result.shape) 
+print(grasps[0, indexes[0]].shape)
+print(result[0].shape)
+#check if they are equal
+print(np.allclose(result[0], grasps[0, indexes[0]]))

@@ -132,6 +132,8 @@ def show_grasps_of_edges(points, grasps_dict, pair_scores, triu_indices, args, s
 
 def read_obj_mesh(sample_info):
     obj_path = sample_info['model_path']
+    if not isinstance(obj_path, str):
+        obj_path = obj_path[0]
     scale = float(sample_info['scale'])
     mesh = o3d.io.read_triangle_mesh(obj_path)
     mesh.compute_vertex_normals()
@@ -139,7 +141,7 @@ def read_obj_mesh(sample_info):
     mesh.scale(scale, center=mesh.get_center())
     return mesh
 
-def show_obj_mesh(sample_info, view_params=None, save=False):
+def show_obj_mesh(sample_info, view_params=None, save_name="", save=False):
     mesh = read_obj_mesh(sample_info)
     # o3d.visualization.draw_geometries([mesh])
 
@@ -153,7 +155,6 @@ def show_obj_mesh(sample_info, view_params=None, save=False):
     
     view_params['lookat'] = mesh.get_center()
     
-    save_name = sample_info['class'] +  "_mesh.png"
     display_mesh(mesh, view_params, save_name=save_name, save_image=save)
 
 
@@ -224,7 +225,7 @@ def show_all_tpps_of_grasp(points, grasps_dict, pair_scores, triu_indices, args)
     print("contact_idxs", len(contact_idxs))
     visualize_grasps(points, grasps, None, contact_idxs, cylinder_edges=edges)
 
-def show_pair_edges(points, pair_scores, triu_indices, sample_info=None, threshold=0.5, show_gripper=False, view_params=None, save=False):
+def show_pair_edges(points, pair_scores, triu_indices, threshold=0.5, show_gripper=False, view_params=None, save_name="", save=False):
     pair_idxs = np.where(pair_scores > threshold)[0]
     good_pair_scores = pair_scores[pair_idxs]
     edge_index = np.stack((triu_indices[0][pair_idxs], triu_indices[1][pair_idxs]), axis=1) 
@@ -256,10 +257,10 @@ def show_pair_edges(points, pair_scores, triu_indices, sample_info=None, thresho
         }
 
     view_params['lookat'] = pcd.get_center()
-    if sample_info is not None: 
-        save_name = sample_info['class'] +  "_edges.png"
-    else:
-        save_name = "grasps.png"
+
+    if save and save_name == "":
+        save_name = "edge.png"
+
 
     mesh = [line_set, pcd, gripper]
     display_mesh(mesh, view_params, save_name=save_name, save_image=save)
@@ -343,7 +344,7 @@ if __name__ == "__main__":
     print(f"Number of validation samples: {len(val_samples)}")
     print("Done!")
     #train samples: banana 100, bear bottle 160, bread slice 250, 650 mug
-    #valid samples: desk 160, curtain 155, fork 232, foodbag 230
+    #valid samples: desk 160, curtain 155, fork 232, foodbag 230 ------ try 224, 237, 248
     #
 
     dataset = TPPDataset(val_samples, return_pair_dict=True, normalize=True)

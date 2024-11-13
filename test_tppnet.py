@@ -4,7 +4,7 @@ from torch_geometric.data import Data
 from TppNet import TppNet
 from TppNetOld import TppNetOld
 from tpp_dataset import TPPDataset
-from visualize_tpp_dataset import show_pair_edges, show_grasp_and_edge_predictions
+from visualize_tpp_dataset import show_pair_edges, show_grasp_and_edge_predictions, show_obj_mesh
 import argparse
 import wandb
 from torch_geometric.loader import DataListLoader, DataLoader
@@ -66,6 +66,8 @@ if __name__ == "__main__":
     model.device = 'cpu'
     model.eval()
     data = next(iter(data_loader))
+    print(data.sample_info)
+
     grasp_pred, selected_edge_idxs, mid_edge_pos, _, grasp_target, num_valid_grasps, pair_classification_pred, pair_dot_product = model(data)
     # pair_classification_pred, pair_dot_product, _, _ = model(data)
 
@@ -113,17 +115,28 @@ if __name__ == "__main__":
     'up': [0, 0, 1]         # Up direction
     }
     
-    show_pair_edges(pos, pred_pair_scores, dataset.triu_indices, threshold=threshold, view_params=view_params)
-    show_pair_edges(pos, pair_scores, dataset.triu_indices, view_params=view_params)
+    save_output = True
+    
+    sample_info = data.sample_info
+    print(sample_info["model_path"])
+    obj_class = sample_info["class"][0]
+    save_name_grasp_pred = f"{obj_class}_{args.sample_idx}_{grasp_success}_grasp_pred.png"
+    save_name_mesh = f"{obj_class}_{args.sample_idx}_mesh.png"
+    save_name_edge_pred = f"{obj_class}_{args.sample_idx}_edge_pred.png"
+    save_name_edge_gt = f"{obj_class}_{args.sample_idx}_edge_gt.png"
+
+    show_obj_mesh(data.sample_info, view_params, save_name=save_name_mesh, save=save_output)
+    show_pair_edges(pos, pred_pair_scores, dataset.triu_indices, threshold=threshold, view_params=view_params, save_name=save_name_edge_pred,save= save_output)
+    show_pair_edges(pos, pair_scores, dataset.triu_indices, view_params=view_params, save_name=save_name_edge_gt, save=save_output)
 
     #display grasps
     print(selected_edge_idxs.shape)
     grasp_pred = grasp_pred.reshape(selected_edge_idxs.shape[1], 16)
 
-    sample_info = data.sample_info
     selected_edge_idxs = selected_edge_idxs.squeeze()
     pointcloud_mean = pointcloud_mean.reshape(-1)
+
     show_grasp_and_edge_predictions(pos, grasp_dict, selected_edge_idxs, grasp_pred,
                                     dataset.triu_indices, sample_info, mean=pointcloud_mean, num_grasp_to_show=50, 
-                                    view_params=view_params)
+                                    view_params=view_params, save_name=save_name_grasp_pred, save=save_output)
     
