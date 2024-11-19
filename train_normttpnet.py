@@ -9,7 +9,7 @@ import argparse
 from tqdm import tqdm
 from tpp_dataset import TPPDataset
 from TppNet import TppNet
-from create_tpp_dataset import save_split_samples
+from create_tpp_dataset import save_contactnet_split_samples
 from metrics import check_batch_success_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
 import os
 import numpy as np
@@ -26,19 +26,18 @@ parser.add_argument('-e', '--epochs', type=int, default=50)
 parser.add_argument('-d', '--device', type=str, default='cuda')
 parser.add_argument('-nw', '--num_workers', type=int, default=0)
 parser.add_argument('-nm', '--num_mesh', type=int, default=10)
-parser.add_argument('-dd', '--data_dir', type=str, default='/export/workspaces/ws1/salcany-GEWA/data/')
+parser.add_argument('-dd', '--data_dir', type=str, default='../data')
 parser.add_argument('-a', '--augment', dest='augment', action='store_true')
 parser.add_argument('-n', '--notes', type=str, default='')
 parser.add_argument('-di', '--device_id', type=int, default=0)
 parser.add_argument('-mg', '--multi_gpu', dest='multi_gpu', action='store_true')
 parser.add_argument('-cr', '--crop_radius', type=float, default=-1)
-parser.add_argument('-gd','--grasp_dim', type=int, default=9)
+parser.add_argument('-gd','--grasp_dim', type=int, default=7)
 parser.add_argument('-gs', '--grasp_samples', type=int, default=100)
 parser.add_argument('-li', '--log_interval', type=int, default=10)
 parser.add_argument('-oc', '--only_classifier', action='store_true')
+# parser.add_argument('-csplit', '--contactnet_split', action='store_true')
 parser.add_argument('-dn', '--dataset_name', type=str, default="tpp_effdict_nomean_wnormals")
-parser.add_argument('-csplit', '--contactnet_split', action='store_true')
-parser.add_argument('-norm', '--normalize', action='store_true')
 args = parser.parse_args()
 
 
@@ -59,10 +58,13 @@ else:
 print("Transform params: ", transfom_params)
 
 # Save the split samples
-train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh, dataset_name=args.dataset_name, contactnet_split=args.contactnet_split)
+# train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh, dataset_name=args.dataset_name,
+#                                            contactnet_split=args.contactnet_split)
+
+train_dirs, val_dirs = save_contactnet_split_samples(args.data_dir, num_mesh=args.num_mesh, dataset_name=args.dataset_name)
 return_grasp_dict = not args.only_classifier
-train_dataset = TPPDataset(train_dirs, transform=transform, return_pair_dict=return_grasp_dict, normalize=args.normalize, return_normals=True)
-val_dataset = TPPDataset(val_dirs, return_pair_dict=return_grasp_dict, normalize=args.normalize, return_normals=True)
+train_dataset = TPPDataset(train_dirs, transform=transform, return_pair_dict=return_grasp_dict, normalize=True, return_normals=True)
+val_dataset = TPPDataset(val_dirs, return_pair_dict=return_grasp_dict, normalize=True, return_normals=True)
                    
 # Initialize wandb
 wandb.init(project="Grasp", notes=args.notes)
@@ -75,7 +77,10 @@ config.epoch = args.epochs
 config.num_mesh = args.num_mesh
 config.data_dir = args.data_dir
 config.num_workers = args.num_workers
+config.contactnet_split = True
 config.dataset = train_dataset.__class__.__name__
+config.train_size = len(train_dataset)
+config.val_size = len(val_dataset)
 if args.augment:
     config.transform = transfom_params
 
@@ -84,10 +89,6 @@ config.grasp_dim = args.grasp_dim
 config.grasp_samples = args.grasp_samples
 config.only_classifier = args.only_classifier
 config.dataset_name = args.dataset_name
-config.contactnet_split = args.contactnet_split
-config.normalize = args.normalize
-config.train_size = len(train_dataset)
-config.val_size = len(val_dataset)
 # Analyze the dataset class stats
 num_epochs = args.epochs
 
@@ -104,10 +105,12 @@ print(device)
 # model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
 # model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
 max_grasp_per_edge = 10
+topk = 10
 model = TppNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples,
-                max_num_grasps=max_grasp_per_edge, only_classifier=args.only_classifier, with_normals=True, normalize=args.normalize).to(device)
+                max_num_grasps=max_grasp_per_edge, only_classifier=args.only_classifier, normalize=True, topk=topk, with_normals=True).to(device)
 num_pairs = model.num_pairs
 config.model_name = model.__class__.__name__
+config.topk = topk
 wandb.watch(model, log="all")
 
 multi_gpu = False
@@ -118,12 +121,12 @@ if torch.cuda.device_count() > 1 and args.multi_gpu:
     model.multi_gpu = True
     multi_gpu = True
     model = DataParallel(model)
-    train_data_loader = DataListLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=args.num_workers)
-    val_data_loader = DataListLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=args.num_workers)
+    train_data_loader = DataListLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
+    val_data_loader = DataListLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
 
 else:
-    train_data_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=args.num_workers)
-    val_data_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=args.num_workers)
+    train_data_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
+    val_data_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
 
 # Define the optimizer
 optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
@@ -140,7 +143,7 @@ neg_pos_ratio = 44.8
 classification_criterion = nn.BCEWithLogitsLoss(pos_weight= torch.tensor(0.3 * neg_pos_ratio))
 
 
-def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, mlp_out_ij, binary_pair_scores_gt, grasp_axises=None):
+def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, mlp_out_ij, binary_pair_scores_gt, grasp_axises=None, num_grasp_samples=50):
     # Calculate the pair loss
     # pos_pair_count = torch.sum(binary_pair_scores_gt)
     # pos_weight = (binary_pair_scores_gt.numel() - pos_pair_count) / pos_pair_count
@@ -150,7 +153,6 @@ def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, 
     if args.only_classifier:
         return pair_loss, None, None
 
-    # print(num_valid_grasps.shape)
     # print(mid_edge_points.shape)
     valid_grasp_mask = num_valid_grasps > 0
     valid_grasp_mask = valid_grasp_mask.flatten()
@@ -174,19 +176,16 @@ def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, 
 
 
     # # Calculate the grasp loss
-    grasp_pred = grasp_pred.reshape(-1, args.grasp_samples, 1,  16)
+    grasp_pred = grasp_pred.reshape(-1, num_grasp_samples, 1,  16)
     min_grasp_losses = []
     grasp_target = grasp_target.to(grasp_pred.device)
-    grasp_target = grasp_target.reshape(-1, args.grasp_samples, max_grasp_per_edge, 16)
+    grasp_target = grasp_target.reshape(-1, num_grasp_samples, max_grasp_per_edge, 16)
 
     #just translation
     # grasp_pred = grasp_pred_mat[:, :3, 3]
     # grasp_pred = grasp_pred.reshape(-1, args.grasp_samples, 1,  3)
     # grasp_target = grasp_target[:, :, :, :3, 3]
     # grasp_target = grasp_target.to(grasp_pred.device)
-   
-
-
 
     for i in range(len(grasp_target)):
         sample_grasp_target = grasp_target[i]
@@ -196,7 +195,7 @@ def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, 
 
         #some of the target grasps are just for padding
         #extract the valid grasp losses and take the minimum
-        for g_idx in range(args.grasp_samples):
+        for g_idx in range(num_grasp_samples):
             if num_valid_grasps[i, g_idx] == 0:
                 continue
             a_point_loss = grasp_losses[g_idx, :num_valid_grasps[i, g_idx]]
@@ -251,7 +250,8 @@ for epoch in range(1, num_epochs + 1):
         pair_scores_gt = pair_scores_gt.reshape(-1, num_pairs)
         binary_pair_scores_gt = (pair_scores_gt > 0).float().to(pair_classification_pred.device)
 
-        pair_loss, grasp_loss, tip_loss, grasp_axis_loss = calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_pos, mlp_out_ij, binary_pair_scores_gt, grasp_axises)
+        pair_loss, grasp_loss, tip_loss, grasp_axis_loss = calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_pos,
+                                                                           mlp_out_ij, binary_pair_scores_gt, grasp_axises, num_grasp_samples=args.grasp_samples)
 
         # contrastive_criterion = nn.CrossEntropyLoss()
         # contrastive_loss =  contrastive_criterion(mlp_out_ij, mlp_out_ji)
@@ -270,7 +270,7 @@ for epoch in range(1, num_epochs + 1):
         # else:
             # loss = grasp_loss + 500 * tip_loss + pair_loss
         # loss = 200 *grasp_loss + pair_loss + grasp_axis_loss
-        loss = grasp_loss + pair_loss
+        loss = grasp_loss + pair_loss + grasp_axis_loss
 
         loss.backward()
         # # Update the weights
@@ -293,6 +293,7 @@ for epoch in range(1, num_epochs + 1):
                     grasp_gt_paths = [s.sample_info['grasps'] for s in data]
                     means = [s.sample_info['mean'] for s in data]
                     train_grasp_success += check_batch_success_with_whole_gewa_dataset(grasp_pred, 0.03, np.deg2rad(30),grasp_gt_paths, means)
+
                 # Calculate the pair accuracy
                 pair_classification_pred = pair_classification_pred.to(binary_pair_scores_gt.device)
                 pair_classification_pred = torch.flatten(pair_classification_pred)
@@ -355,7 +356,7 @@ for epoch in range(1, num_epochs + 1):
                 val_binary_pair_scores_gt = (val_pair_scores_gt > 0).float().to(val_pair_pred.device)
 
                 val_pair_loss, val_grasp_loss, val_tip_loss, val_grasp_axis_loss = calculate_loss(val_grasp_pred, val_grasp_target, val_num_valid_grasps,
-                                                                            val_mid_edge_pos, val_mlp_out_ij, val_binary_pair_scores_gt, val_grasp_axises)
+                                                                            val_mid_edge_pos, val_mlp_out_ij, val_binary_pair_scores_gt, val_grasp_axises, topk)
 
                 if args.only_classifier:
                     val_loss = val_pair_loss
@@ -376,14 +377,16 @@ for epoch in range(1, num_epochs + 1):
 
                 
                 if not args.only_classifier:
-                    val_grasp_pred = val_grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
+                    val_grasp_pred = val_grasp_pred.cpu().detach().reshape(-1, topk, 1, 4, 4).numpy()
                     # val_grasp_target = val_grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
                     # val_num_valid_grasps = val_num_valid_grasps.cpu().detach().numpy()
                     # val_grasp_success += check_batch_grasp_success_rate_per_point(val_grasp_pred, val_grasp_target, 0.03,
                     #                                                                 np.deg2rad(30), val_num_valid_grasps)
                     val_grasp_gt_paths = [s.sample_info['grasps'] for s in val_data]
                     val_means = [s.sample_info['mean'] for s in val_data]
-                    val_grasp_success += check_batch_success_with_whole_gewa_dataset(val_grasp_pred, 0.03, np.deg2rad(30), val_grasp_gt_paths, val_means)
+                    val_grasp_success += check_batch_success_with_whole_gewa_dataset(val_grasp_pred, 0.03, np.deg2rad(30),val_grasp_gt_paths, val_means)
+
+
                 #sklearn to get other metrics
                 val_pair_pred = torch.flatten(val_pair_pred)
                 val_binary_pair_scores_gt = torch.flatten(val_binary_pair_scores_gt).int()
@@ -415,13 +418,13 @@ for epoch in range(1, num_epochs + 1):
             print(f"Train Pair F1: {train_f1} - Valid Pair F1: {val_f1}")
             print(f"Train Grasp Success: {train_success_rate} - Valid Grasp Success: {val_grasp_success_rate}")
             # Save the model if the validation loss is low
-            if val_f1 > 0.1:
+            if val_grasp_success_rate > 0.1:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}.pth"
                 model_folder = f"models/{model_name}"
                 if not os.path.exists(model_folder):
                     os.makedirs(model_folder)
 
-                model_file = f"{model_name}_epoch_{epoch}_acc_{valid_pair_accuracy:.2f}_recall_{val_recall:.2f}.pth"
+                model_file = f"{model_name}_epoch_{epoch}_success_{val_grasp_success_rate:.2f}_acc_{valid_pair_accuracy:.2f}_recall_{val_recall:.2f}.pth"
                 model_path = os.path.join(model_folder, model_file)
                 torch.save(model.state_dict(), model_path)
                 artifact = wandb.Artifact(model_file, type='model')

@@ -45,7 +45,7 @@ if __name__ == "__main__":
     model = TppNet(num_grasp_sample=grasp_samples, sort_by_score=sort_by_score, with_normals=True, normalize=True)
 
     # train_paths, val_paths = save_split_samples('../data', 1000, dataset_name="tpp_effdict")
-    train_paths, val_paths = save_contactnet_split_samples('../data', 1000, 
+    train_paths, val_paths = save_contactnet_split_samples('../data', 1200, 
                                                 dataset_name="tpp_effdict_nomean_wnormals")
 
     dataset = TPPDataset(val_paths, return_pair_dict=True, normalize=True, return_normals=True)

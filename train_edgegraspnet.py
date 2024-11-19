@@ -144,9 +144,15 @@ for epoch in range(1, num_epochs + 1):
     train_grasp_success = 0
     for i, data in tqdm(enumerate(train_data_loader), total=len(train_data_loader), desc=f"Epoch {epoch}/{num_epochs}"):
         optimizer.zero_grad()
-
+        if not multi_gpu:
+            # data = data.to(device)
+            data.pos = data.pos.to(device)
+            data.batch = data.batch.to(device)
+            data.normals = data.normals.to(device)
         train_loss, train_grasp_pred, train_success_pred, train_success_gt, train_approach_points = model(data)
 
+
+        # num_pos_pred = train_success_pred > 0.5
         # print(f"Loss takes {t4 - t3}s")
         if multi_gpu:
             train_loss = train_loss.mean()
@@ -160,11 +166,11 @@ for epoch in range(1, num_epochs + 1):
         if epoch % args.log_interval == 0:
             with torch.no_grad():
                 train_success_pred = train_success_pred.flatten()
-                train_success_gt = train_success_gt.flatten()
+                train_success_gt = train_success_gt.flatten().int()
                 train_accuracy += binary_accuracy(train_success_pred, train_success_gt)
-                # train_recall += binary_recall(train_success_pred, train_success_gt)
-                # train_precision += binary_precision(train_success_pred, train_success_gt)
-                # train_f1 += binary_f1_score(train_success_pred, train_success_gt)
+                train_recall += binary_recall(train_success_pred, train_success_gt)
+                train_precision += binary_precision(train_success_pred, train_success_gt)
+                train_f1 += binary_f1_score(train_success_pred, train_success_gt)
 
                 train_success_pred = train_success_pred.cpu().detach().reshape(-1, num_samples)
                 # get top 10 highest grasp predictions indexes 
@@ -211,7 +217,11 @@ for epoch in range(1, num_epochs + 1):
             val_f1 = 0
             val_grasp_success = 0
             for i, val_data in tqdm(enumerate(val_data_loader), total=len(val_data_loader), desc=f"Valid"):
-
+                if not multi_gpu:
+                    val_data.pos = val_data.pos.to(device)
+                    val_data.batch = val_data.batch.to(device)
+                    val_data.normals = val_data.normals.to(device)
+                    
                 val_loss, val_grasp_pred, val_success_pred, val_success_gt, val_approach_points = model(val_data)
 
                 if multi_gpu:
@@ -220,11 +230,11 @@ for epoch in range(1, num_epochs + 1):
                 total_val_loss += val_loss.item()
                 
                 val_success_pred = val_success_pred.flatten()
-                val_success_gt = val_success_gt.flatten()
+                val_success_gt = val_success_gt.flatten().int()
                 valid_accuracy += binary_accuracy(val_success_pred, val_success_gt)
-                # val_recall += binary_recall(val_pair_pred, val_binary_pair_scores_gt)
-                # val_precision += binary_precision(val_pair_pred, val_binary_pair_scores_gt)
-                # val_f1 += binary_f1_score(val_pair_pred, val_binary_pair_scores_gt)
+                val_recall += binary_recall(val_success_pred, val_success_gt)
+                val_precision += binary_precision(val_success_pred, val_success_gt)
+                val_f1 += binary_f1_score(val_success_pred, val_success_gt)
 
                 val_success_pred = val_success_pred.cpu().detach().reshape(-1, num_samples)
                 # get top 10 highest grasp predictions indexes 

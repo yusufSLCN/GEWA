@@ -21,7 +21,7 @@ class Classifier(torch.nn.Module):
                                 Linear(hidden_channels[1], hidden_channels[2]),
                                 ReLU(),
                                 Linear(hidden_channels[2], 1))
-        #self.sigmoid = torch.nn.Sigmoid()
+        # self.sigmoid = torch.nn.Sigmoid()
     def forward(self,x):
         x = self.head(x)
         return x
@@ -86,32 +86,6 @@ class GlobalEmdModel(torch.nn.Module):
         global_emd = global_max_pool(global_emd, radius_p_batch)
         return global_emd
 
-class GraspPosePredictor(nn.Module):
-    def __init__(self, global_feat_dim, approach_feat_dim=64, grasp_dim=16):
-        super(GraspPosePredictor, self).__init__()
-        
-        self.approach_encoder = nn.Sequential(
-            nn.Linear(3, 32),
-            nn.ReLU(),
-            nn.Linear(32, approach_feat_dim)
-        )
-
-        self.grasp_predictor = nn.Sequential(
-            nn.Linear(global_feat_dim + approach_feat_dim + 128 + 256, global_feat_dim  // 2),
-            nn.ReLU(),
-            nn.Linear(global_feat_dim // 2, global_feat_dim // 4),
-            nn.ReLU(),
-            nn.Linear(global_feat_dim // 4, grasp_dim),
-        )
-
-    
-    def forward(self, global_feats, approach_point):
-        approach_feat = self.approach_encoder(approach_point)
-        if approach_feat.dim() == 1:
-            approach_feat = approach_feat.unsqueeze(0)
-        x = torch.cat([global_feats, approach_feat], dim=1)
-        grasp = self.grasp_predictor(x)
-        return grasp
     
 class EdgeGrasp(nn.Module):
     def __init__(self, num_app_samples=32, num_contact_samples=32):
@@ -128,7 +102,8 @@ class EdgeGrasp(nn.Module):
         # self.gripper_depth = 1.12169998e-01 - 6.59999996e-02
         # self.gripper_depth = 6.59999996e-02
 
-        self.success_mse = nn.MSELoss()
+        # self.success_mse = nn.MSELoss()
+        self.success_mse = nn.BCEWithLogitsLoss()
 
 
     def forward(self, data):
@@ -165,7 +140,7 @@ class EdgeGrasp(nn.Module):
                 ball_normals = obj_normals[ball_idxs]
                 
 
-                batch_i = torch.zeros(ball_pos.size(0), dtype=torch.long)
+                batch_i = torch.zeros(ball_pos.size(0), dtype=torch.long).to('cuda')
                 f1, f2, features = self.local_emd_model(pos=ball_pos, batch=batch_i)
                 contact_emd = torch.cat((f1,f2,features),dim=1)
                 global_emd = self.global_emd_model(contact_emd, batch_i)
@@ -181,10 +156,10 @@ class EdgeGrasp(nn.Module):
 
                 #calculate the transformation matrix
                 grasp_pred = self.calculate_transformation(approach_point, contact_points, contact_normals)
-                success_pred = classifier_out[contact_point_idx]
+                success_pred = classifier_out[contact_point_idx].squeeze()
 
                 batch_grasp_pred[obj_i, i] = grasp_pred
-                batch_success_pred[obj_i, i] = success_pred.squeeze()
+                batch_success_pred[obj_i, i] = success_pred
 
                 #create the ground truth by checking the success of the grasps
                 grasp_gt_path = data[obj_i].sample_info['grasps']
@@ -192,9 +167,17 @@ class EdgeGrasp(nn.Module):
                 grasp_pred = grasp_pred.cpu().detach().reshape(self.num_contact_samples, 1, 4, 4).numpy()
                 binary_success_gt = get_binary_success_with_whole_gewa_dataset(grasp_pred, 0.03, np.deg2rad(30), grasp_gt_path, mean)
                 # print(np.sum(binary_success_gt))
-                binary_success_gt = torch.tensor(binary_success_gt, dtype=torch.float32)
+                binary_success_gt = torch.tensor(binary_success_gt, dtype=torch.float32).to("cuda")
                 batch_success_gt[obj_i, i] = binary_success_gt
 
+                # pos_grasps_mask_gt = binary_success_gt > 0
+                # pos_grasp_count = torch.sum(pos_grasps_mask_gt)
+                # neg_pos_ratio = binary_success_gt.shape[0] - pos_grasp_count / pos_grasp_count
+                # weighted_success_mse = nn.BCEWithLogitsLoss()
+
+                # print(binary_success_gt)
+                # print(success_pred)
+                # loss += weighted_success_mse(success_pred, binary_success_gt)
                 loss += self.success_mse(success_pred, binary_success_gt)
                 
                 # vis_num = 5
