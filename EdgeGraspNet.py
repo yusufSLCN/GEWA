@@ -224,6 +224,8 @@ if __name__ == "__main__":
     from torcheval.metrics.functional.classification import binary_accuracy
 
     model = EdgeGrasp() 
+    #count the number of parameters
+    print("Number of params: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
     train_paths, val_paths = save_contactnet_split_samples('../data', num_mesh=1200, dataset_name="tpp_effdict_nomean_wnormals")
     
     dataset = TPPDataset(val_paths, return_pair_dict=False, normalize=True, return_normals=True)

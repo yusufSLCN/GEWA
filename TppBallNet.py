@@ -59,9 +59,12 @@ class TppBallNet(nn.Module):
             nn.Linear(self.point_feat_dim, 1)
         )
 
-        self.ball_global_emd_dim = 512
+        self.ball_global_emd_dim = 256
         #extact ball global features
-        self.ball_global_encoder = GlobalEmdModel(input_c=self.point_feat_dim, inter_c=(256,512,512), output_c=self.ball_global_emd_dim)
+        self.ball_global_encoder = GlobalEmdModel(input_c=self.point_feat_dim, inter_c=(self.point_feat_dim,
+                                                                                        self.ball_global_emd_dim,
+                                                                                        self.ball_global_emd_dim),
+                                                                                          output_c=self.ball_global_emd_dim)
         
         # Grasp prediction head
         self.grasp_head = nn.Sequential(
