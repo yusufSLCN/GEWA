@@ -29,7 +29,7 @@ for i, rate in zip(low_success_rates_idx, low_success_rates):
 # Low success rate at index 119: 0.26
 # Low success rate at index 121: 0.08
 # Low success rate at index 125: 0.24
-# Low success rate at index 129: 0.0
+# Low success rate at index 129: 0.0 +
 # Low success rate at index 141: 0.2
 # Low success rate at index 145: 0.36
 # Low success rate at index 147: 0.3
@@ -37,11 +37,11 @@ for i, rate in zip(low_success_rates_idx, low_success_rates):
 # Low success rate at index 162: 0.2
 # Low success rate at index 163: 0.16
 # Low success rate at index 172: 0.32
-# Low success rate at index 179: 0.06
+# Low success rate at index 179: 0.06 +
 # Low success rate at index 188: 0.16
 # Low success rate at index 193: 0.34
 # Low success rate at index 200: 0.42
-# Low success rate at index 204: 0.18
+# Low success rate at index 204: 0.18 +
 # Low success rate at index 210: 0.3
 # Low success rate at index 211: 0.04
 # Low success rate at index 212: 0.26
@@ -49,7 +49,7 @@ for i, rate in zip(low_success_rates_idx, low_success_rates):
 # Low success rate at index 222: 0.44
 # Low success rate at index 224: 0.0
 # Low success rate at index 230: 0.3
-# Low success rate at index 235: 0.38
+# Low success rate at index 235: 0.38 +
 # Low success rate at index 236: 0.46
 # Low success rate at index 237: 0.16 +
 # Low success rate at index 244: 0.34

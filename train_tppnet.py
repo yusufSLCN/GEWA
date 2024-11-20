@@ -9,6 +9,7 @@ import argparse
 from tqdm import tqdm
 from tpp_dataset import TPPDataset
 from TppNet import TppNet
+from TppBallNet import TppBallNet
 from create_tpp_dataset import save_contactnet_split_samples
 from metrics import check_batch_success_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
 import os
@@ -36,6 +37,7 @@ parser.add_argument('-gd','--grasp_dim', type=int, default=7)
 parser.add_argument('-gs', '--grasp_samples', type=int, default=100)
 parser.add_argument('-li', '--log_interval', type=int, default=10)
 parser.add_argument('-oc', '--only_classifier', action='store_true')
+parser.add_argument('-mn', '--model_name', type=str, default='tppnet')
 # parser.add_argument('-csplit', '--contactnet_split', action='store_true')
 parser.add_argument('-dn', '--dataset_name', type=str, default="tpp_effdict_nomean_wnormals")
 args = parser.parse_args()
@@ -106,8 +108,13 @@ print(device)
 # model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
 max_grasp_per_edge = 10
 topk = 10
-model = TppNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples,
+if args.model_name == 'tppnet':
+    model = TppNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples,
                 max_num_grasps=max_grasp_per_edge, only_classifier=args.only_classifier, normalize=True, topk=topk).to(device)
+elif args.model_name == 'tppballnet':
+    model = TppBallNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples,
+                max_num_grasps=max_grasp_per_edge, only_classifier=args.only_classifier, normalize=True, topk=topk).to(device)
+
 num_pairs = model.num_pairs
 config.model_name = model.__class__.__name__
 config.topk = topk
