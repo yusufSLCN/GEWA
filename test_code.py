@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from torch_geometric.nn import DynamicEdgeConv, MLP
+from torch_geometric.nn import DynamicEdgeConv, MLP, radius
 
 # arr = np.arange(32).reshape(-1, 4, 4)
 # print(arr)
@@ -43,17 +43,25 @@ from torch_geometric.nn import DynamicEdgeConv, MLP
 # train_meshes, valid_meshes = get_contactnet_split()
 # print(train_meshes[0])
 
-grasps = np.random.rand(2, 1024, 1, 4, 4)  # Shape (2, 1024, 1, 4, 4)
-indexes = np.array([
-    [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000],  # Indices for first group
-    [50, 150, 250, 350, 450, 550, 650, 750, 850, 950]     # Indices for second group
-])  # Shape (2, 10)
+# grasps = np.random.rand(2, 1024, 1, 4, 4)  # Shape (2, 1024, 1, 4, 4)
+# indexes = np.array([
+#     [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000],  # Indices for first group
+#     [50, 150, 250, 350, 450, 550, 650, 750, 850, 950]     # Indices for second group
+# ])  # Shape (2, 10)
 
-# Use advanced indexing to select based on indexes
-result = grasps[np.arange(2)[:, None], indexes]  # Shape (2, 10, 1, 4, 4)
+# # Use advanced indexing to select based on indexes
+# result = grasps[np.arange(2)[:, None], indexes]  # Shape (2, 10, 1, 4, 4)
 
-print(result.shape) 
-print(grasps[0, indexes[0]].shape)
-print(result[0].shape)
-#check if they are equal
-print(np.allclose(result[0], grasps[0, indexes[0]]))
+# print(result.shape) 
+# print(grasps[0, indexes[0]].shape)
+# print(result[0].shape)
+# #check if they are equal
+# print(np.allclose(result[0], grasps[0, indexes[0]]))
+
+points = torch.rand((100, 3)) 
+radiuss = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5])
+batch = torch.zeros(5, dtype=torch.long)
+# print(points)
+cropped_points = radius(points, batch, r= radiuss, max_num_neighbors=10)
+print(cropped_points.shape)
+print(cropped_points)

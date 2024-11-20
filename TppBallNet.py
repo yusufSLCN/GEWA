@@ -113,6 +113,7 @@ class TppBallNet(nn.Module):
         mid_edge_pos = []
         grasp_touch_points = []
         grasp_axises = []
+        edge_lengths = []
 
         edge_scores = data.pair_scores
         edge_scores = edge_scores.reshape(-1, self.num_pairs)
@@ -154,7 +155,11 @@ class TppBallNet(nn.Module):
             selected_edge_node1 = self.triu[0][edge_index]
             selected_edge_node2 = self.triu[1][edge_index]
             selected_edge_idxs.append(edge_index)
+            selected_edge_features.append(edge_feature_ij[i, edge_index])
 
+
+            radius_p_index = []
+            radius_p_batch = []
             # print("selection loop start")
             for edge_j, (point1_idx, point2_idx) in enumerate(zip(selected_edge_node1, selected_edge_node2)):
                 point1_idx = point1_idx.item()
@@ -178,20 +183,34 @@ class TppBallNet(nn.Module):
 
                 grasp_axis = sample_pos[point2_idx] - sample_pos[point1_idx]
                 grasp_axises.append(grasp_axis)
+                edge_lenght = torch.linalg.vector_norm(grasp_axis, dim=-1)
+                edge_lengths.append(edge_lenght)
                 mid_point = (sample_pos[point1_idx] + sample_pos[point2_idx]) / 2
                 mid_edge_pos.append(mid_point)
-                batch_mid_edge_pos.append(mid_point)
                 touch_point_pair = torch.hstack([sample_pos[point1_idx], sample_pos[point2_idx]])
                 grasp_touch_points.append(touch_point_pair)
 
-            selected_edge_features.append(edge_feature_ij[i, edge_index])
 
-            #extract ball global features
-            batch_mid_edge_pos = torch.stack(batch_mid_edge_pos)
-            radius_p_batch_index = radius(sample_pos, batch_mid_edge_pos, r=0.038, max_num_neighbors=1024)
-            radius_p_index = radius_p_batch_index[1, :]
-            radius_p_batch = radius_p_batch_index[0, :]
+                #extract ball global features
+                # edge_half_length = edge_lengths[edge_j]
+                # crop_center = mid_edge_pos[edge_j] 
+                if edge_lenght < 0.01:
+                    edge_lenght = 0.01
+                # print(sample_pos.shape)
+                radius_p_batch_index = radius(sample_pos, mid_point, r=edge_lenght/2, max_num_neighbors=64)
+                cropped_idxs = radius_p_batch_index[1, :]
+                if cropped_idxs.shape[0] == 0:
+                    cropped_idxs = torch.tensor([point1_idx, point2_idx])
+                # distances = torch.linalg.vector_norm(sample_pos - mid_point, dim=-1)
+                # cropped_idxs = distances < (edge_lenght )
+                # cropped_idxs = torch.where(cropped_idxs)[0]
+                # print(cropped_idxs.shape, edge_lenght, mid_point)
+                radius_p_index.append(cropped_idxs)
+                radius_p_batch.append(torch.zeros_like(cropped_idxs) + edge_j)
 
+            radius_p_index = torch.cat(radius_p_index)
+            radius_p_batch = torch.cat(radius_p_batch)
+            # print(radius_p_index.shape, torch.max(radius_p_batch))
             ball_shared_features = shared_features[i, radius_p_index]
             ball_global_emd = self.ball_global_encoder(ball_shared_features, radius_p_batch)
             ball_global_features.append(ball_global_emd)
