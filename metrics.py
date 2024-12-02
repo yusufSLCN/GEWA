@@ -225,8 +225,8 @@ if __name__ == "__main__":
 
 
     # print(f"Succes rate: {sr}")
-    from gewa_dataset import GewaDataset
-    from create_gewa_dataset import save_split_samples
+    from approach_dataset import ApproachDataset
+    from create_approach_dataset import save_split_samples
     from torch_geometric.loader import DataLoader
     # from acronym_dataset import RandomRotationTransform
     import time
@@ -236,7 +236,7 @@ if __name__ == "__main__":
     rotation_range = [-180, 180]
 
     # transform = RandomRotationTransform(rotation_range)
-    train_dataset = GewaDataset(val_paths, normalize_points=True)
+    train_dataset = ApproachDataset(val_paths, normalize_points=True)
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=False, num_workers=0)
     total_success = 0
     approach_acc = 0

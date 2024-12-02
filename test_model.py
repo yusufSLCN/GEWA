@@ -2,8 +2,8 @@ import torch
 from torch_geometric.data import Data
 # from GraspNet import GraspNet
 from ApproachNet import ApproachNet
-from gewa_dataset import GewaDataset
-from create_gewa_dataset import save_split_samples
+from approach_dataset import ApproachDataset
+from create_approach_dataset import save_split_samples
 from acronym_visualize_dataset import visualize_grasp, visualize_gt_and_pred_gasp
 import argparse
 import wandb
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
     train_paths, val_paths = save_split_samples('../data', -1)
-    dataset = GewaDataset(val_paths)
+    dataset = ApproachDataset(val_paths)
     # data_loader = DataListLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
 
     samlpe_idx = args.sample_idx

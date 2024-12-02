@@ -312,14 +312,14 @@ def visualize_sample(model_path, samples):
         print("Sample not found")
 
 if __name__ == "__main__":
-    from gewa_dataset import GewaDataset
-    from create_gewa_dataset import save_split_samples
+    from approach_dataset import ApproachDataset
+    from create_approach_dataset import save_contactnet_split_samples
 
 
-    train_paths, val_paths = save_split_samples('../data', -1)
+    train_paths, val_paths = save_contactnet_split_samples('../data', 1200)
     # val_dataset = AcronymDataset(val_paths)
 
-    train_dataset = GewaDataset(train_paths)
+    train_dataset = ApproachDataset(train_paths)
 
     sample_idx = 15
     

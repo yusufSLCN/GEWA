@@ -86,62 +86,13 @@ class TppNet(nn.Module):
         global_embedding = global_embedding.repeat(1, feat_j.shape[1], 1)
 
         edge_feature_ij = torch.cat([feat_i, feat_j, global_embedding], dim=-1)
+        print(edge_feature_ij.shape)
         mlp_out_ij = self.edge_classifier(edge_feature_ij)
         mlp_out_ij = mlp_out_ij.squeeze(-1)
         pair_classification_out_ij = torch.sigmoid(mlp_out_ij)
 
         if self.only_classifier:
             return None, None, None, None, None, pair_classification_out_ij, mlp_out_ij
-        # edge_feature_ji = torch.cat([feat_j, feat_i, global_embedding], dim=-1)
-        # mlp_out_ji = self.edge_classifier(edge_feature_ji)
-        # mlp_out_ji = mlp_out_ji.squeeze(-1)
-        # pair_classification_out_ji = torch.sigmoid(mlp_out_ji)
-
-        # return pair_classification_out_ij, mlp_out_ij
-        #------------------------------------------------------
-        # shared_features = shared_features.reshape(-1, self.num_points, self.point_feat_dim)
-        # feat_i = shared_features[:, self.triu[0], :]
-        # feat_j = shared_features[:, self.triu[1], :]
-        # edge_feature_ij = torch.cat([feat_i, feat_j], dim=-1)
-        # mlp_out_ij = self.edge_classifier(edge_feature_ij)
-        # mlp_out_ij = mlp_out_ij.squeeze(-1)
-        # pair_classification_out_ij = torch.sigmoid(mlp_out_ij)
-
-        # edge_feature_ji = torch.cat([feat_j, feat_i], dim=-1)
-        # mlp_out_ji = self.edge_classifier(edge_feature_ji)
-        # mlp_out_ji = mlp_out_ji.squeeze(-1)
-        # pair_classification_out_ji = torch.sigmoid(mlp_out_ji)
-
-        # return pair_classification_out_ij, mlp_out_ij, pair_classification_out_ji, mlp_out_ji
-        #------------------------------------------------------
-        # shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)
-        # dot_product = torch.matmul(shared_features, shared_features.transpose(1, 2))
-        # pair_dot_product = dot_product[:, self.triu[0], self.triu[1]]
-        # # print(pair_dot_product.shape)
-        # # out_features = self.dot_product_head(pair_dot_product)
-
-        # pair_classification_out = torch.sigmoid(pair_dot_product)
-
-        # return pair_classification_out, pair_dot_product
-    
-        #------------------------------------------------------
-
-        # global_features = global_mean_pool(shared_features, batch)
-        # global_features = global_features.reshape(-1, 1, self.point_feat_dim)
-        # global_features = global_features.repeat(1, 1000, 1)
-        # shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)
-
-        # combined_features = torch.cat([shared_features, global_features], dim=2)
-        # dot_product = torch.matmul(combined_features, combined_features.transpose(1, 2))
-        # pair_dot_product = dot_product[:, self.triu[0], self.triu[1]]
-        # # print(pair_dot_product.shape)
-        # # out_features = self.dot_product_head(pair_dot_product)
-        # pair_classification_out = torch.sigmoid(pair_dot_product)
-
-        # return pair_classification_out, pair_dot_product
-
-
-        #------------------------------------------------------
         
         selected_edge_idxs = []
         selected_edge_features = []
@@ -150,9 +101,6 @@ class TppNet(nn.Module):
         grasp_touch_points = []
         grasp_axises = []
 
-
-        # print(data.y[list(data.y.keys())[0]])
-        # print(data.pair_scores.shape)
         edge_scores = data.pair_scores
         edge_scores = edge_scores.reshape(-1, self.num_pairs)
         pos = pos.reshape(-1, self.num_points, 3)
@@ -228,9 +176,6 @@ class TppNet(nn.Module):
         grasp_axises = torch.stack(grasp_axises)
         grasp_axises = grasp_axises / torch.norm(grasp_axises, dim=-1, keepdim=True)
         selected_edge_features = torch.stack(selected_edge_features)
-        # grasp_touch_points = torch.stack(grasp_touch_points)
-        # grasp_touch_points = grasp_touch_points.reshape(-1, self.num_grasp_sample, 6)
-        # grasp_features = torch.cat([selected_edge_features, grasp_touch_points], dim=-1)
         
         # predict grasps
         grasp_outputs = self.grasp_head(selected_edge_features)

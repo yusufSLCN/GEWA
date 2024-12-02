@@ -7,9 +7,9 @@ from torch_geometric.nn import DataParallel
 from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
-from gewa_dataset import GewaDataset
-from DynANet import DynANet
-from create_gewa_dataset import save_contactnet_split_samples
+from approach_dataset import ApproachDataset
+from ApproachNet import ApproachNet
+from create_approach_dataset import save_contactnet_split_samples
 from metrics import check_batch_success_with_whole_gewa_dataset, count_correct_approach_scores, check_batch_grasp_success_rate_per_point
 import os
 import numpy as np
@@ -56,8 +56,8 @@ print("Transform params: ", transfom_params)
 # Save the split samples
 train_dirs, val_dirs = save_contactnet_split_samples(args.data_dir, num_mesh=args.num_mesh)
 max_grasp_per_point = 20
-train_dataset = GewaDataset(train_dirs, transform=transform, max_grasp_perpoint=max_grasp_per_point)
-val_dataset = GewaDataset(val_dirs, max_grasp_perpoint=max_grasp_per_point)
+train_dataset = ApproachDataset(train_dirs, transform=transform, max_grasp_perpoint=max_grasp_per_point)
+val_dataset = ApproachDataset(val_dirs, max_grasp_perpoint=max_grasp_per_point)
                    
 # Initialize wandb
 wandb.init(project="Grasp", notes=args.notes)
@@ -96,7 +96,7 @@ print(device)
 # Initialize the model
 # model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
 # model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
-model = DynANet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples).to(device)
+model = ApproachNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples).to(device)
 
 config.model_name = model.__class__.__name__
 

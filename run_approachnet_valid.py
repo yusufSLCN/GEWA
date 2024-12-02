@@ -1,15 +1,15 @@
 import torch
 import torch.nn as nn
 from torch_geometric.data import Data
-from DynANet import DynANet
-from gewa_dataset import GewaDataset
+from ApproachNet import ApproachNet
+from approach_dataset import ApproachDataset
 import argparse
 import wandb
 from torch_geometric.loader import DataLoader
 import numpy as np
 from torcheval.metrics.functional.classification import binary_recall, binary_precision, binary_accuracy
 from metrics import check_succces_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
-from create_gewa_dataset import save_contactnet_split_samples
+from create_approach_dataset import save_contactnet_split_samples
 
 
 if __name__ == "__main__":
@@ -40,14 +40,14 @@ if __name__ == "__main__":
 
 
     # load the GraspNet model and run inference then display the gripper pose
-    model = DynANet(grasp_dim=9, num_grasp_sample=num_grasp_samples, sort_by_score=sort_by_score)
+    model = ApproachNet(grasp_dim=9, num_grasp_sample=num_grasp_samples, sort_by_score=sort_by_score)
     config.model_name = model.__class__.__name__
     model = nn.DataParallel(model, device_ids=[0])
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
     train_paths, val_paths = save_contactnet_split_samples('../data', num_mesh=1200)
 
-    dataset = GewaDataset(val_paths)
+    dataset = ApproachDataset(val_paths)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)
     
     config.model_path = model_path

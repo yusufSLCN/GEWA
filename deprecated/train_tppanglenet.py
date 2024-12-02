@@ -8,7 +8,7 @@ from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
 from tpp_dataset import TPPDataset
-from TppAngleNet import TppAngleNet
+from deprecated.TppAngleNet import TppAngleNet
 from create_tpp_dataset import save_contactnet_split_samples
 from metrics import check_batch_success_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
 import os

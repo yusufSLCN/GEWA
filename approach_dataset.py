@@ -1,11 +1,11 @@
 import torch
 from torch.utils.data import Dataset
 from torch_geometric.data import Data
-from create_gewa_dataset import save_split_samples
+from create_approach_dataset import save_split_samples
 import numpy as np 
 
     
-class GewaDataset(Dataset):
+class ApproachDataset(Dataset):
     def __init__(self, data, transform=None, normalize_points=True, max_grasp_perpoint=20):
         self.data = data
         self.transform = transform
@@ -60,7 +60,7 @@ class GewaDataset(Dataset):
     
 if __name__ == "__main__":
     train_data, valid_data = save_split_samples('../data', -1)
-    dataset = GewaDataset(train_data)
+    dataset = ApproachDataset(train_data)
     print(dataset[0])
     # print(dataset[4207].num_grasps)
     bad_sample_count = 0

@@ -7,9 +7,9 @@ from torch_geometric.nn import DataParallel
 from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
-from gewa_dataset import GewaDataset
+from approach_dataset import ApproachDataset
 from GraspNet import GraspNet
-from create_gewa_dataset import save_split_samples
+from create_approach_dataset import save_split_samples
 from metrics import check_batch_grasp_success
 import os
 import numpy as np
@@ -50,8 +50,8 @@ print("Transform params: ", transfom_params)
 
 # Save the split samples
 train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh)
-train_dataset = GewaDataset(train_dirs)
-val_dataset = GewaDataset(val_dirs)
+train_dataset = ApproachDataset(train_dirs)
+val_dataset = ApproachDataset(val_dirs)
                    
 # Initialize wandb
 wandb.init(project="GEWA", notes=args.notes)

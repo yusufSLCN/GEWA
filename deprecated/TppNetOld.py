@@ -285,10 +285,10 @@ if __name__ == "__main__":
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     device = "cpu"
     if device == "cuda":
-        model = TppNet(normalize=True).to(device)
+        model = TppNetOld(normalize=True).to(device)
         model = DataParallel(model)
     else:
-        model = TppNet(normalize=True)
+        model = TppNetOld(normalize=True)
         # model = DataParallel(model)
     # dataset_name = "tpp_seed"
     dataset_name = "tpp_effdict_nomean_wnormals"

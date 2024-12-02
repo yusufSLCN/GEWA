@@ -1,6 +1,6 @@
 from acronym_visualize_dataset import visualize_point_cloud, visualize_approach_points, visualize_grasps
-from gewa_dataset import GewaDataset
-from create_gewa_dataset import save_contactnet_split_samples
+from approach_dataset import ApproachDataset
+from create_approach_dataset import save_contactnet_split_samples
 import argparse
 import numpy as np
 
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     #train samples: banana 100, bear bottle 160, bread slice 250
     #
     train_samples, val_samples = save_contactnet_split_samples('../data', num_mesh=1200)
-    dataset = GewaDataset(train_samples)
+    dataset = ApproachDataset(train_samples)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i','--index', type=int, default=0)

@@ -2,7 +2,7 @@ import torch
 # from torch_geometric.nn import PointNetConv
 import torch.nn as nn
 import torch.nn.functional as F
-from PointNet2 import GlobalSAModule, SAModule
+from deprecated.PointNet2 import GlobalSAModule, SAModule
 
 import torch_geometric.transforms as T
 from torch_geometric.datasets import ShapeNet

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch_geometric.data import Data
 from TppNet import TppNet
-from TppNetOld import TppNetOld
+from deprecated.TppNetOld import TppNetOld
 from tpp_dataset import TPPDataset
 from visualize_tpp_dataset import show_pair_edges, show_grasp_and_edge_predictions, show_obj_mesh
 import argparse

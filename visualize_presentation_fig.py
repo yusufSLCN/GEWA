@@ -87,20 +87,33 @@ def show_grasp_and_edge_predictions(points, gt_grasp_dict, selected_edge_idx, gr
 
 def show_grasps_of_edges(points, grasps_dict, pair_scores, triu_indices, args, sample_info=None, mean=None, view_params=None, save=False):
     pair_idxs = np.where(pair_scores > 0)[0]
-    random_idxs = np.random.randint(0, pair_idxs.shape[0], args.num_grasps)
-    selected_pair_idxs = pair_idxs[random_idxs]
+    selected_pair_idxs = pair_idxs[0:1]
+    # random_idxs = np.random.randint(0, pair_idxs.shape[0], args.num_grasps)
+    # selected_pair_idxs = pair_idxs[random_idxs]
 
     gripper_meshes = []
     for pair_idx in selected_pair_idxs:
         i, j = triu_indices[0][pair_idx], triu_indices[1][pair_idx]
         key = frozenset((i, j))
-        gripper_mesh = create_gripper()
+        gripper_mesh = create_gripper([0, 255, 0])
 
         transform = grasps_dict[key][0].reshape(4, 4)
         if mean is not None:
             transform[0:3, 3] -= mean
-        gripper_mesh.transform(transform)
-        gripper_meshes.append(gripper_mesh)
+        # gripper_mesh.transform(transform)
+        # gripper_meshes.append(gripper_mesh)
+
+        pred_gripper_mesh = create_gripper()
+        #rotate 30 degrees
+        angle = np.pi/6
+        # transform[:3, :3] = transform[:3, :3] @ np.array([[1, 0, 0], [0, np.cos(angle), -np.sin(angle)], [0, np.sin(angle), np.cos(angle)]])
+        #rotate 30 degrees around z axis
+        transform[:3, :3] = transform[:3, :3] @ np.array([[np.cos(angle), -np.sin(angle), 0], [np.sin(angle), np.cos(angle), 0], [0, 0, 1]])
+        #shift 3cm in z direction
+        transform[0:3, 3] += np.array([0, 0, 0.01])
+        pred_transform = transform
+        pred_gripper_mesh.transform(pred_transform)
+        gripper_meshes.append(pred_gripper_mesh)
 
 
     selected_edge_index = np.stack((triu_indices[0][selected_pair_idxs], triu_indices[1][selected_pair_idxs]), axis=1) 
@@ -227,6 +240,8 @@ def show_all_tpps_of_grasp(points, grasps_dict, pair_scores, triu_indices, args)
 
 def show_pair_edges(points, pair_scores, triu_indices, threshold=0.5, show_gripper=False, view_params=None, save_name="", save=False):
     pair_idxs = np.where(pair_scores > threshold)[0]
+    #select only one idx
+    pair_idxs = pair_idxs[0:1]
     good_pair_scores = pair_scores[pair_idxs]
     edge_index = np.stack((triu_indices[0][pair_idxs], triu_indices[1][pair_idxs]), axis=1) 
     cmap_name = 'viridis'  # You can change this to any other colormap name
@@ -345,7 +360,7 @@ if __name__ == "__main__":
     print("Done!")
     #train samples: banana 100, bear bottle 160, bread slice 250, 650 mug
     #valid samples: desk 160, curtain 155, fork 232, foodbag 230 ------ try 224, 237, 248
-    #42 teddy bear
+    #42 teddy bear, 75 bowl
 
     dataset = TPPDataset(val_samples, return_pair_dict=True, normalize=True)
     sample = dataset[args.index]
@@ -369,7 +384,7 @@ if __name__ == "__main__":
     # show_pair_edges(pos, pair_scores, dataset.triu_indices,
     #                  view_params=view_params, save=save_image)
 
-    for i in range(42, len(dataset)):
+    for i in range(45, len(dataset)):
         print(f"Sample index: {i}")
         sample = dataset[i]
         pos = sample.pos.numpy()

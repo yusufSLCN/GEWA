@@ -5,7 +5,7 @@ from torch_geometric.loader import DataListLoader, DataLoader
 import numpy as np
 import time
 from metrics import check_batch_success_with_whole_gewa_dataset
-from TppAngleNet import TppAngleNet
+from deprecated.TppAngleNet import TppAngleNet
 
 import numpy as np
 

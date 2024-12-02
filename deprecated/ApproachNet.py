@@ -215,8 +215,8 @@ class ApproachNet(nn.Module):
 
 if __name__ == "__main__":
 
-    from gewa_dataset import GewaDataset
-    from create_gewa_dataset import save_split_samples
+    from approach_dataset import ApproachDataset
+    from create_approach_dataset import save_split_samples
     from torch_geometric.loader import DataLoader
     from metrics import check_batch_grasp_success
     import numpy as np
@@ -225,7 +225,7 @@ if __name__ == "__main__":
     train_paths, val_paths = save_split_samples('../data', -1)
 
     # transform = RandomRotationTransform(rotation_range)
-    train_dataset = GewaDataset(train_paths, transform=None, normalize_points=True)
+    train_dataset = ApproachDataset(train_paths, transform=None, normalize_points=True)
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=False, num_workers=0)
     num_success= 0
     for i, data in enumerate(train_loader):
