@@ -4,10 +4,10 @@ import torch.nn.functional as F
 from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool, global_mean_pool
 import numpy as np
 
-class TppNetOld(nn.Module):
-    def __init__(self, grasp_dim=9, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False,
-                  sort_by_score=False, with_normals=False, normalize=False):
-        super(TppNetOld, self).__init__()
+class TppNet(nn.Module):
+    def __init__(self, grasp_dim=7, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False,
+                  sort_by_score=True, with_normals=False, normalize=False, topk=10):
+        super(TppNet, self).__init__()
         
         self.num_grasp_sample = num_grasp_sample
         self.grap_dim = grasp_dim
@@ -18,6 +18,7 @@ class TppNetOld(nn.Module):
         self.only_classifier = only_classifier
         self.sort_by_score = sort_by_score
         self.normalize = normalize
+        self.topk = topk
 
         self.with_normals = with_normals
         self.triu = torch.triu_indices(num_points, num_points, offset=1)
@@ -64,7 +65,6 @@ class TppNetOld(nn.Module):
         if self.with_normals:
             normals = data.normals
             input = torch.cat((pos, normals), dim=1)
-            # print(pos.shape, normals.shape)
         else:
             input = pos
             
@@ -91,56 +91,6 @@ class TppNetOld(nn.Module):
 
         if self.only_classifier:
             return None, None, None, None, None, pair_classification_out_ij, mlp_out_ij
-        # edge_feature_ji = torch.cat([feat_j, feat_i, global_embedding], dim=-1)
-        # mlp_out_ji = self.edge_classifier(edge_feature_ji)
-        # mlp_out_ji = mlp_out_ji.squeeze(-1)
-        # pair_classification_out_ji = torch.sigmoid(mlp_out_ji)
-
-        # return pair_classification_out_ij, mlp_out_ij
-        #------------------------------------------------------
-        # shared_features = shared_features.reshape(-1, self.num_points, self.point_feat_dim)
-        # feat_i = shared_features[:, self.triu[0], :]
-        # feat_j = shared_features[:, self.triu[1], :]
-        # edge_feature_ij = torch.cat([feat_i, feat_j], dim=-1)
-        # mlp_out_ij = self.edge_classifier(edge_feature_ij)
-        # mlp_out_ij = mlp_out_ij.squeeze(-1)
-        # pair_classification_out_ij = torch.sigmoid(mlp_out_ij)
-
-        # edge_feature_ji = torch.cat([feat_j, feat_i], dim=-1)
-        # mlp_out_ji = self.edge_classifier(edge_feature_ji)
-        # mlp_out_ji = mlp_out_ji.squeeze(-1)
-        # pair_classification_out_ji = torch.sigmoid(mlp_out_ji)
-
-        # return pair_classification_out_ij, mlp_out_ij, pair_classification_out_ji, mlp_out_ji
-        #------------------------------------------------------
-        # shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)
-        # dot_product = torch.matmul(shared_features, shared_features.transpose(1, 2))
-        # pair_dot_product = dot_product[:, self.triu[0], self.triu[1]]
-        # # print(pair_dot_product.shape)
-        # # out_features = self.dot_product_head(pair_dot_product)
-
-        # pair_classification_out = torch.sigmoid(pair_dot_product)
-
-        # return pair_classification_out, pair_dot_product
-    
-        #------------------------------------------------------
-
-        # global_features = global_mean_pool(shared_features, batch)
-        # global_features = global_features.reshape(-1, 1, self.point_feat_dim)
-        # global_features = global_features.repeat(1, 1000, 1)
-        # shared_features = shared_features.reshape(-1, 1000, self.point_feat_dim)
-
-        # combined_features = torch.cat([shared_features, global_features], dim=2)
-        # dot_product = torch.matmul(combined_features, combined_features.transpose(1, 2))
-        # pair_dot_product = dot_product[:, self.triu[0], self.triu[1]]
-        # # print(pair_dot_product.shape)
-        # # out_features = self.dot_product_head(pair_dot_product)
-        # pair_classification_out = torch.sigmoid(pair_dot_product)
-
-        # return pair_classification_out, pair_dot_product
-
-
-        #------------------------------------------------------
         
         selected_edge_idxs = []
         selected_edge_features = []
@@ -149,16 +99,17 @@ class TppNetOld(nn.Module):
         grasp_touch_points = []
         grasp_axises = []
 
-
-        # print(data.y[list(data.y.keys())[0]])
-        # print(data.pair_scores.shape)
         edge_scores = data.pair_scores
         edge_scores = edge_scores.reshape(-1, self.num_pairs)
         pos = pos.reshape(-1, self.num_points, 3)
-        grasp_gt = np.zeros((pos.shape[0], self.num_grasp_sample, self.max_num_grasps, 4, 4))
-        num_valid_grasps = np.zeros((pos.shape[0], self.num_grasp_sample))
-        # print(edge_scores.shape)
-        # print(data.y)
+
+        if self.training:
+            num_valid_grasps = np.zeros((pos.shape[0], self.num_grasp_sample))
+            grasp_gt = np.zeros((pos.shape[0], self.num_grasp_sample, self.max_num_grasps, 4, 4))
+        else:
+            num_valid_grasps = np.zeros((pos.shape[0], self.topk))
+            grasp_gt = np.zeros((pos.shape[0], self.topk, self.max_num_grasps, 4, 4))
+
         for i in range(edge_scores.shape[0]):  # Iterate over each edge in the batch
             sample_pos = pos[i]
             
@@ -173,13 +124,13 @@ class TppNetOld(nn.Module):
                 sample_edge_prob = pair_classification_out_ij[i]
                 if self.sort_by_score:
                     sorted_score = torch.argsort(sample_edge_prob, descending=True)
-                    edge_index = sorted_score[:self.num_grasp_sample]
+                    edge_index = sorted_score[:self.topk]
                 else:
                     pos_pair_count = torch.sum(sample_edge_prob > 0.5)
                     if pos_pair_count > 0:
                         sample_edge_prob[sample_edge_prob < 0.5] = 0
-                    with_replacement = pos_pair_count < self.num_grasp_sample
-                    edge_index = torch.multinomial(sample_edge_prob, num_samples=self.num_grasp_sample, 
+                    with_replacement = pos_pair_count < self.topk
+                    edge_index = torch.multinomial(sample_edge_prob, num_samples=self.topk, 
                                                     replacement=with_replacement.item())
             
             # print("find edge indxs")
@@ -187,7 +138,7 @@ class TppNetOld(nn.Module):
             selected_edge_node1 = self.triu[0][edge_index]
             selected_edge_node2 = self.triu[1][edge_index]
             selected_edge_idxs.append(edge_index)
-            # print(data.y)
+
             # print("selection loop start")
             for edge_j, (point1_idx, point2_idx) in enumerate(zip(selected_edge_node1, selected_edge_node2)):
                 point1_idx = point1_idx.item()
@@ -221,9 +172,6 @@ class TppNetOld(nn.Module):
         grasp_axises = torch.stack(grasp_axises)
         grasp_axises = grasp_axises / torch.norm(grasp_axises, dim=-1, keepdim=True)
         selected_edge_features = torch.stack(selected_edge_features)
-        # grasp_touch_points = torch.stack(grasp_touch_points)
-        # grasp_touch_points = grasp_touch_points.reshape(-1, self.num_grasp_sample, 6)
-        # grasp_features = torch.cat([selected_edge_features, grasp_touch_points], dim=-1)
         
         # predict grasps
         grasp_outputs = self.grasp_head(selected_edge_features)
@@ -242,21 +190,17 @@ class TppNetOld(nn.Module):
             # print(grasp_gt.shape)
             # grasp_outputs = grasp_outputs.view(-1, 16)
 
-        # print("return")
         selected_edge_idxs = selected_edge_idxs.to(grasp_outputs.device)
         grasp_gt = grasp_gt.to(grasp_outputs.device)
         num_valid_grasps = num_valid_grasps.to(grasp_outputs.device)
-        # print(grasp_outputs.device, selected_edge_idxs.device,
-        #        mid_edge_pos.device, grasp_gt.device, num_valid_grasps.device, pair_classification_out_ij.device, mlp_out_ij.device)
-
 
         return grasp_outputs, selected_edge_idxs, mid_edge_pos, grasp_axises, grasp_gt, num_valid_grasps, pair_classification_out_ij, mlp_out_ij
 
     
     def calculateTransformationMatrix(self, grasp, mid_points):
         # translation = grasp[:, :3] + mid_points
-        r1 = grasp[:, 3:6]
-        r2 = grasp[:, 6:]
+        r1 = grasp[:, :3]
+        r2 = grasp[:, 3:6]
         #orthogonalize the rotation vectors
         r1 = r1 / torch.norm(r1, dim=1, keepdim=True)
         r2 = r2 - torch.sum(r1 * r2, dim=1, keepdim=True) * r1
@@ -266,7 +210,7 @@ class TppNetOld(nn.Module):
         #create the rotation matrix
         r = torch.stack([r1, r2, r3], dim=2)
 
-        gaxis_translation_scale = grasp[:, 0].reshape(-1, 1)
+        gaxis_translation_scale = grasp[:, -1].reshape(-1, 1)
         grasp_axis_trans_shift = gaxis_translation_scale * r1
         translation = mid_points - r3 * 1.12169998e-01 + grasp_axis_trans_shift
         #create 4x4 transformation matrix for each 
@@ -276,8 +220,8 @@ class TppNetOld(nn.Module):
         return trans_m
 if __name__ == "__main__":
 
-    from tpp_dataset import TPPDataset
-    from create_tpp_dataset import save_split_samples
+    from dataset.tpp_dataset import TPPDataset
+    from dataset.create_tpp_dataset import save_contactnet_split_samples
     from torch_geometric.loader import DataLoader, DataListLoader
     from utils.metrics import check_batch_grasp_success
     from torch_geometric.nn import DataParallel
@@ -285,14 +229,19 @@ if __name__ == "__main__":
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     device = "cpu"
     if device == "cuda":
-        model = TppNetOld(normalize=True).to(device)
+        model = TppNet(normalize=True).to(device)
         model = DataParallel(model)
     else:
-        model = TppNetOld(normalize=True)
-        # model = DataParallel(model)
+        model = TppNet(normalize=True)
+
+    #count the parameters
+    pytorch_total_params = sum(p.numel() for p in model.parameters())
+    print(f"Total number of parameters: {pytorch_total_params}")
+
+    # model = DataParallel(model)
     # dataset_name = "tpp_seed"
     dataset_name = "tpp_effdict_nomean_wnormals"
-    train_paths, val_paths = save_split_samples('../data', 1000, dataset_name)
+    train_paths, val_paths = save_contactnet_split_samples('../data', 1200, dataset_name)
     classification_criterion = nn.BCELoss()
     grasp_criterion = nn.MSELoss()
     # transform = RandomRotationTransform(rotation_range)

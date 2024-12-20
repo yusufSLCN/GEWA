@@ -1,26 +1,26 @@
 import torch
 import torch.nn as nn
 from torch_geometric.data import Data
-from TppNet import TppNet
-from deprecated.TppNetOld import TppNetOld
-from tpp_dataset import TPPDataset
-from visualize_tpp_dataset import show_pair_edges, show_grasp_and_edge_predictions, show_obj_mesh
+from models.TppNet import TppNet
+from dataset.tpp_dataset import TPPDataset
+from utils.visualize_tpp_dataset import show_pair_edges, show_grasp_and_edge_predictions, show_obj_mesh
 import argparse
 import wandb
 from torch_geometric.loader import DataListLoader, DataLoader
 import numpy as np
 from torcheval.metrics.functional.classification import binary_recall
 # from sklearn.metrics import recall_score
-from metrics import count_correct_approach_scores, check_succces_with_whole_dataset, check_succces_with_whole_gewa_dataset
+from utils.metrics import count_correct_approach_scores, check_succces_with_whole_dataset, check_succces_with_whole_gewa_dataset
 import time
+from dataset.create_tpp_dataset import save_contactnet_split_samples
+
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-mn','--model_name', type=str, default='model')
     parser.add_argument('-i', '--sample_idx', type=int, default=0)
+    parser.add_argument('-s', '--save', dest='save', action='store_true')
     args = parser.parse_args()
-    model_name = args.model_name
 
     # Initialize a run dont upload the run info
 
@@ -49,11 +49,9 @@ if __name__ == "__main__":
 
     # load the GraspNet model and run inference then display the gripper pose
     model = TppNet(grasp_dim=7, num_grasp_sample=50, sort_by_score=True, normalize=True, topk=50)
-    # model = TppNetOld(grasp_dim= 9, num_grasp_sample=100, sort_by_score=True, normalize=True)
     model = nn.DataParallel(model)
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
-    from create_tpp_dataset import save_contactnet_split_samples
     # train_paths, val_paths = save_split_samples('../data', 400, dataset_name="tpp_effdict", contactnet_split=True)
     # train_paths, val_paths = save_split_samples('../data', 400, dataset_name="tpp_effdict_nomean_wnormals", contactnet_split=True)
     train_paths, val_paths = save_contactnet_split_samples('../data', num_mesh=1200, dataset_name="tpp_effdict_nomean_wnormals")
@@ -115,10 +113,10 @@ if __name__ == "__main__":
     'up': [0, 0, 1]         # Up direction
     }
     
-    save_output = True
+    save_output = args.save
     
     sample_info = data.sample_info
-    print(sample_info["model_path"])
+    print(sample_info["simplified_mesh_path"])
     obj_class = sample_info["class"][0]
     save_name_grasp_pred = f"{obj_class}_{args.sample_idx}_{grasp_success}_grasp_pred.png"
     save_name_mesh = f"{obj_class}_{args.sample_idx}_mesh.png"

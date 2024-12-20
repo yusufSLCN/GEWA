@@ -218,7 +218,7 @@ if __name__ == "__main__":
     from approach_dataset import ApproachDataset
     from create_approach_dataset import save_split_samples
     from torch_geometric.loader import DataLoader
-    from metrics import check_batch_grasp_success
+    from utils.metrics import check_batch_grasp_success
     import numpy as np
 
     model = ApproachNet(global_feat_dim=1024, num_grasp_sample=500, device="cpu") 

@@ -11,7 +11,7 @@ from torch_geometric.loader import DataListLoader, DataLoader
 import numpy as np
 from torcheval.metrics.functional.classification import binary_recall
 # from sklearn.metrics import recall_score
-from metrics import count_correct_approach_scores, check_batch_grasp_success_rate_per_point, check_succces_with_whole_dataset
+from utils.metrics import count_correct_approach_scores, check_batch_grasp_success_rate_per_point, check_succces_with_whole_dataset
 import time
 
 if __name__ == "__main__":

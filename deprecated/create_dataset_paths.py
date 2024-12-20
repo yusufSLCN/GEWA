@@ -1,4 +1,4 @@
-from acronym_utils import get_simplified_samples, get_simplified_meshes_w_closest_grasp
+from visualization.acronym_utils import get_simplified_samples, get_simplified_meshes_w_closest_grasp
 import numpy as np
 import argparse
 import os

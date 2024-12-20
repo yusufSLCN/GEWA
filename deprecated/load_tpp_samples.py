@@ -2,7 +2,7 @@ import os
 import numpy as np
 from TPPSample import TPPSample
 import tqdm
-from acronym_utils import load_file_names, extract_sample_info
+from visualization.acronym_utils import load_file_names, extract_sample_info
 import h5py
 import open3d as o3d
 import torch

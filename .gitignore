@@ -2,6 +2,6 @@ data/
 __pycache__/
 wandb/
 sample_dirs/*
-models/*
+saved_models/*
 artifacts/*
 images/*

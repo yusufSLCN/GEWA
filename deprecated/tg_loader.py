@@ -1,4 +1,4 @@
-from acronym_dataset import AcronymDataset
+from deprecated.acronym_dataset import AcronymDataset
 from torch_geometric.loader import DataListLoader
 from torch_geometric.nn import DataParallel
 from GewaNet import GewaNet

@@ -229,7 +229,7 @@ if __name__ == "__main__":
     from tpp_dataset import TPPDataset
     from create_tpp_dataset import save_split_samples
     from torch_geometric.loader import DataLoader, DataListLoader
-    from metrics import check_batch_grasp_success
+    from utils.metrics import check_batch_grasp_success
     from torch_geometric.nn import DataParallel
 
     device = "cuda" if torch.cuda.is_available() else "cpu"

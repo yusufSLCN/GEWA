@@ -7,11 +7,11 @@ from torch_geometric.nn import DataParallel
 from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
-from tpp_dataset import TPPDataset
-from TppNet import TppNet
-from TppBallNet import TppBallNet
-from create_tpp_dataset import save_contactnet_split_samples
-from metrics import check_batch_success_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
+from dataset.tpp_dataset import TPPDataset
+from models.TppNet import TppNet
+from models.TppBallNet import TppBallNet
+from dataset.create_tpp_dataset import save_contactnet_split_samples
+from utils.metrics import check_batch_success_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
 import os
 import numpy as np
 import torch.optim as optim
@@ -293,12 +293,14 @@ for epoch in range(1, num_epochs + 1):
             with torch.no_grad():
                 if not args.only_classifier:
                     grasp_pred = grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
-                    # grasp_target = grasp_target.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_edge, 4, 4).numpy()
-                    # num_valid_grasps = num_valid_grasps.cpu().detach().numpy()
-                    # train_grasp_success += check_batch_grasp_success_rate_per_point(grasp_pred, grasp_target, 0.03,
-                    #                                                                 np.deg2rad(30), num_valid_grasps)
-                    grasp_gt_paths = [s.sample_info['grasps'] for s in data]
-                    means = [s.sample_info['mean'] for s in data]
+
+                    if multi_gpu:
+                        grasp_gt_paths = [s.sample_info['grasps'] for s in data]
+                        means = [s.sample_info['mean'] for s in data]
+                    else:
+                        grasp_gt_paths = data.sample_info['grasps']
+                        means = data.sample_info['mean']
+                    
                     train_grasp_success += check_batch_success_with_whole_gewa_dataset(grasp_pred, 0.03, np.deg2rad(30),grasp_gt_paths, means)
 
                 # Calculate the pair accuracy
@@ -389,8 +391,13 @@ for epoch in range(1, num_epochs + 1):
                     # val_num_valid_grasps = val_num_valid_grasps.cpu().detach().numpy()
                     # val_grasp_success += check_batch_grasp_success_rate_per_point(val_grasp_pred, val_grasp_target, 0.03,
                     #                                                                 np.deg2rad(30), val_num_valid_grasps)
-                    val_grasp_gt_paths = [s.sample_info['grasps'] for s in val_data]
-                    val_means = [s.sample_info['mean'] for s in val_data]
+                    if multi_gpu:
+                        val_grasp_gt_paths = [s.sample_info['grasps'] for s in val_data]
+                        val_means = [s.sample_info['mean'] for s in val_data]
+                    else:
+                        val_grasp_gt_paths = val_data.sample_info['grasps']
+                        val_means = val_data.sample_info['mean']
+
                     val_grasp_success += check_batch_success_with_whole_gewa_dataset(val_grasp_pred, 0.03, np.deg2rad(30),val_grasp_gt_paths, val_means)
 
 
@@ -427,7 +434,7 @@ for epoch in range(1, num_epochs + 1):
             # Save the model if the validation loss is low
             if val_grasp_success_rate > 0.1:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}.pth"
-                model_folder = f"models/{model_name}"
+                model_folder = f"saved_models/{model_name}"
                 if not os.path.exists(model_folder):
                     os.makedirs(model_folder)
 

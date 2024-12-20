@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch_geometric.nn import MLP, knn, PointNetConv
-from ApproachNet import SAModule, GlobalSAModule
+from models.ApproachNet import SAModule, GlobalSAModule
 from torch_geometric.data import Data
 
 

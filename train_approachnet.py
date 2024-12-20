@@ -7,10 +7,10 @@ from torch_geometric.nn import DataParallel
 from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
-from approach_dataset import ApproachDataset
-from ApproachNet import ApproachNet
-from create_approach_dataset import save_contactnet_split_samples
-from metrics import check_batch_success_with_whole_gewa_dataset, count_correct_approach_scores, check_batch_grasp_success_rate_per_point
+from dataset.approach_dataset import ApproachDataset
+from models.ApproachNet import ApproachNet
+from dataset.create_approach_dataset import save_contactnet_split_samples
+from utils.metrics import check_batch_success_with_whole_gewa_dataset, count_correct_approach_scores, check_batch_grasp_success_rate_per_point
 import os
 import numpy as np
 import torch.optim as optim
@@ -204,13 +204,15 @@ for epoch in range(1, num_epochs + 1):
             with torch.no_grad():
                 # Calculate the grasp success rate
                 pred = grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
-                # gt = grasp_gt.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_point, 4, 4).numpy()
-                # num_grasps_of_approach_points = num_grasps_of_approach_points.cpu().detach().reshape(-1, args.grasp_samples).numpy()
-                # selected_approach_scores = selected_approach_scores.cpu().detach().numpy()
-                # train_grasp_success += check_batch_grasp_success_rate_per_point(pred, gt, 0.03,
-                #                                                                 np.deg2rad(30), num_grasps_of_approach_points)
-                grasp_gt_paths = [s.sample_info['grasps'] for s in data]
-                point_cloud_means = [s.sample_info['mean'].detach().cpu().numpy() for s in data]
+
+                # if list loader is used then the data is a list of samples
+                if multi_gpu:
+                    grasp_gt_paths = [s.sample_info['grasps'] for s in data]
+                    point_cloud_means = [s.sample_info['mean'].detach().cpu().numpy() for s in data]
+                else:
+                    grasp_gt_paths = data.sample_info['grasps']
+                    point_cloud_means = data.sample_info['mean'].numpy()
+
                 train_grasp_success += check_batch_success_with_whole_gewa_dataset(pred, 0.03, np.deg2rad(30), grasp_gt_paths, point_cloud_means)
                 # Calculate the approach accuracy
                 if multi_gpu:
@@ -268,14 +270,14 @@ for epoch in range(1, num_epochs + 1):
             if epoch % args.log_interval == 0:
                 # Calculate the grasp success rate
                 pred = val_grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()
-                # gt = val_grasp_gt.cpu().detach().reshape(-1, args.grasp_samples, max_grasp_per_point, 4, 4).numpy()
-                # num_grasps_of_approach_points = num_grasps_of_approach_points.cpu().detach().reshape(-1, args.grasp_samples).numpy()
-                # selected_approach_scores = selected_approach_scores.cpu().detach().reshape(-1, args.grasp_samples).numpy()
-                # valid_grasp_success += check_batch_grasp_success_rate_per_point(pred, gt, 0.03,
-                #                                                 np.deg2rad(30), num_grasps_of_approach_points)
 
-                grasp_gt_paths = [s.sample_info['grasps'] for s in val_data]
-                point_cloud_means = [s.sample_info['mean'].detach().cpu().numpy() for s in val_data]
+                if multi_gpu:
+                    grasp_gt_paths = [s.sample_info['grasps'] for s in val_data]
+                    point_cloud_means = [s.sample_info['mean'].detach().cpu().numpy() for s in val_data]
+                else:
+                    grasp_gt_paths = val_data.sample_info['grasps']
+                    point_cloud_means = val_data.sample_info['mean'].numpy()
+
                 valid_grasp_success += check_batch_success_with_whole_gewa_dataset(pred, 0.03, np.deg2rad(30), grasp_gt_paths, point_cloud_means)
 
                 # Calculate the approach accuracy
@@ -303,7 +305,7 @@ for epoch in range(1, num_epochs + 1):
             # Save the model if the validation loss is low
             if grasp_success_rate > 0.1:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}__gd_{args.grasp_dim}__gs_{args.grasp_samples}.pth"
-                model_folder = f"models/{model_name}"
+                model_folder = f"saved_models/{model_name}"
                 if not os.path.exists(model_folder):
                     os.makedirs(model_folder)
 

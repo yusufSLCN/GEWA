@@ -10,7 +10,7 @@ from tqdm import tqdm
 from approach_dataset import ApproachDataset
 from GraspNet import GraspNet
 from create_approach_dataset import save_split_samples
-from metrics import check_batch_grasp_success
+from utils.metrics import check_batch_grasp_success
 import os
 import numpy as np
 

@@ -7,11 +7,11 @@ from torch_geometric.nn import DataParallel
 from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
-from acronym_dataset import AcronymDataset, RandomRotationTransform
+from deprecated.acronym_dataset import AcronymDataset, RandomRotationTransform
 from edgegrasp_dataset import EdgegraspDataset
-from EdgeGraspNet import EdgeGraspNet
+from models.EdgeGraspNet import EdgeGraspNet
 from create_dataset_paths import save_split_meshes
-from acronym_utils import analyze_dataset_stats
+from visualization.acronym_utils import analyze_dataset_stats
 import os
 import numpy as np
 

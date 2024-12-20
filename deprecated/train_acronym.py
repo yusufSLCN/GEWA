@@ -7,13 +7,13 @@ from torch_geometric.nn import DataParallel
 from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
-from acronym_dataset import AcronymDataset, RandomRotationTransform
+from deprecated.acronym_dataset import AcronymDataset, RandomRotationTransform
 # from EdgeGraspNet import EdgeGraspNet
 from GewaNet import GewaNet
-from ApproachNet import ApproachNet
+from models.ApproachNet import ApproachNet
 from create_dataset_paths import save_split_meshes
-from acronym_utils import analyze_dataset_stats
-from metrics import check_grasp_success_from_dict
+from visualization.acronym_utils import analyze_dataset_stats
+from utils.metrics import check_grasp_success_from_dict
 import os
 import numpy as np
 

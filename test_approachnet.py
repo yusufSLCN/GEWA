@@ -2,28 +2,24 @@ import torch
 import torch.nn as nn
 from torch_geometric.data import Data
 # from GraspNet import GraspNet
-from ApproachNet import ApproachNet
-from approach_dataset import ApproachDataset
-from create_approach_dataset import save_contactnet_split_samples
-from acronym_visualize_dataset import visualize_grasp, visualize_gt_and_pred_gasps
+from models.ApproachNet import ApproachNet
+from dataset.approach_dataset import ApproachDataset
+from dataset.create_approach_dataset import save_contactnet_split_samples
+from utils.visualize_acronym_dataset import visualize_grasp, visualize_gt_and_pred_gasps
 import argparse
 import wandb
 from torch_geometric.loader import DataLoader
 from torcheval.metrics.functional.classification import binary_recall, binary_precision, binary_accuracy
-from metrics import check_succces_with_whole_gewa_dataset
+from utils.metrics import check_succces_with_whole_gewa_dataset
 import numpy as np
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
-    parser.add_argument('-mn','--model_name', type=str, default='model')
     parser.add_argument('-idx', '--sample_idx', type=int, default=0)
     args = parser.parse_args()
-    model_name = args.model_name
 
     # Initialize a run dont upload the run info
-
     run = wandb.init(project="Grasp", job_type="download_model", notes="inference")
 
     # idx 17

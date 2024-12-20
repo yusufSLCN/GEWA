@@ -10,7 +10,7 @@ from tqdm import tqdm
 from tpp_dataset import TPPDataset
 from TppNet import TppNet
 from create_tpp_dataset import save_contactnet_split_samples
-from metrics import check_batch_success_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
+from utils.metrics import check_batch_success_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
 import os
 import numpy as np
 import torch.optim as optim

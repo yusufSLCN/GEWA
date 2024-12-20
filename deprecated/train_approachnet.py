@@ -10,9 +10,9 @@ from tqdm import tqdm
 from approach_dataset import ApproachDataset
 # from EdgeGraspNet import EdgeGraspNet
 from GewaNet import GewaNet
-from ApproachNet import ApproachNet
+from models.ApproachNet import ApproachNet
 from create_approach_dataset import save_split_samples
-from metrics import check_batch_grasp_success, count_correct_approach_scores
+from utils.metrics import check_batch_grasp_success, count_correct_approach_scores
 import os
 import numpy as np
 
