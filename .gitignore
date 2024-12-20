@@ -1,7 +1,9 @@
-data/
 __pycache__/
-wandb/
-sample_dirs/*
-saved_models/*
-artifacts/*
-images/*
+GEWA/wandb/
+GEWA/sample_dirs/*
+GEWA/saved_models/*
+GEWA/artifacts/*
+GEWA/images/*
+Manifold
+data/*
+!data/splits
