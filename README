@@ -1,19 +1,28 @@
 Grasp Everything With Anything
 
 Environment Setup
+cd GEWA
 pip install -r requirements.txt
 pip install dist/GEWA-1.0-py3-none-any.whl
 
 Dataset
--Download the acronym and shapenet datasets and unzip to the data folder
--Install the Manifold package following this repository. Place the Manifold folder in the root directory of the project.
+-Download the Acronym and ShapeNet datasets and unzip to the data folder
+https://sites.google.com/view/graspdataset
+https://huggingface.co/datasets/ShapeNet/ShapeNetSem-archive
+
+-Clone and build the Manifold package following this repository. Place the Manifold folder in the root directory of the project.
+https://github.com/hjwdzh/Manifold
+
 -Make the meshes watertight using Manifold with the following command:
   python dataset/preprocess_shapenet.py
 -After the preprocessing, the data folder should look like this:
 data
+├── splits
 ├── acronym
 ├── ShapeNetSem-backup
 ├── simplified_obj
+
+The split folder training and testing splits used in the ContactNet paper.
 
 Run the following command to generate the Touch Point Pair (TPP) or Approach dataset:
 python dataset/create_tpp_dataset.py
