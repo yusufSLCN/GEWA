@@ -7,13 +7,15 @@ from torch_geometric.nn import DataParallel
 from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
+import os
+import numpy as np
+import torch.optim as optim
+
 from dataset.approach_dataset import ApproachDataset
 from models.ApproachNet import ApproachNet
 from dataset.create_approach_dataset import save_contactnet_split_samples
 from utils.metrics import check_batch_success_with_whole_gewa_dataset, count_correct_approach_scores, check_batch_grasp_success_rate_per_point
-import os
-import numpy as np
-import torch.optim as optim
+
 
 # Parse the arguments
 parser = argparse.ArgumentParser()
@@ -94,8 +96,6 @@ config.device = device
 print(device)
 
 # Initialize the model
-# model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
-# model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
 model = ApproachNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples).to(device)
 
 config.model_name = model.__class__.__name__
@@ -120,6 +120,7 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
 scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[1000, 2000], gamma=0.5)
 
+# Define the loss functions
 classification_criterion = nn.BCELoss()
 tip_mse_loss = nn.MSELoss()
 grasp_mse_loss = nn.MSELoss(reduction='none')
@@ -136,12 +137,6 @@ def calculate_loss(approach_score_pred, grasp_pred, approach_score_gt, grasp_tar
     grasp_tip = torch.matmul(grasp_pred_mat, gripper_height)[:, :3]
     tip_loss = tip_mse_loss(grasp_tip, approach_points)
 
-    # grasp_target = grasp_target.reshape(-1, 4, 4)
-    # target_tip = torch.matmul(grasp_target, gripper_height)[:, :3]
-    # dist = (target_tip - approach_points).pow(2).sum(1).sqrt()
-    # dist_mask = dist < 0.02
-    # grasp_pred = grasp_pred[dist_mask].reshape(-1, 16)
-    # grasp_target = grasp_target[dist_mask].reshape(-1, 16)
     grasp_pred = grasp_pred.reshape(-1, args.grasp_samples, 1,  16)
     num_grasps_of_approach_points = num_grasps_of_approach_points.reshape(-1, args.grasp_samples)
     min_grasp_losses = []
@@ -195,6 +190,8 @@ for epoch in range(1, num_epochs + 1):
         loss.backward()
         # # Update the weights
         optimizer.step()
+
+        # Log the loss and success rate
         total_loss += loss.item()
         total_grasp_loss += grasp_loss.item()
         total_approach_loss += approach_loss.item()
@@ -267,6 +264,7 @@ for epoch in range(1, num_epochs + 1):
                 val_tip_loss = val_tip_loss.mean()
             val_loss = val_approach_loss + 100 * val_tip_loss + val_grasp_loss
 
+            # Log the loss and success rate
             if epoch % args.log_interval == 0:
                 # Calculate the grasp success rate
                 pred = val_grasp_pred.cpu().detach().reshape(-1, args.grasp_samples, 1, 4, 4).numpy()

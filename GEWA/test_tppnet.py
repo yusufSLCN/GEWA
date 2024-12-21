@@ -11,7 +11,7 @@ import numpy as np
 from torcheval.metrics.functional.classification import binary_recall
 # from sklearn.metrics import recall_score
 from utils.metrics import count_correct_approach_scores, check_succces_with_whole_dataset, check_succces_with_whole_gewa_dataset
-import time
+import os
 from dataset.create_tpp_dataset import save_contactnet_split_samples
 
 
@@ -20,32 +20,23 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--sample_idx', type=int, default=0)
     parser.add_argument('-s', '--save', dest='save', action='store_true')
+    parser.add_argument('-d', '--download', dest='download', action='store_true')
     args = parser.parse_args()
 
     # Initialize a run dont upload the run info
 
-    run = wandb.init(project="Grasp", job_type="download_model", notes="inference")
 
     # idx 4, 5, 6, 7, 13, 18
-    #calcualted translation
-    # calculated trans
-    # contact split
-    # downloaded_model_path = run.use_model(name="TppNet_nm_1200__bs_4.pth_epoch_540_success_0.60_acc_0.95_recall_0.61.pth:v0")
+    model_folder = "TppNet_nm_5600__bs_4.pth_epoch_490_success_0.79_acc_0.94_recall_0.72.pth:v0"
+    if args.download:
+        run = wandb.init(project="Grasp", job_type="download_model", notes="inference")
+        downloaded_model_path = run.use_model(name=model_folder)
+        model_path = downloaded_model_path
 
-    #100 tip loss 
-    # downloaded_model_path = run.use_model(name="TppNet_nm_1200__bs_4.pth_epoch_330_success_0.66_acc_0.97_recall_0.34.pth:v0")
-    #5600 mesh training
-    # downloaded_model_path = run.use_model(name="TppNet_nm_5600__bs_4.pth_epoch_410_success_0.71_acc_0.97_recall_0.32.pth:v0")
+    else:
+        model_path = f"artifacts/{model_folder}/{model_folder[:-3]}"
 
-    #axis loss
-    # downloaded_model_path = run.use_model(name="TppNet_nm_1200__bs_4.pth_epoch_570_success_0.56_acc_0.94_recall_0.65.pth:v0")
-
-    #TPPNET NEW, axis loss
-    downloaded_model_path = run.use_model(name="TppNet_nm_5600__bs_4.pth_epoch_490_success_0.79_acc_0.94_recall_0.72.pth:v0")
-
-    print(downloaded_model_path)
-
-    model_path = downloaded_model_path
+    print(model_path)
 
     # load the GraspNet model and run inference then display the gripper pose
     model = TppNet(grasp_dim=7, num_grasp_sample=50, sort_by_score=True, normalize=True, topk=50)

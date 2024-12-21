@@ -7,17 +7,17 @@ from torch_geometric.nn import DataParallel
 from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
-from dataset.tpp_dataset import TPPDataset
-from models.TppNet import TppNet
-from models.TppBallNet import TppBallNet
-from dataset.create_tpp_dataset import save_contactnet_split_samples
-from utils.metrics import check_batch_success_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
 import os
 import numpy as np
 import torch.optim as optim
 import time
-# from sklearn.metrics import recall_score
 from torcheval.metrics.functional.classification import binary_accuracy, binary_recall, binary_precision, binary_f1_score
+
+from dataset.tpp_dataset import TPPDataset
+from models.TppNet import TppNet
+from models.TppBallNet import TppBallNet
+from dataset.create_tpp_dataset import save_contactnet_split_samples
+from utils.metrics import check_batch_success_with_whole_gewa_dataset
 
 # Parse the arguments
 parser = argparse.ArgumentParser()
@@ -38,7 +38,6 @@ parser.add_argument('-gs', '--grasp_samples', type=int, default=100)
 parser.add_argument('-li', '--log_interval', type=int, default=10)
 parser.add_argument('-oc', '--only_classifier', action='store_true')
 parser.add_argument('-mn', '--model_name', type=str, default='tppnet')
-# parser.add_argument('-csplit', '--contactnet_split', action='store_true')
 parser.add_argument('-dn', '--dataset_name', type=str, default="tpp_effdict_nomean_wnormals")
 args = parser.parse_args()
 
@@ -60,9 +59,6 @@ else:
 print("Transform params: ", transfom_params)
 
 # Save the split samples
-# train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh, dataset_name=args.dataset_name,
-#                                            contactnet_split=args.contactnet_split)
-
 train_dirs, val_dirs = save_contactnet_split_samples(args.data_dir, num_mesh=args.num_mesh, dataset_name=args.dataset_name)
 return_grasp_dict = not args.only_classifier
 train_dataset = TPPDataset(train_dirs, transform=transform, return_pair_dict=return_grasp_dict, normalize=True)
@@ -104,8 +100,6 @@ config.device = device
 print(device)
 
 # Initialize the model
-# model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
-# model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
 max_grasp_per_edge = 10
 topk = 10
 if args.model_name == 'tppnet':
@@ -415,7 +409,6 @@ for epoch in range(1, num_epochs + 1):
             average_val_grasp_loss = total_val_grasp_loss / len(val_data_loader)
             average_val_tip_loss = total_val_tip_loss / len(val_data_loader)
             average_val_grasp_axis_loss = total_val_grasp_axis_loss / len(val_data_loader)
-
             val_grasp_success_rate = val_grasp_success / len(val_data_loader)
 
             wandb.log({"Valid Grasp Success Rate": val_grasp_success_rate}, step=epoch)
@@ -424,6 +417,7 @@ for epoch in range(1, num_epochs + 1):
             val_recall = val_recall / len(val_data_loader)
             val_precision = val_precision / len(val_data_loader)
             val_f1 = val_f1 / len(val_data_loader)
+
             wandb.log({"Val Recall": val_recall, "Val Accuracy":valid_pair_accuracy, 
                        "Val Precision":val_precision, "Val_F1":val_f1}, step=epoch)
             print(f"Train Pair Acc: {train_pair_accuracy} - Valid Pair Accuracy: {valid_pair_accuracy}")
@@ -431,7 +425,8 @@ for epoch in range(1, num_epochs + 1):
             print(f"Train Pair Precision: {train_precision} - Valid Pair Precision: {val_precision}")
             print(f"Train Pair F1: {train_f1} - Valid Pair F1: {val_f1}")
             print(f"Train Grasp Success: {train_success_rate} - Valid Grasp Success: {val_grasp_success_rate}")
-            # Save the model if the validation loss is low
+
+            # Save the model if the validation success rate is greater than 0.1
             if val_grasp_success_rate > 0.1:
                 model_name = f"{config.model_name}_nm_{args.num_mesh}__bs_{args.batch_size}.pth"
                 model_folder = f"saved_models/{model_name}"

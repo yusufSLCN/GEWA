@@ -2,13 +2,12 @@ import numpy as np
 import open3d as o3d
 from matplotlib import colormaps
 import matplotlib.pyplot as plt
-from tpp_dataset import TPPDataset
-from visualization.visualize_acronym_dataset import visualize_grasps
-from create_tpp_dataset import save_contactnet_split_samples
-from tpp_dataset import TPPDataset
+from dataset.tpp_dataset import TPPDataset
+from utils.visualize_acronym_dataset import visualize_grasps
+from dataset.create_tpp_dataset import save_contactnet_split_samples
+from dataset.tpp_dataset import TPPDataset
+from dataset.create_tpp_dataset import create_touch_point_pair_scores_and_grasps
 import argparse
-import time
-from create_tpp_dataset import create_touch_point_pair_scores_and_grasps
 import os
 
 def show_tpp_grasps(args, dataset, pos, grasps_dict, pair_scores):

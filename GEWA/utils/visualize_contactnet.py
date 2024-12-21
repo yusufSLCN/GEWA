@@ -4,7 +4,7 @@ import h5py
 from utils.visualize_acronym_dataset import visualize_grasps
 
 if __name__ == "__main__":
-    results_path = "/Users/yusufsalcan/Documents/CS_Semester_2/Grasp_Everything_with_Anything/contactgraspnet/results"
+    results_path = "../contactgraspnet/results"
     files = os.listdir(results_path)
     for file in files:
         results = np.load(os.path.join(results_path, file), allow_pickle=True)

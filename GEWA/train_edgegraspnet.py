@@ -1,22 +1,19 @@
 import torch
-import torch.nn as nn
-import torch_geometric.transforms as T
 import wandb
 from torch_geometric.loader import DataLoader, DataListLoader
 from torch_geometric.nn import DataParallel
 from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
-from dataset.tpp_dataset import TPPDataset
-from models.EdgeGraspNet import EdgeGrasp
-from dataset.create_tpp_dataset import save_contactnet_split_samples
-from utils.metrics import check_batch_success_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
 import os
 import numpy as np
 import torch.optim as optim
-import time
-# from sklearn.metrics import recall_score
 from torcheval.metrics.functional.classification import binary_accuracy, binary_recall, binary_precision, binary_f1_score
+
+from dataset.tpp_dataset import TPPDataset
+from models.EdgeGraspNet import EdgeGrasp
+from dataset.create_tpp_dataset import save_contactnet_split_samples
+from utils.metrics import check_batch_success_with_whole_gewa_dataset
 
 # Parse the arguments
 parser = argparse.ArgumentParser()

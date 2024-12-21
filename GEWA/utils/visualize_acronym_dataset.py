@@ -5,6 +5,7 @@ import numpy as np
 import open3d as o3d
 
 
+
 def create_scene_with_reference(vertices=None):
     # sphare = trimesh.creation.icosphere(subdivisions=4, radius=0.01)
     scene = trimesh.Scene()  
@@ -292,6 +293,8 @@ def visualize_point_cloud(point_cloud: np.ndarray):
 
 
 def visualize_sample(model_path, samples):
+    from deprecated.acronym_dataset import AcronymDataset
+
     dataset = AcronymDataset(samples)
 
     sample_found = False

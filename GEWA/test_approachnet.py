@@ -1,59 +1,51 @@
 import torch
 import torch.nn as nn
-from torch_geometric.data import Data
-# from GraspNet import GraspNet
-from models.ApproachNet import ApproachNet
-from dataset.approach_dataset import ApproachDataset
-from dataset.create_approach_dataset import save_contactnet_split_samples
-from utils.visualize_acronym_dataset import visualize_grasp, visualize_gt_and_pred_gasps
+import numpy as np
 import argparse
 import wandb
 from torch_geometric.loader import DataLoader
 from torcheval.metrics.functional.classification import binary_recall, binary_precision, binary_accuracy
+
 from utils.metrics import check_succces_with_whole_gewa_dataset
-import numpy as np
+from models.ApproachNet import ApproachNet
+from dataset.approach_dataset import ApproachDataset
+from dataset.create_approach_dataset import save_contactnet_split_samples
+from utils.visualize_acronym_dataset import visualize_gt_and_pred_gasps
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-idx', '--sample_idx', type=int, default=0)
+    parser.add_argument('-d', '--download', dest='download', action='store_true')
     args = parser.parse_args()
 
     # Initialize a run dont upload the run info
-    run = wandb.init(project="Grasp", job_type="download_model", notes="inference")
+    model_folder = "DynANet_nm_1200__bs_64__gd_9__gs_50.pth_epoch_1370_grasp_success_0.5898125000000001.pth:v0"
+    if args.download:
+        run = wandb.init(project="Grasp", job_type="download_model", notes="inference")
+        downloaded_model_path = run.use_model(name=model_folder)
+        model_path = downloaded_model_path
 
-    # idx 17
-    # Access and download model. Returns path to downloaded artifact
-    # downloaded_model_path = run.use_model(name="DynANet_nm_1000__bs_64_epoch_820.pth:v0")
-    # downloaded_model_path = run.use_model(name="DynANet_nm_1000__bs_128_epoch_900.pth:v0")
-    # downloaded_model_path = run.use_model(name="DynANet_nm_4000__bs_128_epoch_2020.pth:v0")
-    downloaded_model_path = run.use_model(name="DynANet_nm_1200__bs_64__gd_9__gs_50.pth_epoch_1370_grasp_success_0.5898125000000001.pth:v0")
-    print(downloaded_model_path)
-
-    model_path = downloaded_model_path
+    else:
+        model_path = f"artifacts/{model_folder}/{model_folder[:-3]}"
+    
+    print(model_path)
 
     # load the GraspNet model and run inference then display the gripper pose
     num_grasp_samples = 10
     model = ApproachNet(grasp_dim=9, num_grasp_sample=num_grasp_samples, sort_by_score=True)
     #count model parameters
     print(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
+
+    # The model is saved as a DataParallel model, so we need to load it as such
     model = nn.DataParallel(model)
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
-    # train_paths, val_paths = save_split_samples('../data', -1)
     train_paths, val_paths = save_contactnet_split_samples('../data', num_mesh=1200)
     dataset = ApproachDataset(val_paths)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
 
     samlpe_idx = args.sample_idx
-    # data = data_loader[samlpe_idx]
-    config = wandb.config
-    config.model_path = model_path
-    config.model = model.__class__.__name__
-    config.sample_idx = samlpe_idx
-    config.num_samples = len(data_loader)
-
-    # print(data)
     model.device = 'cpu'
     model.eval()
 
@@ -78,7 +70,6 @@ if __name__ == "__main__":
 
     gt = grasp_gt.cpu().detach().reshape(-1, num_grasp_samples, dataset.max_grasp_perpoint, 4, 4).numpy()
     num_grasps_of_approach_points = num_grasps_of_approach_points.cpu().detach().reshape(-1, num_grasp_samples).numpy()
-    # grasps_success = check_batch_grasp_success_rate_per_point(pred, gt, 0.03, np.deg2rad(30), num_grasps_of_approach_points)
     grasp_gt_path = data.sample_info['grasps'][0]
     point_cloud_mean = data.sample_info['mean'].numpy()
     grasp_success = check_succces_with_whole_gewa_dataset(pred, 0.03, np.deg2rad(30), grasp_gt_path, point_cloud_mean)

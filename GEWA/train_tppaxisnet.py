@@ -7,16 +7,16 @@ from torch_geometric.nn import DataParallel
 from torch_geometric.transforms import RandomJitter, Compose
 import argparse
 from tqdm import tqdm
-from dataset.tpp_dataset import TPPDataset
-from models.TppAxisNet import TppAxisNet
-from dataset.create_tpp_dataset import save_contactnet_split_samples
-from utils.metrics import check_batch_success_with_whole_gewa_dataset, check_batch_grasp_success_rate_per_point
 import os
 import numpy as np
 import torch.optim as optim
 import time
-# from sklearn.metrics import recall_score
 from torcheval.metrics.functional.classification import binary_accuracy, binary_recall, binary_precision, binary_f1_score
+
+from dataset.tpp_dataset import TPPDataset
+from models.TppAxisNet import TppAxisNet
+from dataset.create_tpp_dataset import save_contactnet_split_samples
+from utils.metrics import check_batch_success_with_whole_gewa_dataset
 
 # Parse the arguments
 parser = argparse.ArgumentParser()
@@ -58,9 +58,6 @@ else:
 print("Transform params: ", transfom_params)
 
 # Save the split samples
-# train_dirs, val_dirs = save_split_samples(args.data_dir, num_mesh=args.num_mesh, dataset_name=args.dataset_name,
-#                                            contactnet_split=args.contactnet_split)
-
 train_dirs, val_dirs = save_contactnet_split_samples(args.data_dir, num_mesh=args.num_mesh, dataset_name=args.dataset_name)
 return_grasp_dict = not args.only_classifier
 train_dataset = TPPDataset(train_dirs, transform=transform, return_pair_dict=return_grasp_dict, normalize=True)
@@ -102,8 +99,6 @@ config.device = device
 print(device)
 
 # Initialize the model
-# model = GraspNet(scene_feat_dim= config.scene_feat_dims).to(device)
-# model = GewaNet(scene_feat_dim= config.scene_feat_dims, device=device).to(device)
 max_grasp_per_edge = 10
 topk = 10
 model = TppAxisNet(grasp_dim=args.grasp_dim, num_grasp_sample=args.grasp_samples,
@@ -133,21 +128,19 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
 scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[args.epochs // 2, 3 * args.epochs // 4], gamma=0.5)
 
-# classification_criterion = nn.BCELoss()
-# classification_criterion = nn.BCEWithLogitsLoss(pos_weight=500)
+
+# Define the loss functions
 tip_mse_loss = nn.MSELoss()
 grasp_axis_mse_loss = nn.MSELoss()
 grasp_mse_loss = nn.MSELoss(reduction='none')
-# grasp_mse_loss = nn.MSELoss()
+
+# pos weight is the ratio of negative to positive samples, it is used to balance the loss
 neg_pos_ratio = 44.8
 classification_criterion = nn.BCEWithLogitsLoss(pos_weight= torch.tensor(0.3 * neg_pos_ratio))
 
 
 def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, mlp_out_ij, binary_pair_scores_gt, grasp_axises=None, num_grasp_samples=50):
     # Calculate the pair loss
-    # pos_pair_count = torch.sum(binary_pair_scores_gt)
-    # pos_weight = (binary_pair_scores_gt.numel() - pos_pair_count) / pos_pair_count
-    # classification_criterion = nn.BCEWithLogitsLoss(pos_weight= 0.1 * pos_weight)
     pair_loss = classification_criterion(mlp_out_ij, binary_pair_scores_gt)
 
     if args.only_classifier:
@@ -182,11 +175,6 @@ def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, 
     grasp_target = grasp_target.reshape(-1, num_grasp_samples, max_grasp_per_edge, 16)
 
     #just translation
-    # grasp_pred = grasp_pred_mat[:, :3, 3]
-    # grasp_pred = grasp_pred.reshape(-1, args.grasp_samples, 1,  3)
-    # grasp_target = grasp_target[:, :, :, :3, 3]
-    # grasp_target = grasp_target.to(grasp_pred.device)
-
     for i in range(len(grasp_target)):
         sample_grasp_target = grasp_target[i]
         sample_grasp_pred = grasp_pred[i].repeat(1, max_grasp_per_edge, 1)
@@ -238,32 +226,20 @@ for epoch in range(1, num_epochs + 1):
         else:
             pair_scores_gt = torch.cat([s.pair_scores for s in data])
 
-        t2 = time.time()
-        # print(f"Data prep takes {t2 - t1}s")
-        # if args.only_classifier:
-        #     pair_classification_pred, mlp_out_ij = model(data)
-        # else:
         grasp_pred, selected_edge_idxs, mid_edge_pos, grasp_axises, grasp_target, num_valid_grasps, pair_classification_pred, mlp_out_ij = model(data)
 
-        t3 = time.time()
-        # print(f"Model takes {t3 - t2}s")
         pair_scores_gt = pair_scores_gt.reshape(-1, num_pairs)
         binary_pair_scores_gt = (pair_scores_gt > 0).float().to(pair_classification_pred.device)
 
         pair_loss, grasp_loss, tip_loss, grasp_axis_loss = calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_pos,
                                                                            mlp_out_ij, binary_pair_scores_gt, grasp_axises, num_grasp_samples=args.grasp_samples)
 
-        # contrastive_criterion = nn.CrossEntropyLoss()
-        # contrastive_loss =  contrastive_criterion(mlp_out_ij, mlp_out_ji)
-        t4 = time.time()
-        # print(f"Loss takes {t4 - t3}s")
         if multi_gpu:
             pair_loss = pair_loss.mean()
             if not args.only_classifier:
                 grasp_loss = grasp_loss.mean()
                 tip_loss = tip_loss.mean()
                 grasp_axis_loss = grasp_axis_loss.mean()
-            # contrastive_loss = contrastive_loss.mean()
 
         # if args.only_classifier:
         #     loss = pair_loss
@@ -352,8 +328,6 @@ for epoch in range(1, num_epochs + 1):
                 else:
                     val_pair_scores_gt = torch.cat([s.pair_scores for s in val_data])
 
-                
-                # val_pair_pred, val_pair_dot_product = model(val_data)
                 val_grasp_pred, val_selected_edge_idxs, val_mid_edge_pos, val_grasp_axises, val_grasp_target, val_num_valid_grasps, val_pair_pred, val_mlp_out_ij = model(val_data)
                 
                 val_pair_scores_gt = val_pair_scores_gt.reshape(-1, num_pairs)
