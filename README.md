@@ -87,7 +87,7 @@ Give the index of the test objects by --sample_idx.
 python test_tppnet.py --sample_idx 0
 ```
 
-### Approachnet
+### ApproachNet
 ```
 python test_approachnet.py --sample_idx 0
 ```
