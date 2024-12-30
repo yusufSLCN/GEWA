@@ -12,13 +12,13 @@ PointPairNet is a method that we developed. It classifies graspable edges betwee
 Example graspable edges:
 ![PointPairNet_edges](PointPairNet_edges.png)
 
-Predicted grasps:
+Predicted grasps and edges:
 ![PointPairNet_grasps](PointPairNet_grasps.png)
 
 2) **ApproachNet**<br>
 ApproachNet is a model based on classifying valid approach points on the point cloud and using the embeddings of the approach points to predict grasp poses. This model is similar to the [Contact-GraspNet](https://arxiv.org/abs/2103.14127)
 
-3) **EdgeGraspNetwork**<br>
+3) **EdgeGraspNet**<br>
 We implemented [Edge Grasp Network paper](https://arxiv.org/abs/2211.00191) and compared results our results with it.
 
 ## Installation
