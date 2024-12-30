@@ -37,7 +37,7 @@ pip install -r requirements.txt
 ## Dataset
 -Download the [Acronym](https://sites.google.com/view/graspdataset) and [ShapeNet](https://huggingface.co/datasets/ShapeNet/ShapeNetSem-archive) datasets and unzip to the data folder
 
--Clone the Manifold repository https://github.com/hjwdzh/Manifold to the root directory and follow the instructions in the repo to build the Manifold package
+-Clone the [Manifold repository](https://github.com/hjwdzh/Manifold) to the root directory and follow the instructions in the repo to build the Manifold package
 
 -Make the downloaded meshes watertight using Manifold with the following command:
 ```
