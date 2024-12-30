@@ -4,7 +4,7 @@ Predicting stable grasps is a crucial aspect of robotic manipulation tasks, yet 
 
 In this repository, we implemented 3 methods for object grasping using point clouds. PointPairNet, ApproachNet and EdgeGraspNet:
 
-1) PointPairNet<br>
+1) **PointPairNet**<br>
 PointPairNet is a method that we developed. It classifies graspable edges between the point pairs on the point cloud and uses the edge embedding to predict grasp poses for different objects.
 
 ![PointPairNet_full](PointPairNet_full.png)
@@ -15,10 +15,10 @@ Example graspable edges:
 Predicted grasps:
 ![PointPairNet_grasps](PointPairNet_grasps.png)
 
-2) ApproachNet<br>
+2) **ApproachNet**<br>
 ApproachNet is a model based on classifying valid approach points on the point cloud and using the embeddings of the approach points to predict grasp poses. This model is similar to the [Contact-GraspNet](https://arxiv.org/abs/2103.14127)
 
-3) EdgeGraspNetwork<br>
+3) **EdgeGraspNetwork**<br>
 We implemented [Edge Grasp Network paper](https://arxiv.org/abs/2211.00191) and compared results our results with it.
 
 ## Installation
@@ -93,9 +93,21 @@ python test_approachnet.py --sample_idx 0
 ```
 
 ## Training
+For single GPU training remove the -mg argument and add gpu id with -di. Adjust batch size with -bs argument. You can train the models on a smaller dataset by setting the -nm argument, default 5600. 
 
 ### PointPairNet
+```
+python train_tppnet.py -e 600 -bs 4 -gs 50 -lr 0.001 -mg
+```
 
-### Approachnet
+### ApproachNet
+```
+python train_approachnet.py -e 8000 -bs 64 -lr 0.001 -gs 50 -mg
+```
 
 ### EdgeGraspNet
+EdgeGraspnet doesn't support multigpu training.
+
+```
+python train_edgegraspnet.py -e 300 -nm 5600 -bs 1 -di 0
+```
