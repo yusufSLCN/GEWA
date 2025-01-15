@@ -27,7 +27,7 @@ cd GEWA
 conda create -n GEWA python=3.11
 conda activate GEWA
 ```
-Install conda for your device: https://pytorch.org/get-started/locally/
+Install PyTorch for your device: https://pytorch.org/get-started/locally/
 
 ```
 conda install pyg -c pyg
