@@ -89,6 +89,13 @@ class GlobalEmdModel(torch.nn.Module):
     
 class EdgeGrasp(nn.Module):
     def __init__(self, num_app_samples=32, num_contact_samples=32):
+        """
+        Initialize the EdgeGrasp model.
+
+        Args:
+            num_app_samples (int): Number of approach samples.
+            num_contact_samples (int): Number of contact samples.
+        """
         super(EdgeGrasp, self).__init__()
         self.num_app_samples = num_app_samples
         self.num_contact_samples = num_contact_samples
@@ -154,7 +161,7 @@ class EdgeGrasp(nn.Module):
                 contact_normals = ball_normals[contact_point_idx]
                 approach_point = appr_points[i]
 
-                #calculate the transformation matrix
+                #calculate the transformation matrix from the contact normals, contactpoints and approach point
                 grasp_pred = self.calculate_transformation(approach_point, contact_points, contact_normals)
                 success_pred = classifier_out[contact_point_idx].squeeze()
 

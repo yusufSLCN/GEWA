@@ -4,6 +4,10 @@ GEWA/sample_dirs/*
 GEWA/saved_models/*
 GEWA/artifacts/*
 GEWA/images/*
+models
+artifacts
+sample_dirs
+wandb
 Manifold
 data/*
 !data/splits

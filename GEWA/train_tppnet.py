@@ -145,10 +145,23 @@ classification_criterion = nn.BCEWithLogitsLoss(pos_weight= torch.tensor(0.3 * n
 
 
 def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, mlp_out_ij, binary_pair_scores_gt, grasp_axises=None, num_grasp_samples=50):
+    """
+    Calculate the loss for the model.
+
+    Args:
+        grasp_pred (torch.Tensor): Predicted grasp poses.
+        grasp_target (torch.Tensor): Ground truth grasp poses.
+        num_valid_grasps (torch.Tensor): Number of valid grasps.
+        mid_edge_points (torch.Tensor): Midpoints of the edges.
+        mlp_out_ij (torch.Tensor): Pair prediction scores.
+        binary_pair_scores_gt (torch.Tensor): Ground truth binary pair scores.
+        grasp_axises (torch.Tensor, optional): Ground truth grasp axes. Defaults to None.
+        num_grasp_samples (int, optional): Number of grasp samples. Defaults to 50.
+
+    Returns:
+        tuple: Pair loss, grasp loss, tip loss, and grasp axis loss.
+    """
     # Calculate the pair loss
-    # pos_pair_count = torch.sum(binary_pair_scores_gt)
-    # pos_weight = (binary_pair_scores_gt.numel() - pos_pair_count) / pos_pair_count
-    # classification_criterion = nn.BCEWithLogitsLoss(pos_weight= 0.1 * pos_weight)
     pair_loss = classification_criterion(mlp_out_ij, binary_pair_scores_gt)
 
     if args.only_classifier:
@@ -181,12 +194,6 @@ def calculate_loss(grasp_pred, grasp_target, num_valid_grasps, mid_edge_points, 
     min_grasp_losses = []
     grasp_target = grasp_target.to(grasp_pred.device)
     grasp_target = grasp_target.reshape(-1, num_grasp_samples, max_grasp_per_edge, 16)
-
-    #just translation
-    # grasp_pred = grasp_pred_mat[:, :3, 3]
-    # grasp_pred = grasp_pred.reshape(-1, args.grasp_samples, 1,  3)
-    # grasp_target = grasp_target[:, :, :, :3, 3]
-    # grasp_target = grasp_target.to(grasp_pred.device)
 
     for i in range(len(grasp_target)):
         sample_grasp_target = grasp_target[i]
@@ -264,7 +271,6 @@ for epoch in range(1, num_epochs + 1):
                 grasp_loss = grasp_loss.mean()
                 tip_loss = tip_loss.mean()
                 grasp_axis_loss = grasp_axis_loss.mean()
-            # contrastive_loss = contrastive_loss.mean()
 
         # if args.only_classifier:
         #     loss = pair_loss

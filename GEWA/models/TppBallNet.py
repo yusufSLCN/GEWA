@@ -1,4 +1,24 @@
 import torch
+"""
+TppBallNet: An extension of the TPPNet that extracts local features around the selected edge.
+Classes:
+    GlobalEmdModel(nn.Module):
+        A neural network model for extracting global embeddings from positional embeddings.
+        Methods:
+            __init__(self, input_c=128, inter_c=(256, 512, 512), output_c=512):
+                Initializes the GlobalEmdModel with the given input, intermediate, and output dimensions.
+            forward(self, pos_emd, radius_p_batch):
+                Forward pass to compute the global embedding from positional embeddings and batch indices.
+    TppBallNet(nn.Module):
+        A neural network model for grasp prediction using dynamic edge convolutions and global embeddings.
+        Methods:
+            __init__(self, grasp_dim=7, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False,
+                Initializes the TppBallNet with the given parameters for grasp prediction.
+            forward(self, data):
+                Forward pass to compute grasp predictions and edge classifications from input data.
+            calculateTransformationMatrix(self, grasp, mid_points):
+                Calculates the transformation matrix for the given grasp and midpoints.
+"""
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import DynamicEdgeConv, MLP, global_max_pool, radius
@@ -19,9 +39,25 @@ class GlobalEmdModel(torch.nn.Module):
         global_emd = global_max_pool(global_emd, radius_p_batch)
         return global_emd
     
+
 class TppBallNet(nn.Module):
     def __init__(self, grasp_dim=7, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False,
                   sort_by_score=True, with_normals=False, normalize=False, topk=10):
+        """
+        Initializes the TppBallNet with the given parameters for grasp prediction.
+        
+        Args:
+            grasp_dim (int): Dimension of the grasp representation.
+            k (int): Number of nearest neighbors for dynamic edge convolution.
+            num_grasp_sample (int): Number of grasp samples.
+            num_points (int): Number of points in the point cloud.
+            max_num_grasps (int): Maximum number of grasps.
+            only_classifier (bool): If True, only the edge classifier is used.
+            sort_by_score (bool): If True, sort edges by score.
+            with_normals (bool): If True, use normals in the input.
+            normalize (bool): If True, normalize the grasp.
+            topk (int): Number of top edges to consider.
+        """
         super(TppBallNet, self).__init__()
         
         self.num_grasp_sample = num_grasp_sample

@@ -7,6 +7,21 @@ import numpy as np
 class TppNet(nn.Module):
     def __init__(self, grasp_dim=7, k=8, num_grasp_sample=100, num_points=1000, max_num_grasps=10, only_classifier=False,
                   sort_by_score=True, with_normals=False, normalize=False, topk=10):
+        """
+        Initialize the TppNet model.
+
+        Args:
+            grasp_dim (int): Dimension of the grasp representation.
+            k (int): Number of nearest neighbors for DynamicEdgeConv.
+            num_grasp_sample (int): Number of grasp samples.
+            num_points (int): Number of points in the point cloud.
+            max_num_grasps (int): Maximum number of grasps.
+            only_classifier (bool): If True, only the classifier is used.
+            sort_by_score (bool): If True, sort edges by score.
+            with_normals (bool): If True, include normals in the input.
+            normalize (bool): If True, normalize the grasp positions.
+            topk (int): Number of top edges to consider.
+        """
         super(TppNet, self).__init__()
         
         self.num_grasp_sample = num_grasp_sample
@@ -38,11 +53,6 @@ class TppNet(nn.Module):
             # nn.Linear(128, self.point_feat_dim)
         ) 
 
-        # self.edge_classifier = nn.Sequential(
-        #     nn.Linear(self.point_feat_dim * 2, self.point_feat_dim),
-        #     nn.ReLU(),
-        #     nn.Linear(self.point_feat_dim, 1)
-        # )
 
         self.edge_classifier = nn.Sequential(
             nn.Linear(self.point_feat_dim * 3, self.point_feat_dim),
